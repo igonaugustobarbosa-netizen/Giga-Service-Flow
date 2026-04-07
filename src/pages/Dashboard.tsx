@@ -20,20 +20,34 @@ import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { cn } from '../lib/utils';
 
+import { useAuth } from '../components/AuthGuard';
+
 export default function Dashboard() {
+  const { userData, isAdmin } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const qOrders = query(collection(db, 'serviceOrders'), orderBy('createdAt', 'desc'), limit(10));
+    if (!userData) return;
+
+    const ordersRef = collection(db, 'serviceOrders');
+    const customersRef = collection(db, 'customers');
+
+    const qOrders = isAdmin 
+      ? query(ordersRef, orderBy('createdAt', 'desc'), limit(10))
+      : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'), limit(10));
+
     const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
       setOrders(data);
       setLoading(false);
     });
 
-    const qCustomers = query(collection(db, 'customers'));
+    const qCustomers = isAdmin
+      ? query(customersRef)
+      : query(customersRef, where('tenantId', '==', userData.tenantId));
+
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(data);
@@ -43,7 +57,7 @@ export default function Dashboard() {
       unsubscribeOrders();
       unsubscribeCustomers();
     };
-  }, []);
+  }, [userData, isAdmin]);
 
   const stats = [
     { 

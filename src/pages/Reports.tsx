@@ -21,8 +21,10 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { generateReportPDF } from '../services/reportService';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../components/AuthGuard';
 
 export default function Reports() {
+  const { userData, isAdmin } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -38,21 +40,29 @@ export default function Reports() {
   });
 
   useEffect(() => {
+    if (!userData) return;
+
+    const customersRef = collection(db, 'customers');
+    const suppliersRef = collection(db, 'suppliers');
+    const ordersRef = collection(db, 'serviceOrders');
+
     // Load customers
-    const unsubscribeCustomers = onSnapshot(query(collection(db, 'customers'), orderBy('name')), (snapshot) => {
+    const qCustomers = isAdmin ? query(customersRef, orderBy('name')) : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     });
 
     // Load suppliers
-    const unsubscribeSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snapshot) => {
+    const qSuppliers = isAdmin ? query(suppliersRef, orderBy('name')) : query(suppliersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
     });
 
-    // Initial load of orders for the current month
+    // Initial load of orders
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const q = query(collection(db, 'serviceOrders'), orderBy('createdAt', 'desc'));
+        const q = isAdmin ? query(ordersRef, orderBy('createdAt', 'desc')) : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
         setOrders(data);
@@ -69,7 +79,7 @@ export default function Reports() {
       unsubscribeCustomers();
       unsubscribeSuppliers();
     };
-  }, []);
+  }, [userData, isAdmin]);
 
   const filteredOrders = orders.filter(order => {
     const orderDate = new Date(order.createdAt);

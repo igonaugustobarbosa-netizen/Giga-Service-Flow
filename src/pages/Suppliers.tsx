@@ -23,8 +23,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
+import { useAuth } from '../components/AuthGuard';
+import { where } from 'firebase/firestore';
 
 export default function Suppliers() {
+  const { userData, isAdmin } = useAuth();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -58,14 +61,20 @@ export default function Suppliers() {
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'suppliers'), orderBy('name', 'asc'));
+    if (!userData) return;
+
+    const suppliersRef = collection(db, 'suppliers');
+    const q = isAdmin
+      ? query(suppliersRef, orderBy('name', 'asc'))
+      : query(suppliersRef, where('tenantId', '==', userData.tenantId), orderBy('name', 'asc'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
       setSuppliers(data);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userData, isAdmin]);
 
   const handleOpenDialog = (supplier?: Supplier) => {
     if (supplier) {
@@ -88,15 +97,20 @@ export default function Suppliers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userData) return;
+
     try {
       if (editingSupplier) {
         await updateDoc(doc(db, 'suppliers', editingSupplier.id), formData);
       } else {
-        await addDoc(collection(db, 'suppliers'), formData);
+        await addDoc(collection(db, 'suppliers'), {
+          ...formData,
+          tenantId: userData.tenantId
+        });
       }
       setIsDialogOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar fornecedor:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'suppliers');
     }
   };
 

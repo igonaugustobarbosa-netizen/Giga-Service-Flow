@@ -23,8 +23,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { getCurrentLocation } from '../services/locationService';
 import { ServiceLocation } from '../types';
+import { useAuth } from '../components/AuthGuard';
+import { where } from 'firebase/firestore';
 
 export default function Customers() {
+  const { userData, isAdmin } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -57,14 +60,20 @@ export default function Customers() {
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'customers'), orderBy('name', 'asc'));
+    if (!userData) return;
+
+    const customersRef = collection(db, 'customers');
+    const q = isAdmin
+      ? query(customersRef, orderBy('name', 'asc'))
+      : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name', 'asc'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(data);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userData, isAdmin]);
 
   const handleOpenDialog = (customer?: Customer) => {
     if (customer) {
@@ -86,15 +95,20 @@ export default function Customers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userData) return;
+
     try {
       if (editingCustomer) {
         await updateDoc(doc(db, 'customers', editingCustomer.id), formData);
       } else {
-        await addDoc(collection(db, 'customers'), formData);
+        await addDoc(collection(db, 'customers'), {
+          ...formData,
+          tenantId: userData.tenantId
+        });
       }
       setIsDialogOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar cliente:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'customers');
     }
   };
 

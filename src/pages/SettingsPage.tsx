@@ -18,28 +18,35 @@ import { motion } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
 import { cn } from '../lib/utils';
 
+import { useAuth } from '../components/AuthGuard';
+
 export default function SettingsPage() {
+  const { userData } = useAuth();
   const [settings, setSettings] = useState<Settings>({ lastOrderNumber: 0 } as Settings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
+    if (!userData) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'settings', userData.tenantId), (snapshot) => {
       if (snapshot.exists()) {
         setSettings(snapshot.data() as Settings);
       }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userData]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userData) return;
+
     setSaving(true);
     setMessage(null);
     try {
-      await setDoc(doc(db, 'settings', 'global'), settings);
+      await setDoc(doc(db, 'settings', userData.tenantId), settings);
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);

@@ -20,8 +20,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
+import { useAuth } from '../components/AuthGuard';
+import { where } from 'firebase/firestore';
 
 export default function Technicians() {
+  const { userData, isAdmin } = useAuth();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -54,14 +57,20 @@ export default function Technicians() {
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'technicians'), orderBy('name', 'asc'));
+    if (!userData) return;
+
+    const techniciansRef = collection(db, 'technicians');
+    const q = isAdmin
+      ? query(techniciansRef, orderBy('name', 'asc'))
+      : query(techniciansRef, where('tenantId', '==', userData.tenantId), orderBy('name', 'asc'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician));
       setTechnicians(data);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userData, isAdmin]);
 
   const handleOpenDialog = (technician?: Technician) => {
     if (technician) {
@@ -90,15 +99,20 @@ export default function Technicians() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userData) return;
+
     try {
       if (editingTechnician) {
         await updateDoc(doc(db, 'technicians', editingTechnician.id), formData);
       } else {
-        await addDoc(collection(db, 'technicians'), formData);
+        await addDoc(collection(db, 'technicians'), {
+          ...formData,
+          tenantId: userData.tenantId
+        });
       }
       setIsDialogOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar técnico:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'technicians');
     }
   };
 

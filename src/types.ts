@@ -7,6 +7,17 @@ export interface ServiceLocation {
   address?: string;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+  password?: string;
+  role: 'admin' | 'user';
+  tenantId: string;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -15,6 +26,7 @@ export interface Customer {
   address?: string;
   taxId?: string;
   location?: ServiceLocation;
+  tenantId: string;
 }
 
 export interface Technician {
@@ -25,6 +37,7 @@ export interface Technician {
   specialty?: string;
   defaultKmValue?: number;
   defaultLaborHourValue?: number;
+  tenantId: string;
 }
 
 export interface Supplier {
@@ -36,6 +49,7 @@ export interface Supplier {
   taxId?: string;
   pixKey?: string;
   paymentDetails?: string;
+  tenantId: string;
 }
 
 export interface Part {
@@ -64,6 +78,7 @@ export interface ServiceOrder {
   totalValue: number;
   createdAt: string;
   updatedAt: string;
+  tenantId: string;
 }
 
 export interface Settings {

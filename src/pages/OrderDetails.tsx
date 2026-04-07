@@ -29,10 +29,12 @@ import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useAuth } from '../components/AuthGuard';
 
 export default function OrderDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { userData, isAdmin } = useAuth();
   const [order, setOrder] = useState<ServiceOrder | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -55,11 +57,18 @@ export default function OrderDetails() {
   });
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !userData) return;
 
     const unsubscribe = onSnapshot(doc(db, 'serviceOrders', id), async (snapshot) => {
       if (snapshot.exists()) {
         const orderData = { id: snapshot.id, ...snapshot.data() } as ServiceOrder;
+        
+        // Security check (redundant but good for UX)
+        if (!isAdmin && orderData.tenantId !== userData.tenantId) {
+          navigate('/orders');
+          return;
+        }
+
         setOrder(orderData);
 
         // Load customer
@@ -84,10 +93,13 @@ export default function OrderDetails() {
         }
       }
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `serviceOrders/${id}`);
+      navigate('/orders');
     });
 
     return () => unsubscribe();
-  }, [id]);
+  }, [id, userData, isAdmin, navigate]);
 
   const handleGeneratePDF = () => {
     if (order && customer) {

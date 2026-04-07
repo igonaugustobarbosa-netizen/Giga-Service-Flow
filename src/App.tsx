@@ -11,6 +11,7 @@ import OrderForm from './pages/OrderForm';
 import OrderDetails from './pages/OrderDetails';
 import SettingsPage from './pages/SettingsPage';
 import Reports from './pages/Reports';
+import UserManagement from './pages/UserManagement';
 import ScrollToTop from './components/ui/ScrollToTop';
 
 import { Toaster } from 'sonner';
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/orders/:id/edit" element={<OrderForm />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/users" element={<UserManagement />} />
           </Routes>
         </Layout>
       </AuthGuard>

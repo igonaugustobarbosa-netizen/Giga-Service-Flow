@@ -23,11 +23,14 @@ import {
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCurrentLocation } from '../services/locationService';
 import { Badge } from '../components/ui/Badge';
-import { cn } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { useAuth } from '../components/AuthGuard';
+import { where } from 'firebase/firestore';
 
 export default function OrderForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { userData, isAdmin } = useAuth();
   const [loading, setLoading] = useState(!!id);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -54,23 +57,33 @@ export default function OrderForm() {
   });
 
   useEffect(() => {
+    if (!userData) return;
+
+    const customersRef = collection(db, 'customers');
+    const techniciansRef = collection(db, 'technicians');
+    const suppliersRef = collection(db, 'suppliers');
+    const settingsRef = doc(db, 'settings', userData.tenantId);
+
     // Load customers
-    const unsubscribeCustomers = onSnapshot(query(collection(db, 'customers'), orderBy('name')), (snapshot) => {
+    const qCustomers = isAdmin ? query(customersRef, orderBy('name')) : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     });
 
     // Load technicians
-    const unsubscribeTechnicians = onSnapshot(query(collection(db, 'technicians'), orderBy('name')), (snapshot) => {
+    const qTechnicians = isAdmin ? query(techniciansRef, orderBy('name')) : query(techniciansRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeTechnicians = onSnapshot(qTechnicians, (snapshot) => {
       setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
     });
 
     // Load suppliers
-    const unsubscribeSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snapshot) => {
+    const qSuppliers = isAdmin ? query(suppliersRef, orderBy('name')) : query(suppliersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
     });
 
     // Load settings
-    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+    const unsubscribeSettings = onSnapshot(settingsRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data() as Settings;
         setSettings(data);
@@ -96,7 +109,7 @@ export default function OrderForm() {
       unsubscribeSuppliers();
       unsubscribeSettings();
     };
-  }, [id]);
+  }, [id, userData, isAdmin]);
 
   // Calculate total value whenever relevant fields change
   useEffect(() => {
@@ -159,6 +172,8 @@ export default function OrderForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userData) return;
+
     try {
       if (id) {
         const data = {
@@ -169,7 +184,7 @@ export default function OrderForm() {
       } else {
         // Use a transaction to increment the order number
         await runTransaction(db, async (transaction) => {
-          const settingsRef = doc(db, 'settings', 'global');
+          const settingsRef = doc(db, 'settings', userData.tenantId);
           const settingsSnap = await transaction.get(settingsRef);
           
           let nextNumber = 1;
@@ -184,6 +199,7 @@ export default function OrderForm() {
           const newOrderData = {
             ...formData,
             orderNumber: formattedNumber,
+            tenantId: userData.tenantId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -194,7 +210,7 @@ export default function OrderForm() {
       }
       navigate('/orders');
     } catch (error) {
-      console.error('Erro ao salvar ordem de serviço:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'serviceOrders');
     }
   };
 

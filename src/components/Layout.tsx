@@ -10,11 +10,13 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Menu,
-  X
+  X,
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { auth } from '../firebase';
 import { cn } from '../lib/utils';
+import { useAuth } from './AuthGuard';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,6 +25,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -33,6 +36,10 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Fornecedores', path: '/suppliers', icon: Building2 },
     { name: 'Configurações', path: '/settings', icon: SettingsIcon },
   ];
+
+  if (isAdmin) {
+    navItems.push({ name: 'Usuários', path: '/users', icon: ShieldCheck });
+  }
 
   const handleLogout = () => {
     auth.signOut();
