@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Technician } from '../types';
+import { ServiceOrder, Customer, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { 
@@ -14,9 +14,11 @@ import {
   Truck, 
   Wrench,
   User,
+  Building2,
   Phone,
   Mail,
-  Camera
+  Camera,
+  CreditCard
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -31,6 +33,7 @@ export default function OrderDetails() {
   const [order, setOrder] = useState<ServiceOrder | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +54,16 @@ export default function OrderDetails() {
         const techPromises = (orderData.technicianIds || []).map(tid => getDoc(doc(db, 'technicians', tid)));
         const techSnaps = await Promise.all(techPromises);
         setTechnicians(techSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() } as Technician)));
+
+        // Load supplier
+        if (orderData.supplierId) {
+          const supplierSnap = await getDoc(doc(db, 'suppliers', orderData.supplierId));
+          if (supplierSnap.exists()) {
+            setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
+          }
+        } else {
+          setSupplier(null);
+        }
       }
       setLoading(false);
     });
@@ -60,7 +73,7 @@ export default function OrderDetails() {
 
   const handleGeneratePDF = () => {
     if (order && customer) {
-      generateServicePDF(order, customer, technicians);
+      generateServicePDF(order, customer, technicians, supplier || undefined);
     }
   };
 
@@ -70,6 +83,16 @@ export default function OrderDetails() {
       case 'in-progress': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-sm px-3 py-1">Em Andamento</Badge>;
       case 'closed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-sm px-3 py-1">Fechada</Badge>;
       default: return null;
+    }
+  };
+
+  const getPaymentMethodLabel = (method?: string) => {
+    switch (method) {
+      case 'pix': return 'PIX';
+      case 'cash': return 'Dinheiro';
+      case 'credit': return 'Cartão de Crédito';
+      case 'debit': return 'Cartão de Débito';
+      default: return 'Não informado';
     }
   };
 
@@ -138,6 +161,13 @@ export default function OrderDetails() {
                   <div className="text-sm">
                     <p className="text-muted-foreground">Deslocamento</p>
                     <p className="font-bold">{order.kmDriven} km</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Pagamento</p>
+                    <p className="font-bold">{getPaymentMethodLabel(order.paymentMethod)}</p>
                   </div>
                 </div>
               </div>
@@ -245,6 +275,49 @@ export default function OrderDetails() {
               )}
             </CardContent>
           </Card>
+
+          {/* Supplier Info */}
+          {supplier && (
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  Fornecedor
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Nome / Razão Social</p>
+                  <p className="font-bold">{supplier.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Telefone</p>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-primary" />
+                    <p className="font-bold">{supplier.phone}</p>
+                  </div>
+                </div>
+                {supplier.taxId && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">CNPJ</p>
+                    <p className="font-bold">{supplier.taxId}</p>
+                  </div>
+                )}
+                {supplier.pixKey && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Chave PIX</p>
+                    <p className="font-bold text-primary">{supplier.pixKey}</p>
+                  </div>
+                )}
+                {supplier.paymentDetails && (
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Info. Pagamento</p>
+                    <p className="font-bold">{supplier.paymentDetails}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Technicians */}
           <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">

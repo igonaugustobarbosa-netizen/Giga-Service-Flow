@@ -1,4 +1,5 @@
 export type ServiceStatus = 'budget' | 'in-progress' | 'closed';
+export type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit';
 
 export interface Customer {
   id: string;
@@ -15,6 +16,17 @@ export interface Technician {
   email?: string;
   phone?: string;
   specialty?: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  email?: string;
+  phone: string;
+  address?: string;
+  taxId?: string;
+  pixKey?: string;
+  paymentDetails?: string;
 }
 
 export interface Part {
@@ -34,6 +46,7 @@ export interface ServiceOrder {
   id: string;
   customerId: string;
   technicianIds: string[];
+  supplierId?: string;
   status: ServiceStatus;
   description: string;
   hoursWorked: number;
@@ -43,6 +56,7 @@ export interface ServiceOrder {
   parts: Part[];
   servicePhotos: string[];
   location?: ServiceLocation;
+  paymentMethod?: PaymentMethod;
   totalValue: number;
   createdAt: string;
   updatedAt: string;

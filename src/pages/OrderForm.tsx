@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Technician, Part, ServiceStatus, Settings } from '../types';
+import { ServiceOrder, Customer, Technician, Supplier, Part, ServiceStatus, PaymentMethod, Settings } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -31,6 +31,7 @@ export default function OrderForm() {
   const [loading, setLoading] = useState(!!id);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0 });
 
   // Form state
@@ -45,6 +46,7 @@ export default function OrderForm() {
     kmValue: 0,
     parts: [],
     servicePhotos: [],
+    paymentMethod: 'pix',
     totalValue: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -59,6 +61,11 @@ export default function OrderForm() {
     // Load technicians
     const unsubscribeTechnicians = onSnapshot(query(collection(db, 'technicians'), orderBy('name')), (snapshot) => {
       setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
+    });
+
+    // Load suppliers
+    const unsubscribeSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snapshot) => {
+      setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
     });
 
     // Load settings
@@ -92,6 +99,7 @@ export default function OrderForm() {
     return () => {
       unsubscribeCustomers();
       unsubscribeTechnicians();
+      unsubscribeSuppliers();
       unsubscribeSettings();
     };
   }, [id]);
@@ -214,6 +222,17 @@ export default function OrderForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="supplier">Fornecedor (Opcional)</Label>
+                  <Select 
+                    id="supplier" 
+                    value={formData.supplierId || ''} 
+                    onChange={e => setFormData({...formData, supplierId: e.target.value})}
+                  >
+                    <option value="">Nenhum fornecedor</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="status">Status *</Label>
                   <Select 
                     id="status" 
@@ -224,6 +243,19 @@ export default function OrderForm() {
                     <option value="budget">Orçamento</option>
                     <option value="in-progress">Em Andamento</option>
                     <option value="closed">Fechada</option>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
+                  <Select 
+                    id="paymentMethod" 
+                    value={formData.paymentMethod || 'pix'} 
+                    onChange={e => setFormData({...formData, paymentMethod: e.target.value as PaymentMethod})}
+                  >
+                    <option value="pix">PIX</option>
+                    <option value="cash">Dinheiro</option>
+                    <option value="credit">Cartão de Crédito</option>
+                    <option value="debit">Cartão de Débito</option>
                   </Select>
                 </div>
               </div>

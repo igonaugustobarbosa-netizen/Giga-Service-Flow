@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Technicians from './pages/Technicians';
+import Suppliers from './pages/Suppliers';
 import ServiceOrders from './pages/ServiceOrders';
 import OrderForm from './pages/OrderForm';
 import OrderDetails from './pages/OrderDetails';
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/technicians" element={<Technicians />} />
+            <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/orders" element={<ServiceOrders />} />
             <Route path="/orders/new" element={<OrderForm />} />
             <Route path="/orders/:id" element={<OrderDetails />} />

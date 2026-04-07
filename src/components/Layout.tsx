@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Users, 
   UserCog, 
+  Building2,
   ClipboardList, 
   Settings as SettingsIcon,
   LogOut,
@@ -27,6 +28,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Ordens de Serviço', path: '/orders', icon: ClipboardList },
     { name: 'Clientes', path: '/customers', icon: Users },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
+    { name: 'Fornecedores', path: '/suppliers', icon: Building2 },
     { name: 'Configurações', path: '/settings', icon: SettingsIcon },
   ];
 

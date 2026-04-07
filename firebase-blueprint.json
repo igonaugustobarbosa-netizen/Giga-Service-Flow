@@ -25,6 +25,21 @@
       },
       "required": ["name"]
     },
+    "Supplier": {
+      "title": "Fornecedor",
+      "description": "Cadastro de fornecedores de peças e serviços.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome completo do fornecedor" },
+        "email": { "type": "string", "format": "email", "description": "E-mail de contato" },
+        "phone": { "type": "string", "description": "Telefone de contato" },
+        "address": { "type": "string", "description": "Endereço completo" },
+        "taxId": { "type": "string", "description": "CNPJ do fornecedor" },
+        "pixKey": { "type": "string", "description": "Chave PIX do fornecedor" },
+        "paymentDetails": { "type": "string", "description": "Informações de cartão ou outros detalhes de pagamento" }
+      },
+      "required": ["name", "phone"]
+    },
     "Settings": {
       "title": "Configurações",
       "description": "Configurações globais do sistema.",
@@ -41,6 +56,7 @@
       "properties": {
         "customerId": { "type": "string", "description": "ID do cliente (referência)" },
         "technicianIds": { "type": "array", "items": { "type": "string" }, "description": "IDs dos técnicos envolvidos" },
+        "supplierId": { "type": "string", "description": "ID do fornecedor (referência)" },
         "status": { "type": "string", "enum": ["budget", "in-progress", "closed"], "description": "Status do orçamento/serviço" },
         "description": { "type": "string", "description": "Descrição detalhada do serviço" },
         "hoursWorked": { "type": "number", "description": "Total de horas trabalhadas" },
@@ -68,6 +84,7 @@
             "address": { "type": "string" }
           }
         },
+        "paymentMethod": { "type": "string", "enum": ["pix", "cash", "credit", "debit"], "description": "Forma de pagamento" },
         "totalValue": { "type": "number", "description": "Valor total calculado" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -78,6 +95,7 @@
   "firestore": {
     "/customers": { "schema": "Customer", "description": "Coleção de clientes" },
     "/technicians": { "schema": "Technician", "description": "Coleção de técnicos" },
+    "/suppliers": { "schema": "Supplier", "description": "Coleção de fornecedores" },
     "/serviceOrders": { "schema": "ServiceOrder", "description": "Coleção de ordens de serviço e orçamentos" },
     "/settings": { "schema": "Settings", "description": "Configurações globais" }
   }

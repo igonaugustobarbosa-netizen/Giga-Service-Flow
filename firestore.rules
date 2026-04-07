@@ -11,8 +11,11 @@ service cloud.firestore {
     // Collection: technicians
     // Fields: name, email, phone, specialty
     //
+    // Collection: suppliers
+    // Fields: name, email, phone, address, taxId
+    //
     // Collection: serviceOrders
-    // Fields: customerId, technicianIds, status, description, hoursWorked, laborCost, kmDriven, kmValue, parts, servicePhotos, location, totalValue, createdAt, updatedAt
+    // Fields: customerId, technicianIds, supplierId, status, description, hoursWorked, laborCost, kmDriven, kmValue, parts, servicePhotos, location, paymentMethod, totalValue, createdAt, updatedAt
     //
     // Collection: settings
     // Fields: kmValue, laborHourValue
@@ -53,6 +56,13 @@ service cloud.firestore {
     }
 
     match /technicians/{technicianId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && 
+        request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated() && 
         request.resource.data.name is string && request.resource.data.name.size() > 0;
