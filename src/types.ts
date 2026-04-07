@@ -73,6 +73,8 @@ export interface ServiceOrder {
   kmValue: number;
   parts: Part[];
   servicePhotos: string[];
+  beforePhotos: string[];
+  afterPhotos: string[];
   location?: ServiceLocation;
   paymentMethod?: PaymentMethod;
   totalValue: number;

@@ -26,12 +26,14 @@ import { Badge } from '../components/ui/Badge';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
+import { compressImage } from '../lib/imageUtils';
 
 export default function OrderForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { userData, isAdmin } = useAuth();
   const [loading, setLoading] = useState(!!id);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -49,7 +51,8 @@ export default function OrderForm() {
     kmDriven: 0,
     kmValue: 0,
     parts: [],
-    servicePhotos: [],
+    beforePhotos: [],
+    afterPhotos: [],
     paymentMethod: 'pix',
     totalValue: 0,
     createdAt: new Date().toISOString(),
@@ -151,23 +154,43 @@ export default function OrderForm() {
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'parts' | 'service', index?: number) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'parts' | 'before' | 'after', index?: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
+    // Check limits (Firestore 1MB limit for the whole document)
+    const currentPhotos = type === 'before' ? (formData.beforePhotos || []) : 
+                         type === 'after' ? (formData.afterPhotos || []) : [];
+    
+    if (type !== 'parts' && currentPhotos.length >= 6) {
+      alert('Limite de 6 fotos por seção atingido para garantir o salvamento.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      // Compress image to stay within Firestore 1MB limit
+      const compressedBase64 = await compressImage(file, 800, 0.6);
+      
       if (type === 'parts' && index !== undefined) {
-        handlePartChange(index, 'photoUrl', base64String);
-      } else {
+        handlePartChange(index, 'photoUrl', compressedBase64);
+      } else if (type === 'before') {
         setFormData(prev => ({
           ...prev,
-          servicePhotos: [...(prev.servicePhotos || []), base64String]
+          beforePhotos: [...(prev.beforePhotos || []), compressedBase64]
+        }));
+      } else if (type === 'after') {
+        setFormData(prev => ({
+          ...prev,
+          afterPhotos: [...(prev.afterPhotos || []), compressedBase64]
         }));
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Erro ao processar foto:', error);
+      alert('Erro ao processar a imagem. Tente uma foto menor ou outro formato.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -393,7 +416,11 @@ export default function OrderForm() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="relative w-20 h-20 bg-muted rounded-lg overflow-hidden border">
-                      {part.photoUrl ? (
+                      {isUploadingPhoto ? (
+                        <div className="w-full h-full flex items-center justify-center bg-background/50">
+                          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : part.photoUrl ? (
                         <img src={part.photoUrl} alt="Peça" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -405,6 +432,7 @@ export default function OrderForm() {
                         accept="image/*" 
                         className="absolute inset-0 opacity-0 cursor-pointer" 
                         onChange={(e) => handlePhotoUpload(e, 'parts', index)}
+                        disabled={isUploadingPhoto}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">Clique para adicionar foto da peça</p>
@@ -417,46 +445,108 @@ export default function OrderForm() {
             </CardContent>
           </Card>
 
-          {/* Photos */}
-          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-primary" />
-                Fotos do Serviço
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {formData.servicePhotos?.map((photo, index) => (
-                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden border group">
-                    <img src={photo} alt={`Serviço ${index}`} className="w-full h-full object-cover" />
-                    <Button 
-                      type="button" 
-                      variant="destructive" 
-                      size="icon" 
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setFormData(prev => ({
-                        ...prev,
-                        servicePhotos: (prev.servicePhotos || []).filter((_, i) => i !== index)
-                      }))}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+          {/* Photos: Before and After */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-primary" />
+                  Fotos: Antes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {formData.beforePhotos?.map((photo, index) => (
+                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border group">
+                      <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          beforePhotos: (prev.beforePhotos || []).filter((_, i) => i !== index)
+                        }))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="relative aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
+                    {isUploadingPhoto ? (
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <span className="text-[10px]">Processando...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Plus className="w-8 h-8 mb-2" />
+                        <span className="text-xs font-medium">Adicionar Foto</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={(e) => handlePhotoUpload(e, 'before')}
+                      disabled={isUploadingPhoto}
+                    />
                   </div>
-                ))}
-                <div className="relative aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
-                  <Plus className="w-8 h-8 mb-2" />
-                  <span className="text-xs font-medium">Adicionar Foto</span>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    className="absolute inset-0 opacity-0 cursor-pointer" 
-                    onChange={(e) => handlePhotoUpload(e, 'service')}
-                  />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-primary" />
+                  Fotos: Depois
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {formData.afterPhotos?.map((photo, index) => (
+                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border group">
+                      <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          afterPhotos: (prev.afterPhotos || []).filter((_, i) => i !== index)
+                        }))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="relative aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
+                    {isUploadingPhoto ? (
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <span className="text-[10px]">Processando...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Plus className="w-8 h-8 mb-2" />
+                        <span className="text-xs font-medium">Adicionar Foto</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={(e) => handlePhotoUpload(e, 'after')}
+                      disabled={isUploadingPhoto}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <div className="space-y-8">
@@ -577,9 +667,13 @@ export default function OrderForm() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-14 text-lg gap-2 rounded-xl shadow-lg">
+              <Button 
+                type="submit" 
+                className="w-full h-14 text-lg gap-2 rounded-xl shadow-lg"
+                disabled={isUploadingPhoto}
+              >
                 <Save className="w-5 h-5" />
-                Salvar Ordem
+                {isUploadingPhoto ? 'Processando Foto...' : 'Salvar Ordem'}
               </Button>
             </CardContent>
           </Card>

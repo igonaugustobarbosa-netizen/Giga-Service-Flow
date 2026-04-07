@@ -175,5 +175,52 @@ export const generateServicePDF = (
   doc.setTextColor(150, 150, 150);
   doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ServiceFlow`, margin, doc.internal.pageSize.getHeight() - 10);
 
+  // Photos Section
+  const addPhotosToPDF = (title: string, photos: string[]) => {
+    if (!photos || photos.length === 0) return;
+    
+    doc.addPage();
+    let photoY = 20;
+    
+    // Title for photo section
+    doc.setDrawColor(200, 200, 200);
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, photoY, contentWidth, 8, 'F');
+    doc.rect(margin, photoY, contentWidth, 8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(50, 50, 50);
+    doc.text(title, margin + 3, photoY + 6);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    
+    photoY += 15;
+    
+    const photoSize = (contentWidth - 5) / 2;
+    photos.forEach((photo, index) => {
+      // Check if we need a new page for the next row of photos
+      if (photoY + photoSize > 270) {
+        doc.addPage();
+        photoY = 20;
+      }
+      
+      const x = margin + (index % 2 === 0 ? 0 : photoSize + 5);
+      
+      try {
+        // Use 'auto' or undefined for format to let jsPDF detect it
+        doc.addImage(photo, 'JPEG', x, photoY, photoSize, photoSize, undefined, 'FAST');
+      } catch (e) {
+        console.error('Erro ao adicionar imagem ao PDF:', e);
+      }
+      
+      if (index % 2 !== 0 || index === photos.length - 1) {
+        photoY += photoSize + 5;
+      }
+    });
+  };
+
+  addPhotosToPDF('FOTOS: ANTES', order.beforePhotos);
+  addPhotosToPDF('FOTOS: DEPOIS', order.afterPhotos);
+
   doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customer.name.replace(/\s+/g, '_')}.pdf`);
 };

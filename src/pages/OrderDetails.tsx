@@ -289,26 +289,48 @@ export default function OrderDetails() {
             </CardContent>
           </Card>
 
-          {/* Photos */}
-          {order.servicePhotos.length > 0 && (
-            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Camera className="w-5 h-5 text-primary" />
-                  Fotos do Serviço
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {order.servicePhotos.map((photo, index) => (
-                    <div key={index} className="aspect-square rounded-xl overflow-hidden border">
-                      <img src={photo} alt={`Serviço ${index}`} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Photos: Before and After */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {order.beforePhotos && order.beforePhotos.length > 0 && (
+              <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-primary" />
+                    Fotos: Antes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {order.beforePhotos.map((photo, index) => (
+                      <div key={index} className="aspect-square rounded-xl overflow-hidden border">
+                        <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {order.afterPhotos && order.afterPhotos.length > 0 && (
+              <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-primary" />
+                    Fotos: Depois
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {order.afterPhotos.map((photo, index) => (
+                      <div key={index} className="aspect-square rounded-xl overflow-hidden border">
+                        <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
         <div className="space-y-8">
