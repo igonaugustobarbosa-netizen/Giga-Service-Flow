@@ -465,6 +465,16 @@ export default function OrderDetails() {
                 <span>Deslocamento:</span>
                 <span>R$ {kmTotal.toFixed(2)}</span>
               </div>
+
+              {order.paymentMethod === 'pix' && supplier?.pixKey && (
+                <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20">
+                  <p className="text-[10px] uppercase font-bold text-white/70 mb-1">Chave PIX para Pagamento</p>
+                  <p className="text-sm font-mono break-all text-white">
+                    {supplier.pixKey}
+                  </p>
+                </div>
+              )}
+
               <div className="pt-3 border-t border-primary-foreground/20 flex justify-between text-2xl font-bold">
                 <span>TOTAL:</span>
                 <span>R$ {order.totalValue.toFixed(2)}</span>

@@ -57,14 +57,12 @@ export const generateServicePDF = (
 
   // Supplier Section (if exists)
   if (supplier) {
-    const supplierBoxHeight = 38;
+    const supplierBoxHeight = 30;
     drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
     doc.text(`Nome: ${supplier.name}`, margin + 5, y + 15);
     doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 22);
     if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 22);
     if (supplier.address) doc.text(`Endereço: ${supplier.address}`, margin + 5, y + 29);
-    if (supplier.pixKey) doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, y + 36);
-    if (supplier.paymentDetails) doc.text(`Pagamento: ${supplier.paymentDetails}`, margin + 80, y + 36);
     y += supplierBoxHeight + 10;
   }
 
@@ -115,7 +113,16 @@ export const generateServicePDF = (
   if (y > 230) { doc.addPage(); y = 20; }
   
   const summaryY = y;
-  const summaryHeight = 45;
+  let summaryHeight = 45;
+  
+  // Increase summary height if PIX key or payment details are shown
+  const showPix = order.paymentMethod === 'pix' && supplier?.pixKey;
+  const showDetails = supplier?.paymentDetails;
+  
+  if (showPix || showDetails) {
+    summaryHeight += 8;
+  }
+  
   drawSectionBox(summaryY, summaryHeight, 'RESUMO FINANCEIRO');
   
   const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
@@ -140,9 +147,18 @@ export const generateServicePDF = (
       default: return 'Não informado';
     }
   };
+  
   doc.setFont('helvetica', 'bold');
   doc.text('Forma de Pagamento:', margin + 5, summaryY + 38);
   doc.text(getPaymentMethodLabel(order.paymentMethod), margin + 45, summaryY + 38);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  if (showPix) {
+    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, summaryY + 45);
+  } else if (showDetails) {
+    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, summaryY + 45);
+  }
   
   y += summaryHeight + 5;
 

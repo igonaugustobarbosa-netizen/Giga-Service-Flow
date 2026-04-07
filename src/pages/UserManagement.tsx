@@ -16,8 +16,8 @@ import {
   Edit2, 
   Trash2, 
   User as UserIcon,
-  Mail,
   Shield,
+  ShieldAlert,
   X,
   Lock
 } from 'lucide-react';
@@ -32,6 +32,8 @@ export default function UserManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -81,26 +83,50 @@ export default function UserManagement() {
       setEditingUser(null);
       setFormData({ name: '', username: '', password: '', role: 'user', tenantId: '' });
     }
+    setFormError(null);
     setIsDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
+    setFormError(null);
+    
     try {
-      const internalEmail = `${formData.username}@serviceflow.local`;
+      // Auto-format username: lowercase and trim
+      const sanitizedUsername = formData.username.trim().toLowerCase().replace(/\s+/g, '.');
+      
+      // Validate username: letters, numbers, dots, underscores, and hyphens
+      const usernameRegex = /^[a-z0-9._-]+$/;
+      if (!usernameRegex.test(sanitizedUsername)) {
+        throw new Error('O login deve conter apenas letras, números, pontos, hífens ou sublinhados.');
+      }
+
+      const internalEmail = `${sanitizedUsername}@serviceflow.local`;
 
       if (editingUser) {
-        const data = {
+        const data: any = {
           ...formData,
+          username: sanitizedUsername,
           email: internalEmail,
           updatedAt: new Date().toISOString()
         };
+        
+        // Don't update password if it's empty (meaning we want to keep the old one)
+        if (!formData.password) {
+          delete data.password;
+        }
+        
         await updateDoc(doc(db, 'users', editingUser.id), data);
       } else {
+        if (!formData.password || formData.password.length < 6) {
+          throw new Error('A senha deve ter pelo menos 6 caracteres.');
+        }
+
         // Create user in Firebase Auth using a secondary app to avoid logging out the admin
-        const secondaryApp = getApps().length > 1 
-          ? getApp('SecondaryApp') 
-          : initializeApp(firebaseConfig, 'SecondaryApp');
+        const secondaryAppName = 'SecondaryApp';
+        const secondaryApp = getApps().find(app => app.name === secondaryAppName) 
+          || initializeApp(firebaseConfig, secondaryAppName);
         const secondaryAuth = getAuth(secondaryApp);
         
         const userCredential = await createUserWithEmailAndPassword(
@@ -115,9 +141,9 @@ export default function UserManagement() {
         const userData: User = {
           id: uid,
           name: formData.name,
-          username: formData.username,
+          username: sanitizedUsername,
           email: internalEmail,
-          password: formData.password, // Storing for reference (optional, but requested)
+          password: formData.password,
           role: formData.role,
           tenantId: formData.role === 'admin' ? 'global' : uid,
           createdAt: new Date().toISOString()
@@ -125,19 +151,41 @@ export default function UserManagement() {
 
         await setDoc(doc(db, 'users', uid), userData);
         
-        // Sign out from the secondary app to clean up
+        // Sign out and delete the secondary app to clean up completely
         await secondaryAuth.signOut();
+        try {
+          // Some Firebase versions might not support deleteApp easily in all environments
+          // but it's good practice to try
+          if ('deleteApp' in secondaryApp) {
+            await (secondaryApp as any).deleteApp();
+          }
+        } catch (e) {
+          console.warn('Could not delete secondary app:', e);
+        }
       }
       setIsDialogOpen(false);
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error);
+      let message = 'Erro ao salvar usuário. Tente novamente.';
+      
       if (error.code === 'auth/email-already-in-use') {
-        alert('Este login já está em uso.');
+        message = 'Este login já está em uso.';
       } else if (error.code === 'auth/weak-password') {
-        alert('A senha é muito fraca.');
-      } else {
-        handleFirestoreError(error, OperationType.WRITE, 'users');
+        message = 'A senha é muito fraca (mínimo 6 caracteres).';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        message = 'ERRO CRÍTICO: O provedor de "E-mail/Senha" não está ativado no seu Firebase Console. \n\n' + 
+                  'Para corrigir:\n' +
+                  '1. Acesse: https://console.firebase.google.com/project/gen-lang-client-0335885739/authentication/providers\n' +
+                  '2. Clique em "Adicionar novo provedor"\n' +
+                  '3. Escolha "E-mail/Senha" e clique em "Ativar"\n' +
+                  '4. Salve as alterações.';
+      } else if (error.message) {
+        message = error.message;
       }
+      
+      setFormError(message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -227,10 +275,6 @@ export default function UserManagement() {
                       <span className="truncate font-medium text-foreground">{user.username || user.email.split('@')[0]}</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="w-4 h-4" />
-                      <span className="truncate text-xs">{user.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Shield className="w-4 h-4" />
                       <span className="truncate text-[10px]">ID: {user.id}</span>
                     </div>
@@ -247,6 +291,14 @@ export default function UserManagement() {
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
           </DialogHeader>
+          
+          {formError && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs flex items-center gap-2 mt-2">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <p>{formError}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nome Completo</Label>
@@ -269,6 +321,9 @@ export default function UserManagement() {
                   onChange={e => setFormData({...formData, username: e.target.value})} 
                 />
               </div>
+              <p className="text-[10px] text-muted-foreground">
+                O login será convertido para minúsculas e espaços serão substituídos por pontos.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Senha *</Label>
@@ -297,8 +352,10 @@ export default function UserManagement() {
               </Select>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit">Salvar</Button>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Salvando...' : 'Salvar'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

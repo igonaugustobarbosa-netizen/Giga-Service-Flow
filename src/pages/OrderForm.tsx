@@ -561,6 +561,16 @@ export default function OrderForm() {
                   <span>Deslocamento:</span>
                   <span>R$ {((formData.kmDriven || 0) * (formData.kmValue || 0)).toFixed(2)}</span>
                 </div>
+                
+                {formData.paymentMethod === 'pix' && formData.supplierId && (
+                  <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                    <p className="text-[10px] uppercase font-bold text-primary mb-1">Chave PIX para Pagamento</p>
+                    <p className="text-sm font-mono break-all">
+                      {suppliers.find(s => s.id === formData.supplierId)?.pixKey || 'Chave não cadastrada'}
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-xl font-bold pt-2">
                   <span>TOTAL:</span>
                   <span className="text-primary">R$ {(formData.totalValue || 0).toFixed(2)}</span>

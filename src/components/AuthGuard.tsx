@@ -4,9 +4,9 @@ import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } fr
 import { auth, db } from '../firebase';
 import { User } from '../types';
 import { Button } from './ui/Button';
-import { LogIn, ShieldAlert, User as UserIcon } from 'lucide-react';
+import { ShieldAlert, User as UserIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
 import { Lock } from 'lucide-react';
@@ -32,7 +32,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [userData, setUserData] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loginMode, setLoginMode] = useState<'google' | 'email'>('email');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -104,21 +103,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-    }
-  };
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setError(null);
     try {
-      const loginCredential = username.includes('@') ? username : `${username}@serviceflow.local`;
+      const sanitizedUsername = username.trim().toLowerCase().replace(/\s+/g, '.');
+      const loginCredential = sanitizedUsername.includes('@') ? sanitizedUsername : `${sanitizedUsername}@serviceflow.local`;
+      
+      console.log('Tentando login com:', loginCredential);
       await signInWithEmailAndPassword(auth, loginCredential, password);
     } catch (err: any) {
       console.error('Erro ao fazer login:', err);
@@ -126,6 +119,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         setError('Login ou senha incorretos.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Muitas tentativas. Tente novamente mais tarde.');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Erro de conexão. Verifique sua internet.');
       } else {
         setError('Erro ao fazer login. Verifique suas credenciais.');
       }
@@ -172,84 +167,48 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="space-y-4">
-            {loginMode === 'email' ? (
-              <form onSubmit={handleEmailLogin} className="space-y-4 text-left">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Login</Label>
-                  <div className="relative">
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      id="username" 
-                      type="text" 
-                      placeholder="Seu login" 
-                      className="pl-10 h-12 rounded-xl"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                    />
-                  </div>
+            <form onSubmit={handleEmailLogin} className="space-y-4 text-left">
+              <div className="space-y-2">
+                <Label htmlFor="username">Login</Label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="username" 
+                    type="text" 
+                    placeholder="Seu login" 
+                    className="pl-10 h-12 rounded-xl"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      className="pl-10 h-12 rounded-xl"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 rounded-xl text-lg shadow-lg"
-                  disabled={isLoggingIn}
-                >
-                  {isLoggingIn ? 'Entrando...' : 'Entrar'}
-                </Button>
-                
-                <div className="relative py-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Ou</span>
-                  </div>
-                </div>
-
-                <Button 
-                  type="button"
-                  variant="outline"
-                  className="w-full h-12 rounded-xl gap-3"
-                  onClick={handleLogin}
-                >
-                  <LogIn className="w-5 h-5" />
-                  Entrar com Google
-                </Button>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                <Button 
-                  size="lg" 
-                  className="w-full h-14 text-lg gap-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
-                  onClick={handleLogin}
-                >
-                  <LogIn className="w-6 h-6" />
-                  Entrar com Google
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  className="w-full"
-                  onClick={() => setLoginMode('email')}
-                >
-                  Usar login e senha
-                </Button>
+                <p className="text-[10px] text-muted-foreground px-1">
+                  O login será convertido para minúsculas e espaços serão substituídos por pontos.
+                </p>
               </div>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    placeholder="••••••••" 
+                    className="pl-10 h-12 rounded-xl"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-12 rounded-xl text-lg shadow-lg"
+                disabled={isLoggingIn}
+              >
+                {isLoggingIn ? 'Entrando...' : 'Entrar'}
+              </Button>
+            </form>
             
             {error && !isLoggingIn && (
               <Button variant="ghost" onClick={() => { setError(null); auth.signOut(); }}>
