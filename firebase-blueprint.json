@@ -86,7 +86,9 @@
             }
           }
         },
-        "servicePhotos": { "type": "array", "items": { "type": "string" }, "description": "URLs das fotos do serviço" },
+        "servicePhotos": { "type": "array", "items": { "type": "string" }, "description": "URLs das fotos do serviço (Legado)" },
+        "beforePhotos": { "type": "array", "items": { "type": "string" }, "description": "URLs das fotos de antes do serviço" },
+        "afterPhotos": { "type": "array", "items": { "type": "string" }, "description": "URLs das fotos de depois do serviço" },
         "location": {
           "type": "object",
           "properties": {

@@ -2,7 +2,7 @@
  * Compresses an image file before uploading to Firestore (Base64)
  * to stay within the 1MB document limit.
  */
-export async function compressImage(file: File, maxWidth = 800, quality = 0.6): Promise<string> {
+export async function compressImage(file: File, maxWidth = 640, quality = 0.5): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);

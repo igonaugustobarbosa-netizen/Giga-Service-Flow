@@ -96,12 +96,24 @@ export default function OrderForm() {
     // Load order if editing
     if (id) {
       const loadOrder = async () => {
-        const docRef = doc(db, 'serviceOrders', id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setFormData(docSnap.data() as ServiceOrder);
+        try {
+          const docRef = doc(db, 'serviceOrders', id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data() as ServiceOrder;
+            setFormData({
+              ...data,
+              beforePhotos: data.beforePhotos || [],
+              afterPhotos: data.afterPhotos || [],
+              servicePhotos: data.servicePhotos || [],
+              parts: data.parts || []
+            });
+          }
+        } catch (error) {
+          console.error('Erro ao carregar ordem:', error);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       };
       loadOrder();
     }
@@ -170,7 +182,8 @@ export default function OrderForm() {
     setIsUploadingPhoto(true);
     try {
       // Compress image to stay within Firestore 1MB limit
-      const compressedBase64 = await compressImage(file, 800, 0.6);
+      // Using 640px and 0.5 quality for maximum safety
+      const compressedBase64 = await compressImage(file, 640, 0.5);
       
       if (type === 'parts' && index !== undefined) {
         handlePartChange(index, 'photoUrl', compressedBase64);
@@ -198,12 +211,17 @@ export default function OrderForm() {
     if (!userData) return;
 
     try {
+      // Clean up empty arrays to save space
+      const dataToSave = {
+        ...formData,
+        servicePhotos: (formData.servicePhotos && formData.servicePhotos.length > 0) ? formData.servicePhotos : [],
+        beforePhotos: formData.beforePhotos || [],
+        afterPhotos: formData.afterPhotos || [],
+        updatedAt: new Date().toISOString()
+      };
+
       if (id) {
-        const data = {
-          ...formData,
-          updatedAt: new Date().toISOString()
-        };
-        await updateDoc(doc(db, 'serviceOrders', id), data);
+        await updateDoc(doc(db, 'serviceOrders', id), dataToSave);
       } else {
         // Use a transaction to increment the order number
         await runTransaction(db, async (transaction) => {
@@ -220,11 +238,10 @@ export default function OrderForm() {
           
           const newOrderRef = doc(collection(db, 'serviceOrders'));
           const newOrderData = {
-            ...formData,
+            ...dataToSave,
             orderNumber: formattedNumber,
             tenantId: userData.tenantId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            createdAt: new Date().toISOString()
           };
           
           transaction.set(newOrderRef, newOrderData);
@@ -233,6 +250,7 @@ export default function OrderForm() {
       }
       navigate('/orders');
     } catch (error) {
+      console.error('Erro ao salvar ordem:', error);
       handleFirestoreError(error, OperationType.WRITE, 'serviceOrders');
     }
   };
