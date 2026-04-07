@@ -6,6 +6,7 @@ import {
   UserCog, 
   Building2,
   ClipboardList, 
+  FileText,
   Settings as SettingsIcon,
   LogOut,
   Menu,
@@ -27,6 +28,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Ordens de Serviço', path: '/orders', icon: ClipboardList },
     { name: 'Clientes', path: '/customers', icon: Users },
+    { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
     { name: 'Fornecedores', path: '/suppliers', icon: Building2 },
     { name: 'Configurações', path: '/settings', icon: SettingsIcon },
@@ -39,7 +41,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 border-r bg-card p-4">
+      <aside className="hidden md:flex flex-col w-64 border-r bg-orange-50/50 p-4">
         <div className="flex items-center gap-2 mb-8 px-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
             SF

@@ -106,7 +106,7 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
             >
-              <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+              <Card className="border-none shadow-sm bg-orange-50/50 backdrop-blur-sm">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
                     {stat.title}
@@ -125,7 +125,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-none shadow-sm bg-card/50 backdrop-blur-sm">
+        <Card className="lg:col-span-2 border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-primary" />
@@ -173,7 +173,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+        <Card className="border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />

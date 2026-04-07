@@ -19,7 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
 import { cn } from '../lib/utils';
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0, lastOrderNumber: 0 });
+  const [settings, setSettings] = useState<Settings>({ lastOrderNumber: 0 } as Settings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -55,51 +55,23 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
-        <p className="text-muted-foreground">Ajuste os valores padrão do sistema.</p>
+        <p className="text-muted-foreground">Ajuste os valores globais do sistema.</p>
       </div>
 
       <div className="max-w-2xl">
         <form onSubmit={handleSave} className="space-y-6">
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <SettingsIcon className="w-5 h-5 text-primary" />
-                Valores Padrão
+                Configurações Gerais
               </CardTitle>
               <CardDescription>
-                Estes valores serão usados automaticamente ao criar novas ordens de serviço.
+                Ajuste os parâmetros globais de funcionamento do sistema.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="kmValue" className="flex items-center gap-2">
-                    <Truck className="w-4 h-4" /> Valor por KM Rodado (R$)
-                  </Label>
-                  <Input 
-                    id="kmValue" 
-                    type="number" 
-                    step="0.01"
-                    value={settings.kmValue} 
-                    onChange={e => setSettings({...settings, kmValue: Number(e.target.value)})} 
-                  />
-                  <p className="text-xs text-muted-foreground">Usado para calcular o custo de deslocamento.</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="laborHourValue" className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> Valor da Hora Técnica (R$)
-                  </Label>
-                  <Input 
-                    id="laborHourValue" 
-                    type="number" 
-                    step="0.01"
-                    value={settings.laborHourValue} 
-                    onChange={e => setSettings({...settings, laborHourValue: Number(e.target.value)})} 
-                  />
-                  <p className="text-xs text-muted-foreground">Usado para calcular o custo base da mão de obra.</p>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="lastOrderNumber" className="flex items-center gap-2">
                     <SettingsIcon className="w-4 h-4" /> Próximo Número de OS

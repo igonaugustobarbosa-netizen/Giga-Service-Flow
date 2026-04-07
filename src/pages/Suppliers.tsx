@@ -156,7 +156,7 @@ export default function Suppliers() {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="group border-none shadow-sm bg-card/50 backdrop-blur-sm hover:shadow-md transition-all">
+              <Card className="group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-bold text-xl">

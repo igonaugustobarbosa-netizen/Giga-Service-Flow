@@ -198,7 +198,7 @@ export default function OrderDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Main Info */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Descrição do Serviço</CardTitle>
               {getStatusBadge(order.status)}
@@ -240,7 +240,7 @@ export default function OrderDetails() {
           </Card>
 
           {/* Parts */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-primary" />
@@ -279,7 +279,7 @@ export default function OrderDetails() {
 
           {/* Photos */}
           {order.servicePhotos.length > 0 && (
-            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Camera className="w-5 h-5 text-primary" />
@@ -301,7 +301,7 @@ export default function OrderDetails() {
 
         <div className="space-y-8">
           {/* Customer Info */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
@@ -343,7 +343,7 @@ export default function OrderDetails() {
 
           {/* Supplier Info */}
           {supplier && (
-            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-primary" />
@@ -385,7 +385,7 @@ export default function OrderDetails() {
           )}
 
           {/* Technicians */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-primary" />
@@ -411,7 +411,7 @@ export default function OrderDetails() {
 
           {/* Location */}
           {order.location && (
-            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-primary" />

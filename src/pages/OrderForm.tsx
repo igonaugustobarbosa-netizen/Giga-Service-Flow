@@ -74,13 +74,6 @@ export default function OrderForm() {
       if (doc.exists()) {
         const data = doc.data() as Settings;
         setSettings(data);
-        if (!id) {
-          setFormData(prev => ({ 
-            ...prev, 
-            kmValue: data.kmValue,
-            laborCost: (prev.hoursWorked || 0) * data.laborHourValue
-          }));
-        }
       }
     });
 
@@ -231,7 +224,7 @@ export default function OrderForm() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Basic Info */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle>Informações Básicas</CardTitle>
             </CardHeader>
@@ -309,11 +302,23 @@ export default function OrderForm() {
                         checked={formData.technicianIds?.includes(t.id)}
                         onChange={(e) => {
                           const ids = formData.technicianIds || [];
+                          let newIds = [];
                           if (e.target.checked) {
-                            setFormData({...formData, technicianIds: [...ids, t.id]});
+                            newIds = [...ids, t.id];
+                            // If it's the first technician selected and it's a new order, apply their defaults
+                            if (!id && newIds.length === 1) {
+                              setFormData(prev => ({
+                                ...prev,
+                                technicianIds: newIds,
+                                kmValue: t.defaultKmValue || prev.kmValue || 0,
+                                laborCost: (prev.hoursWorked || 0) * (t.defaultLaborHourValue || 0)
+                              }));
+                              return;
+                            }
                           } else {
-                            setFormData({...formData, technicianIds: ids.filter(id => id !== t.id)});
+                            newIds = ids.filter(id => id !== t.id);
                           }
+                          setFormData({...formData, technicianIds: newIds});
                         }}
                       />
                       <label htmlFor={`tech-${t.id}`} className="text-sm truncate">{t.name}</label>
@@ -325,7 +330,7 @@ export default function OrderForm() {
           </Card>
 
           {/* Parts */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-primary" />
@@ -397,7 +402,7 @@ export default function OrderForm() {
           </Card>
 
           {/* Photos */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-primary" />
@@ -440,7 +445,7 @@ export default function OrderForm() {
 
         <div className="space-y-8">
           {/* Costs & Location */}
-          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm sticky top-8">
+          <Card className="border-none shadow-sm bg-orange-50/30 backdrop-blur-sm sticky top-8">
             <CardHeader>
               <CardTitle>Resumo e Localização</CardTitle>
             </CardHeader>
@@ -455,10 +460,20 @@ export default function OrderForm() {
                     value={formData.hoursWorked} 
                     onChange={e => {
                       const hours = Number(e.target.value);
+                      let laborRate = settings.laborHourValue || 0;
+                      
+                      // If technicians are selected, use the first one's rate
+                      if (formData.technicianIds && formData.technicianIds.length > 0) {
+                        const firstTech = technicians.find(t => t.id === formData.technicianIds![0]);
+                        if (firstTech?.defaultLaborHourValue) {
+                          laborRate = firstTech.defaultLaborHourValue;
+                        }
+                      }
+
                       setFormData({
                         ...formData, 
                         hoursWorked: hours,
-                        laborCost: hours * settings.laborHourValue
+                        laborCost: hours * laborRate
                       });
                     }} 
                   />

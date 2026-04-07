@@ -154,7 +154,7 @@ export default function ServiceOrders() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ delay: i * 0.05 }}
               >
-                <Card className="group border-none shadow-sm bg-card/50 backdrop-blur-sm hover:shadow-md transition-all overflow-hidden">
+                <Card className="group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all overflow-hidden">
                   <div className="flex flex-col md:flex-row">
                     <div className={cn(
                       "w-2 md:w-3",

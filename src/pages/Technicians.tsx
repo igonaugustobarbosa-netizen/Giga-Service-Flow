@@ -48,7 +48,9 @@ export default function Technicians() {
     name: '',
     email: '',
     phone: '',
-    specialty: ''
+    specialty: '',
+    defaultKmValue: 0,
+    defaultLaborHourValue: 0
   });
 
   useEffect(() => {
@@ -68,11 +70,20 @@ export default function Technicians() {
         name: technician.name,
         email: technician.email || '',
         phone: technician.phone || '',
-        specialty: technician.specialty || ''
+        specialty: technician.specialty || '',
+        defaultKmValue: technician.defaultKmValue || 0,
+        defaultLaborHourValue: technician.defaultLaborHourValue || 0
       });
     } else {
       setEditingTechnician(null);
-      setFormData({ name: '', email: '', phone: '', specialty: '' });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone: '', 
+        specialty: '',
+        defaultKmValue: 0,
+        defaultLaborHourValue: 0
+      });
     }
     setIsDialogOpen(true);
   };
@@ -146,7 +157,7 @@ export default function Technicians() {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="group border-none shadow-sm bg-card/50 backdrop-blur-sm hover:shadow-md transition-all">
+              <Card className="group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-bold text-xl">
@@ -183,6 +194,14 @@ export default function Technicians() {
                         <span className="truncate">{technician.email}</span>
                       </div>
                     )}
+                    <div className="flex gap-4 pt-2 border-t mt-2">
+                      <div className="text-[10px] text-muted-foreground">
+                        <p>KM: <span className="font-bold text-primary">R$ {technician.defaultKmValue?.toFixed(2) || '0.00'}</span></p>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        <p>Hora: <span className="font-bold text-primary">R$ {technician.defaultLaborHourValue?.toFixed(2) || '0.00'}</span></p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -231,6 +250,28 @@ export default function Technicians() {
                   type="email" 
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})} 
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="defaultKmValue">Valor KM Padrão (R$)</Label>
+                <Input 
+                  id="defaultKmValue" 
+                  type="number"
+                  step="0.01"
+                  value={formData.defaultKmValue} 
+                  onChange={e => setFormData({...formData, defaultKmValue: Number(e.target.value)})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="defaultLaborHourValue">Valor Hora Padrão (R$)</Label>
+                <Input 
+                  id="defaultLaborHourValue" 
+                  type="number"
+                  step="0.01"
+                  value={formData.defaultLaborHourValue} 
+                  onChange={e => setFormData({...formData, defaultLaborHourValue: Number(e.target.value)})} 
                 />
               </div>
             </div>

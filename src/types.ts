@@ -23,6 +23,8 @@ export interface Technician {
   email?: string;
   phone?: string;
   specialty?: string;
+  defaultKmValue?: number;
+  defaultLaborHourValue?: number;
 }
 
 export interface Supplier {
@@ -65,7 +67,7 @@ export interface ServiceOrder {
 }
 
 export interface Settings {
-  kmValue: number;
-  laborHourValue: number;
+  kmValue?: number;
+  laborHourValue?: number;
   lastOrderNumber: number;
 }
