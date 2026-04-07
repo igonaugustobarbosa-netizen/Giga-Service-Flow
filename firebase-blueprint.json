@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "Customer": {
+      "title": "Cliente",
+      "description": "Cadastro de clientes para os quais os serviços são prestados.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome completo do cliente" },
+        "email": { "type": "string", "format": "email", "description": "E-mail de contato" },
+        "phone": { "type": "string", "description": "Telefone de contato" },
+        "address": { "type": "string", "description": "Endereço completo" },
+        "taxId": { "type": "string", "description": "CPF ou CNPJ do cliente" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Technician": {
+      "title": "Técnico",
+      "description": "Cadastro de técnicos que realizam os serviços.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Nome completo do técnico" },
+        "email": { "type": "string", "format": "email", "description": "E-mail do técnico" },
+        "phone": { "type": "string", "description": "Telefone do técnico" },
+        "specialty": { "type": "string", "description": "Especialidade do técnico" }
+      },
+      "required": ["name"]
+    },
+    "Settings": {
+      "title": "Configurações",
+      "description": "Configurações globais do sistema.",
+      "type": "object",
+      "properties": {
+        "kmValue": { "type": "number", "description": "Valor padrão por KM rodado" },
+        "laborHourValue": { "type": "number", "description": "Valor padrão por hora de mão de obra" }
+      }
+    },
+    "ServiceOrder": {
+      "title": "Ordem de Serviço",
+      "description": "Registro de serviços e orçamentos.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string", "description": "ID do cliente (referência)" },
+        "technicianIds": { "type": "array", "items": { "type": "string" }, "description": "IDs dos técnicos envolvidos" },
+        "status": { "type": "string", "enum": ["budget", "in-progress", "closed"], "description": "Status do orçamento/serviço" },
+        "description": { "type": "string", "description": "Descrição detalhada do serviço" },
+        "hoursWorked": { "type": "number", "description": "Total de horas trabalhadas" },
+        "laborCost": { "type": "number", "description": "Valor da mão de obra" },
+        "kmDriven": { "type": "number", "description": "Quilômetros rodados" },
+        "kmValue": { "type": "number", "description": "Valor por KM rodado" },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" },
+              "photoUrl": { "type": "string" }
+            }
+          }
+        },
+        "servicePhotos": { "type": "array", "items": { "type": "string" }, "description": "URLs das fotos do serviço" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "totalValue": { "type": "number", "description": "Valor total calculado" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "status"]
+    }
+  },
+  "firestore": {
+    "/customers": { "schema": "Customer", "description": "Coleção de clientes" },
+    "/technicians": { "schema": "Technician", "description": "Coleção de técnicos" },
+    "/serviceOrders": { "schema": "ServiceOrder", "description": "Coleção de ordens de serviço e orçamentos" },
+    "/settings": { "schema": "Settings", "description": "Configurações globais" }
+  }
+}

@@ -1,0 +1,328 @@
+import React, { useEffect, useState } from 'react';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
+import { ServiceOrder, Customer, Technician } from '../types';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { 
+  FileText, 
+  Edit2, 
+  ArrowLeft, 
+  MapPin, 
+  Calendar, 
+  Clock, 
+  Truck, 
+  Wrench,
+  User,
+  Phone,
+  Mail,
+  Camera
+} from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Badge } from '../components/ui/Badge';
+import { generateServicePDF } from '../services/pdfService';
+import { cn } from '../lib/utils';
+
+export default function OrderDetails() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [order, setOrder] = useState<ServiceOrder | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'serviceOrders', id), async (snapshot) => {
+      if (snapshot.exists()) {
+        const orderData = { id: snapshot.id, ...snapshot.data() } as ServiceOrder;
+        setOrder(orderData);
+
+        // Load customer
+        const custSnap = await getDoc(doc(db, 'customers', orderData.customerId));
+        if (custSnap.exists()) {
+          setCustomer({ id: custSnap.id, ...custSnap.data() } as Customer);
+        }
+
+        // Load technicians
+        const techPromises = (orderData.technicianIds || []).map(tid => getDoc(doc(db, 'technicians', tid)));
+        const techSnaps = await Promise.all(techPromises);
+        setTechnicians(techSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() } as Technician)));
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [id]);
+
+  const handleGeneratePDF = () => {
+    if (order && customer) {
+      generateServicePDF(order, customer, technicians);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'budget': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-sm px-3 py-1">Orçamento</Badge>;
+      case 'in-progress': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-sm px-3 py-1">Em Andamento</Badge>;
+      case 'closed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-sm px-3 py-1">Fechada</Badge>;
+      default: return null;
+    }
+  };
+
+  if (loading) return <div>Carregando...</div>;
+  if (!order || !customer) return <div>Ordem de serviço não encontrada.</div>;
+
+  const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
+  const kmTotal = order.kmDriven * order.kmValue;
+
+  return (
+    <div className="space-y-8 pb-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/orders">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Detalhes da Ordem</h1>
+            <p className="text-muted-foreground">ID: {order.id.substring(0, 8)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleGeneratePDF}>
+            <FileText className="w-4 h-4" />
+            Gerar PDF
+          </Button>
+          <Link to={`/orders/${order.id}/edit`}>
+            <Button className="gap-2">
+              <Edit2 className="w-4 h-4" />
+              Editar
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Main Info */}
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Descrição do Serviço</CardTitle>
+              {getStatusBadge(order.status)}
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-lg leading-relaxed">{order.description}</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Criado em</p>
+                    <p className="font-bold">{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Horas</p>
+                    <p className="font-bold">{order.hoursWorked}h trabalhadas</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-primary" />
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Deslocamento</p>
+                    <p className="font-bold">{order.kmDriven} km</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Parts */}
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-primary" />
+                Peças e Materiais
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {order.parts.length === 0 ? (
+                <p className="text-muted-foreground italic">Nenhuma peça utilizada.</p>
+              ) : (
+                <div className="space-y-4">
+                  {order.parts.map((part, index) => (
+                    <div key={index} className="flex items-center gap-4 p-4 rounded-xl border bg-background">
+                      <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden border flex-shrink-0">
+                        {part.photoUrl ? (
+                          <img src={part.photoUrl} alt={part.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            <Camera className="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold truncate">{part.name}</p>
+                        <p className="text-sm text-muted-foreground">Qtd: {part.quantity} • R$ {part.price.toFixed(2)}/un</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary">R$ {(part.quantity * part.price).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Photos */}
+          {order.servicePhotos.length > 0 && (
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-primary" />
+                  Fotos do Serviço
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {order.servicePhotos.map((photo, index) => (
+                    <div key={index} className="aspect-square rounded-xl overflow-hidden border">
+                      <img src={photo} alt={`Serviço ${index}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-8">
+          {/* Customer Info */}
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5 text-primary" />
+                Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Nome</p>
+                <p className="font-bold">{customer.name}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Telefone</p>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-primary" />
+                  <p className="font-bold">{customer.phone}</p>
+                </div>
+              </div>
+              {customer.email && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <p className="font-bold truncate">{customer.email}</p>
+                  </div>
+                </div>
+              )}
+              {customer.address && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Endereço</p>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-primary mt-1" />
+                    <p className="font-bold text-sm">{customer.address}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Technicians */}
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-primary" />
+                Técnicos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {technicians.map(t => (
+                  <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-background border">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs">
+                      {t.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold truncate">{t.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{t.specialty}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Location */}
+          {order.location && (
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-primary" />
+                  Localização do Serviço
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm font-bold">{order.location.address}</p>
+                <div className="aspect-video rounded-lg bg-muted flex items-center justify-center overflow-hidden border">
+                  <a 
+                    href={`https://www.google.com/maps?q=${order.location.latitude},${order.location.longitude}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full h-full flex flex-col items-center justify-center hover:bg-accent transition-colors"
+                  >
+                    <MapPin className="w-8 h-8 text-primary mb-2" />
+                    <span className="text-xs font-medium">Ver no Google Maps</span>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Summary */}
+          <Card className="border-none shadow-sm bg-primary text-primary-foreground">
+            <CardHeader>
+              <CardTitle>Resumo Financeiro</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm opacity-80">
+                <span>Peças:</span>
+                <span>R$ {partsTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm opacity-80">
+                <span>Mão de Obra:</span>
+                <span>R$ {order.laborCost.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm opacity-80">
+                <span>Deslocamento:</span>
+                <span>R$ {kmTotal.toFixed(2)}</span>
+              </div>
+              <div className="pt-3 border-t border-primary-foreground/20 flex justify-between text-2xl font-bold">
+                <span>TOTAL:</span>
+                <span>R$ {order.totalValue.toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}

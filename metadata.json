@@ -1,0 +1,5 @@
+{
+  "name": "ServiceFlow - Gestão de Serviços e Orçamentos",
+  "description": "Aplicativo completo para gerenciamento de serviços, orçamentos, horas trabalhadas, técnicos, peças e mão de obra, com geração de PDF e geolocalização.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}

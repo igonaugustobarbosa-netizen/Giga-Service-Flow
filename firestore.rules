@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: customers
+    // Fields: name, email, phone, address, taxId
+    //
+    // Collection: technicians
+    // Fields: name, email, phone, specialty
+    //
+    // Collection: serviceOrders
+    // Fields: customerId, technicianIds, status, description, hoursWorked, laborCost, kmDriven, kmValue, parts, servicePhotos, location, totalValue, createdAt, updatedAt
+    //
+    // Collection: settings
+    // Fields: kmValue, laborHourValue
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == "igonaugustobarbosa@gmail.com" && request.auth.token.email_verified == true
+      );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && 
+        request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+    }
+
+    match /technicians/{technicianId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && 
+        request.resource.data.name is string && request.resource.data.name.size() > 0;
+      allow delete: if isAdmin();
+    }
+
+    match /serviceOrders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && 
+        request.resource.data.customerId is string && 
+        request.resource.data.status in ["budget", "in-progress", "closed"];
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}
