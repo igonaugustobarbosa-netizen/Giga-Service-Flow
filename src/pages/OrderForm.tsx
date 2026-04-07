@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Technician, Supplier, Part, ServiceStatus, PaymentMethod, Settings } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -32,10 +32,11 @@ export default function OrderForm() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0 });
+  const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0, lastOrderNumber: 0 });
 
   // Form state
   const [formData, setFormData] = useState<Partial<ServiceOrder>>({
+    orderNumber: '',
     customerId: '',
     technicianIds: [],
     status: 'budget',
@@ -166,15 +167,37 @@ export default function OrderForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const data = {
-        ...formData,
-        updatedAt: new Date().toISOString()
-      };
-
       if (id) {
+        const data = {
+          ...formData,
+          updatedAt: new Date().toISOString()
+        };
         await updateDoc(doc(db, 'serviceOrders', id), data);
       } else {
-        await addDoc(collection(db, 'serviceOrders'), data);
+        // Use a transaction to increment the order number
+        await runTransaction(db, async (transaction) => {
+          const settingsRef = doc(db, 'settings', 'global');
+          const settingsSnap = await transaction.get(settingsRef);
+          
+          let nextNumber = 1;
+          if (settingsSnap.exists()) {
+            const currentSettings = settingsSnap.data() as Settings;
+            nextNumber = (currentSettings.lastOrderNumber || 0) + 1;
+          }
+          
+          const formattedNumber = nextNumber.toString().padStart(5, '0');
+          
+          const newOrderRef = doc(collection(db, 'serviceOrders'));
+          const newOrderData = {
+            ...formData,
+            orderNumber: formattedNumber,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          transaction.set(newOrderRef, newOrderData);
+          transaction.set(settingsRef, { lastOrderNumber: nextNumber }, { merge: true });
+        });
       }
       navigate('/orders');
     } catch (error) {
@@ -196,7 +219,12 @@ export default function OrderForm() {
           <h1 className="text-3xl font-bold tracking-tight">
             {id ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}
           </h1>
-          <p className="text-muted-foreground">Preencha os detalhes do orçamento ou serviço.</p>
+          {id && formData.orderNumber && (
+            <p className="text-muted-foreground font-mono">OS N° {formData.orderNumber}</p>
+          )}
+          {!id && (
+            <p className="text-muted-foreground">Preencha os detalhes do orçamento ou serviço.</p>
+          )}
         </div>
       </div>
 

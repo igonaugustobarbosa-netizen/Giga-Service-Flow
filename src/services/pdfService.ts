@@ -39,7 +39,7 @@ export const generateServicePDF = (
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`ID: ${order.id.substring(0, 8).toUpperCase()}`, margin, 32);
+  doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin, 32);
   doc.text(`Data: ${format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 45, 25);
   
   y = 50;
@@ -57,12 +57,14 @@ export const generateServicePDF = (
 
   // Supplier Section (if exists)
   if (supplier) {
-    const supplierBoxHeight = 30;
+    const supplierBoxHeight = 38;
     drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
     doc.text(`Nome: ${supplier.name}`, margin + 5, y + 15);
-    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 5, y + 22);
-    if (supplier.pixKey) doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 80, y + 22);
-    if (supplier.paymentDetails) doc.text(`Pagamento: ${supplier.paymentDetails}`, margin + 5, y + 29);
+    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 22);
+    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 22);
+    if (supplier.address) doc.text(`Endereço: ${supplier.address}`, margin + 5, y + 29);
+    if (supplier.pixKey) doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, y + 36);
+    if (supplier.paymentDetails) doc.text(`Pagamento: ${supplier.paymentDetails}`, margin + 80, y + 36);
     y += supplierBoxHeight + 10;
   }
 

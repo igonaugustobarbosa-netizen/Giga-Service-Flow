@@ -1,6 +1,12 @@
 export type ServiceStatus = 'budget' | 'in-progress' | 'closed';
 export type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit';
 
+export interface ServiceLocation {
+  latitude: number;
+  longitude: number;
+  address?: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -8,6 +14,7 @@ export interface Customer {
   phone: string;
   address?: string;
   taxId?: string;
+  location?: ServiceLocation;
 }
 
 export interface Technician {
@@ -36,14 +43,9 @@ export interface Part {
   photoUrl?: string;
 }
 
-export interface ServiceLocation {
-  latitude: number;
-  longitude: number;
-  address?: string;
-}
-
 export interface ServiceOrder {
   id: string;
+  orderNumber: string;
   customerId: string;
   technicianIds: string[];
   supplierId?: string;
@@ -65,4 +67,5 @@ export interface ServiceOrder {
 export interface Settings {
   kmValue: number;
   laborHourValue: number;
+  lastOrderNumber: number;
 }

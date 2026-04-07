@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -13,20 +13,37 @@ import {
   Calendar,
   DollarSign,
   Clock,
-  MapPin
+  MapPin,
+  CheckCircle2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
-import { cn } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export default function ServiceOrders() {
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default'
+  });
 
   useEffect(() => {
     const qOrders = query(collection(db, 'serviceOrders'), orderBy('createdAt', 'desc'));
@@ -49,13 +66,37 @@ export default function ServiceOrders() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta ordem de serviço?')) {
-      try {
-        await deleteDoc(doc(db, 'serviceOrders', id));
-      } catch (error) {
-        console.error('Erro ao excluir ordem de serviço:', error);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Ordem de Serviço',
+      description: 'Tem certeza que deseja excluir esta ordem de serviço? Esta ação não pode ser desfeita.',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'serviceOrders', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `serviceOrders/${id}`);
+        }
       }
-    }
+    });
+  };
+
+  const handleCloseOrder = async (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Encerrar Ordem de Serviço',
+      description: 'Deseja encerrar esta ordem de serviço?',
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, 'serviceOrders', id), {
+            status: 'closed',
+            updatedAt: new Date().toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${id}`);
+        }
+      }
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -124,6 +165,9 @@ export default function ServiceOrders() {
                       <div className="space-y-3 flex-1">
                         <div className="flex items-center gap-3">
                           <h3 className="text-lg font-bold">{customer?.name || 'Cliente não encontrado'}</h3>
+                          <Badge variant="secondary" className="bg-muted text-muted-foreground font-mono">
+                            N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}
+                          </Badge>
                           {getStatusBadge(order.status)}
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{order.description}</p>
@@ -149,6 +193,17 @@ export default function ServiceOrders() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {order.status !== 'closed' && (
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                            onClick={() => handleCloseOrder(order.id)}
+                            title="Encerrar Ordem"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Link to={`/orders/${order.id}`}>
                           <Button variant="secondary" className="gap-2">
                             <Eye className="w-4 h-4" />
@@ -167,6 +222,15 @@ export default function ServiceOrders() {
           })}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 }

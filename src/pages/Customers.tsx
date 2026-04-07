@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { handleFirestoreError, OperationType } from '../lib/utils';
+import { getCurrentLocation } from '../services/locationService';
+import { ServiceLocation } from '../types';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -27,13 +31,29 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default'
+  });
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     address: '',
-    taxId: ''
+    taxId: '',
+    location: null as ServiceLocation | null
   });
 
   useEffect(() => {
@@ -54,11 +74,12 @@ export default function Customers() {
         email: customer.email || '',
         phone: customer.phone,
         address: customer.address || '',
-        taxId: customer.taxId || ''
+        taxId: customer.taxId || '',
+        location: customer.location || null
       });
     } else {
       setEditingCustomer(null);
-      setFormData({ name: '', email: '', phone: '', address: '', taxId: '' });
+      setFormData({ name: '', email: '', phone: '', address: '', taxId: '', location: null });
     }
     setIsDialogOpen(true);
   };
@@ -78,12 +99,32 @@ export default function Customers() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
-      try {
-        await deleteDoc(doc(db, 'customers', id));
-      } catch (error) {
-        console.error('Erro ao excluir cliente:', error);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Cliente',
+      description: 'Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'customers', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `customers/${id}`);
+        }
       }
+    });
+  };
+
+  const handleGetLocation = async () => {
+    try {
+      const location = await getCurrentLocation();
+      setFormData(prev => ({
+        ...prev,
+        location,
+        address: location.address || prev.address
+      }));
+    } catch (error) {
+      console.error('Erro ao obter localização:', error);
+      alert('Não foi possível obter a localização atual.');
     }
   };
 
@@ -168,6 +209,19 @@ export default function Customers() {
                         <span>{customer.taxId}</span>
                       </div>
                     )}
+                    {customer.location && (
+                      <div className="flex items-center gap-2 text-primary hover:underline">
+                        <MapPin className="w-4 h-4" />
+                        <a 
+                          href={`https://www.google.com/maps?q=${customer.location.latitude},${customer.location.longitude}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="truncate"
+                        >
+                          Ver no Google Maps
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -221,11 +275,28 @@ export default function Customers() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Endereço</Label>
-              <Input 
-                id="address" 
-                value={formData.address} 
-                onChange={e => setFormData({...formData, address: e.target.value})} 
-              />
+              <div className="flex gap-2">
+                <Input 
+                  id="address" 
+                  className="flex-1"
+                  value={formData.address} 
+                  onChange={e => setFormData({...formData, address: e.target.value})} 
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleGetLocation}
+                  title="Obter localização atual"
+                >
+                  <MapPin className="w-4 h-4" />
+                </Button>
+              </div>
+              {formData.location && (
+                <p className="text-[10px] text-muted-foreground">
+                  Coordenadas: {formData.location.latitude.toFixed(6)}, {formData.location.longitude.toFixed(6)}
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
@@ -234,6 +305,15 @@ export default function Customers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 }

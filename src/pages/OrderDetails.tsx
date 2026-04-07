@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -18,14 +18,17 @@ import {
   Phone,
   Mail,
   Camera,
-  CreditCard
+  CreditCard,
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
-import { cn } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export default function OrderDetails() {
   const { id } = useParams();
@@ -35,6 +38,21 @@ export default function OrderDetails() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default'
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -77,6 +95,43 @@ export default function OrderDetails() {
     }
   };
 
+  const handleCloseOrder = async () => {
+    if (!id) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Encerrar Ordem de Serviço',
+      description: 'Deseja encerrar esta ordem de serviço?',
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, 'serviceOrders', id), {
+            status: 'closed',
+            updatedAt: new Date().toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${id}`);
+        }
+      }
+    });
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!id) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Ordem de Serviço',
+      description: 'Tem certeza que deseja excluir esta ordem de serviço? Esta ação não pode ser desfeita.',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'serviceOrders', id));
+          navigate('/orders');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `serviceOrders/${id}`);
+        }
+      }
+    });
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'budget': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-sm px-3 py-1">Orçamento</Badge>;
@@ -113,10 +168,20 @@ export default function OrderDetails() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Detalhes da Ordem</h1>
-            <p className="text-muted-foreground">ID: {order.id.substring(0, 8)}</p>
+            <p className="text-muted-foreground font-mono">OS N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {order.status !== 'closed' && (
+            <Button variant="outline" className="gap-2 text-green-600 border-green-200 hover:bg-green-50" onClick={handleCloseOrder}>
+              <CheckCircle2 className="w-4 h-4" />
+              Encerrar
+            </Button>
+          )}
+          <Button variant="outline" className="gap-2 text-destructive border-destructive/20 hover:bg-destructive/5" onClick={handleDeleteOrder}>
+            <Trash2 className="w-4 h-4" />
+            Excluir
+          </Button>
           <Button variant="outline" className="gap-2" onClick={handleGeneratePDF}>
             <FileText className="w-4 h-4" />
             Gerar PDF
@@ -396,6 +461,15 @@ export default function OrderDetails() {
           </Card>
         </div>
       </div>
+
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 }

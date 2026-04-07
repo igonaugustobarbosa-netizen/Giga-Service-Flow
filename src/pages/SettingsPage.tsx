@@ -19,7 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
 import { cn } from '../lib/utils';
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0 });
+  const [settings, setSettings] = useState<Settings>({ kmValue: 0, laborHourValue: 0, lastOrderNumber: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -98,6 +98,19 @@ export default function SettingsPage() {
                     onChange={e => setSettings({...settings, laborHourValue: Number(e.target.value)})} 
                   />
                   <p className="text-xs text-muted-foreground">Usado para calcular o custo base da mão de obra.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lastOrderNumber" className="flex items-center gap-2">
+                    <SettingsIcon className="w-4 h-4" /> Próximo Número de OS
+                  </Label>
+                  <Input 
+                    id="lastOrderNumber" 
+                    type="number" 
+                    value={settings.lastOrderNumber} 
+                    onChange={e => setSettings({...settings, lastOrderNumber: Number(e.target.value)})} 
+                  />
+                  <p className="text-xs text-muted-foreground">O próximo número gerado será este valor + 1.</p>
                 </div>
               </div>
 

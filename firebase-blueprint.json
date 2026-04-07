@@ -9,7 +9,16 @@
         "email": { "type": "string", "format": "email", "description": "E-mail de contato" },
         "phone": { "type": "string", "description": "Telefone de contato" },
         "address": { "type": "string", "description": "Endereço completo" },
-        "taxId": { "type": "string", "description": "CPF ou CNPJ do cliente" }
+        "taxId": { "type": "string", "description": "CPF ou CNPJ do cliente" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          },
+          "description": "Localização geográfica do cliente"
+        }
       },
       "required": ["name", "phone"]
     },
@@ -46,7 +55,8 @@
       "type": "object",
       "properties": {
         "kmValue": { "type": "number", "description": "Valor padrão por KM rodado" },
-        "laborHourValue": { "type": "number", "description": "Valor padrão por hora de mão de obra" }
+        "laborHourValue": { "type": "number", "description": "Valor padrão por hora de mão de obra" },
+        "lastOrderNumber": { "type": "number", "description": "Último número de ordem gerado" }
       }
     },
     "ServiceOrder": {
@@ -54,6 +64,7 @@
       "description": "Registro de serviços e orçamentos.",
       "type": "object",
       "properties": {
+        "orderNumber": { "type": "string", "description": "Número sequencial da ordem (ex: 00001)" },
         "customerId": { "type": "string", "description": "ID do cliente (referência)" },
         "technicianIds": { "type": "array", "items": { "type": "string" }, "description": "IDs dos técnicos envolvidos" },
         "supplierId": { "type": "string", "description": "ID do fornecedor (referência)" },

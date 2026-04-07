@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { handleFirestoreError, OperationType } from '../lib/utils';
 
 export default function Technicians() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -25,6 +27,21 @@ export default function Technicians() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTechnician, setEditingTechnician] = useState<Technician | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default'
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -75,13 +92,19 @@ export default function Technicians() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este técnico?')) {
-      try {
-        await deleteDoc(doc(db, 'technicians', id));
-      } catch (error) {
-        console.error('Erro ao excluir técnico:', error);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Técnico',
+      description: 'Tem certeza que deseja excluir este técnico? Esta ação não pode ser desfeita.',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'technicians', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `technicians/${id}`);
+        }
       }
-    }
+    });
   };
 
   const filteredTechnicians = technicians.filter(t => 
@@ -218,6 +241,15 @@ export default function Technicians() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 }

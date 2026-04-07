@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { handleFirestoreError, OperationType } from '../lib/utils';
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -28,6 +30,21 @@ export default function Suppliers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    variant: 'default'
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -84,13 +101,19 @@ export default function Suppliers() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este fornecedor?')) {
-      try {
-        await deleteDoc(doc(db, 'suppliers', id));
-      } catch (error) {
-        console.error('Erro ao excluir fornecedor:', error);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Fornecedor',
+      description: 'Tem certeza que deseja excluir este fornecedor? Esta ação não pode ser desfeita.',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'suppliers', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `suppliers/${id}`);
+        }
       }
-    }
+    });
   };
 
   const filteredSuppliers = suppliers.filter(s => 
@@ -272,6 +295,15 @@ export default function Suppliers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        variant={confirmDialog.variant}
+      />
     </div>
   );
 }
