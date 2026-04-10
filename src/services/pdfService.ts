@@ -40,7 +40,10 @@ export const generateServicePDF = (
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin, 32);
-  doc.text(`Data: ${format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin - 45, 25);
+  
+  const dateToDisplay = order.executionDate || order.createdAt;
+  const dateStr = dateToDisplay ? format(new Date(dateToDisplay), 'dd/MM/yyyy HH:mm') : 'N/A';
+  doc.text(`Data de Execução: ${dateStr}`, pageWidth - margin, 25, { align: 'right' });
   
   y = 50;
 
@@ -132,7 +135,10 @@ export const generateServicePDF = (
   doc.text('Total em Peças:', margin + 5, summaryY + 15);
   doc.text(`R$ ${partsTotal.toFixed(2)}`, pageWidth - margin - 5, summaryY + 15, { align: 'right' });
   
-  doc.text(`Mão de Obra (${order.hoursWorked}h):`, margin + 5, summaryY + 22);
+  const laborLabel = order.laborRate 
+    ? `Mão de Obra (${order.hoursWorked}h x R$ ${order.laborRate.toFixed(2)}):`
+    : `Mão de Obra (${order.hoursWorked}h):`;
+  doc.text(laborLabel, margin + 5, summaryY + 22);
   doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 5, summaryY + 22, { align: 'right' });
   
   doc.text(`Deslocamento (${order.kmDriven}km):`, margin + 5, summaryY + 29);

@@ -82,7 +82,7 @@ export default function Reports() {
   }, [userData, isAdmin]);
 
   const filteredOrders = orders.filter(order => {
-    const orderDate = new Date(order.createdAt);
+    const orderDate = new Date(order.executionDate || order.createdAt);
     const start = filters.startDate ? new Date(filters.startDate) : null;
     const end = filters.endDate ? new Date(filters.endDate) : null;
     
@@ -253,7 +253,7 @@ export default function Reports() {
                   <thead>
                     <tr className="bg-muted/50 border-b">
                       <th className="text-left p-4 font-medium">Nº OS</th>
-                      <th className="text-left p-4 font-medium">Data</th>
+                      <th className="text-left p-4 font-medium">Data Exec.</th>
                       <th className="text-left p-4 font-medium">Cliente</th>
                       <th className="text-left p-4 font-medium">Status</th>
                       <th className="text-right p-4 font-medium">Valor</th>
@@ -262,6 +262,7 @@ export default function Reports() {
                   <tbody>
                     {filteredOrders.map((order, i) => {
                       const customer = customers.find(c => c.id === order.customerId);
+                      const dateToDisplay = order.executionDate || order.createdAt;
                       return (
                         <motion.tr 
                           key={order.id}
@@ -271,7 +272,7 @@ export default function Reports() {
                           className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                         >
                           <td className="p-4 font-mono text-xs">{order.orderNumber || order.id.substring(0, 8)}</td>
-                          <td className="p-4">{format(new Date(order.createdAt), 'dd/MM/yy')}</td>
+                          <td className="p-4">{format(new Date(dateToDisplay), 'dd/MM/yy')}</td>
                           <td className="p-4 font-medium">{customer?.name || 'N/A'}</td>
                           <td className="p-4">
                             <span className={cn(

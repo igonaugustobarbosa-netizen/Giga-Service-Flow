@@ -218,12 +218,35 @@ export default function OrderDetails() {
             <CardContent className="space-y-6">
               <p className="text-lg leading-relaxed">{order.description}</p>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
                   <div className="text-sm">
-                    <p className="text-muted-foreground">Data da Ordem</p>
-                    <p className="font-bold">{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+                    <p className="text-muted-foreground">Data da Abertura</p>
+                    <p className="font-bold">
+                      {order.createdAt ? (() => {
+                        try {
+                          return format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                        } catch (e) {
+                          return 'Data inválida';
+                        }
+                      })() : 'Não informada'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Data de Execução</p>
+                    <p className="font-bold">
+                      {order.executionDate ? (() => {
+                        try {
+                          return format(new Date(order.executionDate), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                        } catch (e) {
+                          return 'Data inválida';
+                        }
+                      })() : (order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'Não informada')}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -481,7 +504,12 @@ export default function OrderDetails() {
               </div>
               <div className="flex justify-between text-sm opacity-80">
                 <span>Mão de Obra:</span>
-                <span>R$ {order.laborCost.toFixed(2)}</span>
+                <div className="text-right">
+                  {order.laborRate ? (
+                    <p className="text-[10px] italic">({order.hoursWorked}h x R$ {order.laborRate.toFixed(2)})</p>
+                  ) : null}
+                  <span>R$ {order.laborCost.toFixed(2)}</span>
+                </div>
               </div>
               <div className="flex justify-between text-sm opacity-80">
                 <span>Deslocamento:</span>

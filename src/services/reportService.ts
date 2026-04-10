@@ -72,7 +72,7 @@ export const generateReportPDF = (
   doc.setTextColor(50, 50, 50);
   
   doc.text('Nº OS', margin + 2, y + 6);
-  doc.text('Data', margin + 20, y + 6);
+  doc.text('Data Exec.', margin + 20, y + 6);
   doc.text('Cliente', margin + 45, y + 6);
   doc.text('Status', margin + 110, y + 6);
   doc.text('Valor (R$)', pageWidth - margin - 2, y + 6, { align: 'right' });
@@ -91,7 +91,8 @@ export const generateReportPDF = (
     }
 
     const customer = customers.find(c => c.id === order.customerId);
-    const dateStr = format(new Date(order.createdAt), 'dd/MM/yy');
+    const dateToDisplay = order.executionDate || order.createdAt;
+    const dateStr = format(new Date(dateToDisplay), 'dd/MM/yy');
     const statusLabel = order.status === 'budget' ? 'Orçamento' : order.status === 'in-progress' ? 'Em Aberto' : 'Fechada';
     
     doc.text(order.orderNumber || order.id.substring(0, 5), margin + 2, y);

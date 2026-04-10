@@ -69,6 +69,7 @@ export interface ServiceOrder {
   description: string;
   hoursWorked: number;
   laborCost: number;
+  laborRate?: number;
   kmDriven: number;
   kmValue: number;
   parts: Part[];
@@ -78,6 +79,7 @@ export interface ServiceOrder {
   location?: ServiceLocation;
   paymentMethod?: PaymentMethod;
   totalValue: number;
+  executionDate?: string;
   createdAt: string;
   updatedAt: string;
   tenantId: string;

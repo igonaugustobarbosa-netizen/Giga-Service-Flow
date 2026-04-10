@@ -49,6 +49,7 @@ export default function OrderForm() {
     description: '',
     hoursWorked: 0,
     laborCost: 0,
+    laborRate: 0,
     kmDriven: 0,
     kmValue: 0,
     parts: [],
@@ -56,6 +57,7 @@ export default function OrderForm() {
     afterPhotos: [],
     paymentMethod: 'pix',
     totalValue: 0,
+    executionDate: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
@@ -104,6 +106,7 @@ export default function OrderForm() {
             const data = docSnap.data() as ServiceOrder;
             setFormData({
               ...data,
+              executionDate: data.executionDate || data.createdAt,
               beforePhotos: data.beforePhotos || [],
               afterPhotos: data.afterPhotos || [],
               servicePhotos: data.servicePhotos || [],
@@ -227,6 +230,7 @@ export default function OrderForm() {
         servicePhotos: (formData.servicePhotos && formData.servicePhotos.length > 0) ? formData.servicePhotos : [],
         beforePhotos: formData.beforePhotos || [],
         afterPhotos: formData.afterPhotos || [],
+        executionDate: formData.executionDate || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
@@ -250,8 +254,7 @@ export default function OrderForm() {
           const newOrderData = {
             ...dataToSave,
             orderNumber: formattedNumber,
-            tenantId: userData.tenantId,
-            createdAt: new Date().toISOString()
+            tenantId: userData.tenantId
           };
           
           transaction.set(newOrderRef, newOrderData);
@@ -347,7 +350,7 @@ export default function OrderForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date">Data da Ordem *</Label>
+                  <Label htmlFor="date">Data da Abertura da OS *</Label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
@@ -359,8 +362,39 @@ export default function OrderForm() {
                       onChange={e => {
                         const date = e.target.value;
                         if (date) {
-                          const originalTime = formData.createdAt?.split('T')[1] || new Date().toISOString().split('T')[1];
-                          setFormData({...formData, createdAt: `${date}T${originalTime}`});
+                          // Ensure we have a valid time part to maintain ISO format
+                          let timePart = '12:00:00.000Z';
+                          if (formData.createdAt && formData.createdAt.includes('T')) {
+                            timePart = formData.createdAt.split('T')[1];
+                          } else {
+                            timePart = new Date().toISOString().split('T')[1];
+                          }
+                          setFormData({...formData, createdAt: `${date}T${timePart}`});
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="executionDate">Data de Execução *</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      id="executionDate" 
+                      type="date" 
+                      required 
+                      className="pl-10 h-10 rounded-lg"
+                      value={formData.executionDate ? formData.executionDate.split('T')[0] : ''} 
+                      onChange={e => {
+                        const date = e.target.value;
+                        if (date) {
+                          let timePart = '12:00:00.000Z';
+                          if (formData.executionDate && formData.executionDate.includes('T')) {
+                            timePart = formData.executionDate.split('T')[1];
+                          } else {
+                            timePart = new Date().toISOString().split('T')[1];
+                          }
+                          setFormData({...formData, executionDate: `${date}T${timePart}`});
                         }
                       }}
                     />
@@ -394,11 +428,13 @@ export default function OrderForm() {
                             newIds = [...ids, t.id];
                             // If it's the first technician selected and it's a new order, apply their defaults
                             if (!id && newIds.length === 1) {
+                              const rate = t.defaultLaborHourValue || settings.laborHourValue || 0;
                               setFormData(prev => ({
                                 ...prev,
                                 technicianIds: newIds,
                                 kmValue: t.defaultKmValue || prev.kmValue || 0,
-                                laborCost: (prev.hoursWorked || 0) * (t.defaultLaborHourValue || 0)
+                                laborRate: rate,
+                                laborCost: (prev.hoursWorked || 0) * rate
                               }));
                               return;
                             }
@@ -615,15 +651,7 @@ export default function OrderForm() {
                     onChange={e => {
                       const val = e.target.value;
                       const hours = val === '' ? 0 : Number(val);
-                      let laborRate = settings.laborHourValue || 0;
-                      
-                      // If technicians are selected, use the first one's rate
-                      if (formData.technicianIds && formData.technicianIds.length > 0) {
-                        const firstTech = technicians.find(t => t.id === formData.technicianIds![0]);
-                        if (firstTech?.defaultLaborHourValue) {
-                          laborRate = firstTech.defaultLaborHourValue;
-                        }
-                      }
+                      const laborRate = formData.laborRate || 0;
 
                       setFormData({
                         ...formData, 
@@ -635,7 +663,26 @@ export default function OrderForm() {
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4" /> Mão de Obra (R$)
+                    <DollarSign className="w-4 h-4" /> Valor por Hora (R$)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={formData.laborRate === 0 ? '' : formData.laborRate} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      const rate = val === '' ? 0 : Number(val);
+                      setFormData({
+                        ...formData, 
+                        laborRate: rate,
+                        laborCost: (formData.hoursWorked || 0) * rate
+                      });
+                    }} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" /> Mão de Obra Total (R$)
                   </Label>
                   <Input 
                     type="number" 

@@ -188,7 +188,7 @@ export default function ServiceOrders() {
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            <span>{format(new Date(order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                            <span>{format(new Date(order.executionDate || order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-3 h-3" />
