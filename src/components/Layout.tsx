@@ -34,12 +34,9 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
     { name: 'Fornecedores', path: '/suppliers', icon: Building2 },
+    { name: 'Usuários', path: '/users', icon: ShieldCheck },
     { name: 'Configurações', path: '/settings', icon: SettingsIcon },
   ];
-
-  if (isAdmin) {
-    navItems.push({ name: 'Usuários', path: '/users', icon: ShieldCheck });
-  }
 
   const handleLogout = () => {
     auth.signOut();

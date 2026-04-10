@@ -18,7 +18,8 @@ import {
   DollarSign,
   Clock,
   Truck,
-  Wrench
+  Wrench,
+  Calendar
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCurrentLocation } from '../services/locationService';
@@ -128,9 +129,9 @@ export default function OrderForm() {
 
   // Calculate total value whenever relevant fields change
   useEffect(() => {
-    const partsTotal = (formData.parts || []).reduce((acc, p) => acc + (p.quantity * p.price), 0);
-    const laborTotal = formData.laborCost || 0;
-    const kmTotal = (formData.kmDriven || 0) * (formData.kmValue || 0);
+    const partsTotal = (formData.parts || []).reduce((acc, p) => acc + (Number(p.quantity) * Number(p.price)), 0);
+    const laborTotal = Number(formData.laborCost) || 0;
+    const kmTotal = (Number(formData.kmDriven) || 0) * (Number(formData.kmValue) || 0);
     const total = partsTotal + laborTotal + kmTotal;
     
     setFormData(prev => ({ ...prev, totalValue: total }));
@@ -211,9 +212,18 @@ export default function OrderForm() {
     if (!userData) return;
 
     try {
-      // Clean up empty arrays to save space
+      // Clean up empty arrays and ensure numeric fields are numbers
       const dataToSave = {
         ...formData,
+        hoursWorked: Number(formData.hoursWorked) || 0,
+        laborCost: Number(formData.laborCost) || 0,
+        kmDriven: Number(formData.kmDriven) || 0,
+        kmValue: Number(formData.kmValue) || 0,
+        parts: (formData.parts || []).map(p => ({
+          ...p,
+          quantity: Number(p.quantity) || 0,
+          price: Number(p.price) || 0
+        })),
         servicePhotos: (formData.servicePhotos && formData.servicePhotos.length > 0) ? formData.servicePhotos : [],
         beforePhotos: formData.beforePhotos || [],
         afterPhotos: formData.afterPhotos || [],
@@ -336,6 +346,26 @@ export default function OrderForm() {
                     <option value="debit">Cartão de Débito</option>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date">Data da Ordem *</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      id="date" 
+                      type="date" 
+                      required 
+                      className="pl-10 h-10 rounded-lg"
+                      value={formData.createdAt ? formData.createdAt.split('T')[0] : ''} 
+                      onChange={e => {
+                        const date = e.target.value;
+                        if (date) {
+                          const originalTime = formData.createdAt?.split('T')[1] || new Date().toISOString().split('T')[1];
+                          setFormData({...formData, createdAt: `${date}T${originalTime}`});
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Descrição do Serviço *</Label>
@@ -414,8 +444,8 @@ export default function OrderForm() {
                         <Label>Quantidade</Label>
                         <Input 
                           type="number" 
-                          value={part.quantity} 
-                          onChange={e => handlePartChange(index, 'quantity', Number(e.target.value))} 
+                          value={part.quantity === 0 ? '' : part.quantity} 
+                          onChange={e => handlePartChange(index, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} 
                         />
                       </div>
                       <div className="space-y-2">
@@ -423,8 +453,8 @@ export default function OrderForm() {
                         <Input 
                           type="number" 
                           step="0.01"
-                          value={part.price} 
-                          onChange={e => handlePartChange(index, 'price', Number(e.target.value))} 
+                          value={part.price === 0 ? '' : part.price} 
+                          onChange={e => handlePartChange(index, 'price', e.target.value === '' ? 0 : Number(e.target.value))} 
                         />
                       </div>
                     </div>
@@ -581,9 +611,10 @@ export default function OrderForm() {
                   </Label>
                   <Input 
                     type="number" 
-                    value={formData.hoursWorked} 
+                    value={formData.hoursWorked === 0 ? '' : formData.hoursWorked} 
                     onChange={e => {
-                      const hours = Number(e.target.value);
+                      const val = e.target.value;
+                      const hours = val === '' ? 0 : Number(val);
                       let laborRate = settings.laborHourValue || 0;
                       
                       // If technicians are selected, use the first one's rate
@@ -596,7 +627,7 @@ export default function OrderForm() {
 
                       setFormData({
                         ...formData, 
-                        hoursWorked: hours,
+                        hoursWorked: val === '' ? 0 : hours,
                         laborCost: hours * laborRate
                       });
                     }} 
@@ -609,8 +640,8 @@ export default function OrderForm() {
                   <Input 
                     type="number" 
                     step="0.01"
-                    value={formData.laborCost} 
-                    onChange={e => setFormData({...formData, laborCost: Number(e.target.value)})} 
+                    value={formData.laborCost === 0 ? '' : formData.laborCost} 
+                    onChange={e => setFormData({...formData, laborCost: e.target.value === '' ? 0 : Number(e.target.value)})} 
                   />
                 </div>
                 <div className="space-y-2">
@@ -621,15 +652,15 @@ export default function OrderForm() {
                     <Input 
                       type="number" 
                       placeholder="KM"
-                      value={formData.kmDriven} 
-                      onChange={e => setFormData({...formData, kmDriven: Number(e.target.value)})} 
+                      value={formData.kmDriven === 0 ? '' : formData.kmDriven} 
+                      onChange={e => setFormData({...formData, kmDriven: e.target.value === '' ? 0 : Number(e.target.value)})} 
                     />
                     <Input 
                       type="number" 
                       step="0.01"
                       placeholder="R$/KM"
-                      value={formData.kmValue} 
-                      onChange={e => setFormData({...formData, kmValue: Number(e.target.value)})} 
+                      value={formData.kmValue === 0 ? '' : formData.kmValue} 
+                      onChange={e => setFormData({...formData, kmValue: e.target.value === '' ? 0 : Number(e.target.value)})} 
                     />
                   </div>
                 </div>

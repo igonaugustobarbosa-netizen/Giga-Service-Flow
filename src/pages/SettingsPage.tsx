@@ -86,8 +86,8 @@ export default function SettingsPage() {
                   <Input 
                     id="lastOrderNumber" 
                     type="number" 
-                    value={settings.lastOrderNumber} 
-                    onChange={e => setSettings({...settings, lastOrderNumber: Number(e.target.value)})} 
+                    value={settings.lastOrderNumber === 0 ? '' : settings.lastOrderNumber} 
+                    onChange={e => setSettings({...settings, lastOrderNumber: e.target.value === '' ? 0 : Number(e.target.value)})} 
                   />
                   <p className="text-xs text-muted-foreground">O próximo número gerado será este valor + 1.</p>
                 </div>

@@ -274,8 +274,8 @@ export default function Technicians() {
                   id="defaultKmValue" 
                   type="number"
                   step="0.01"
-                  value={formData.defaultKmValue} 
-                  onChange={e => setFormData({...formData, defaultKmValue: Number(e.target.value)})} 
+                  value={formData.defaultKmValue === 0 ? '' : formData.defaultKmValue} 
+                  onChange={e => setFormData({...formData, defaultKmValue: e.target.value === '' ? 0 : Number(e.target.value)})} 
                 />
               </div>
               <div className="space-y-2">
@@ -284,8 +284,8 @@ export default function Technicians() {
                   id="defaultLaborHourValue" 
                   type="number"
                   step="0.01"
-                  value={formData.defaultLaborHourValue} 
-                  onChange={e => setFormData({...formData, defaultLaborHourValue: Number(e.target.value)})} 
+                  value={formData.defaultLaborHourValue === 0 ? '' : formData.defaultLaborHourValue} 
+                  onChange={e => setFormData({...formData, defaultLaborHourValue: e.target.value === '' ? 0 : Number(e.target.value)})} 
                 />
               </div>
             </div>

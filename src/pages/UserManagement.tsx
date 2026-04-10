@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -19,14 +19,18 @@ import {
   Shield,
   ShieldAlert,
   X,
-  Lock
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
+import { useAuth } from '../components/AuthGuard';
 
 export default function UserManagement() {
+  const { userData: currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -34,6 +38,7 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -60,14 +65,19 @@ export default function UserManagement() {
   });
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('name', 'asc'));
+    if (!currentUser) return;
+
+    const q = isAdmin 
+      ? query(collection(db, 'users'), orderBy('name', 'asc'))
+      : query(collection(db, 'users'), where('tenantId', '==', currentUser.tenantId), orderBy('name', 'asc'));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
       setUsers(data);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser, isAdmin]);
 
   const handleOpenDialog = (user?: User) => {
     if (user) {
@@ -84,6 +94,7 @@ export default function UserManagement() {
       setFormData({ name: '', username: '', password: '', role: 'user', tenantId: '' });
     }
     setFormError(null);
+    setShowPassword(false);
     setIsDialogOpen(true);
   };
 
@@ -145,7 +156,7 @@ export default function UserManagement() {
           email: internalEmail,
           password: formData.password,
           role: formData.role,
-          tenantId: formData.role === 'admin' ? 'global' : uid,
+          tenantId: formData.role === 'admin' ? 'global' : (isAdmin ? uid : currentUser!.tenantId),
           createdAt: new Date().toISOString()
         } as any;
 
@@ -278,6 +289,12 @@ export default function UserManagement() {
                       <Shield className="w-4 h-4" />
                       <span className="truncate text-[10px]">ID: {user.id}</span>
                     </div>
+                    {user.password && (
+                      <div className="flex items-center gap-2 text-muted-foreground pt-1 border-t border-orange-100/50 mt-2">
+                        <Lock className="w-3 h-3" />
+                        <span className="text-xs font-mono">Senha: {user.password}</span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -331,13 +348,26 @@ export default function UserManagement() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   id="password" 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   required={!editingUser}
                   placeholder={editingUser ? "Deixe em branco para manter" : "Defina uma senha"}
-                  className="pl-10"
+                  className="pl-10 pr-10"
                   value={formData.password} 
                   onChange={e => setFormData({...formData, password: e.target.value})} 
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </Button>
               </div>
             </div>
             <div className="space-y-2">
@@ -346,10 +376,16 @@ export default function UserManagement() {
                 id="role" 
                 value={formData.role} 
                 onChange={e => setFormData({...formData, role: e.target.value as 'admin' | 'user'})}
+                disabled={!isAdmin}
               >
                 <option value="user">Usuário (Base Isolada)</option>
-                <option value="admin">Administrador (Acesso Total)</option>
+                {isAdmin && <option value="admin">Administrador (Acesso Total)</option>}
               </Select>
+              {!isAdmin && (
+                <p className="text-[10px] text-muted-foreground">
+                  Apenas administradores podem criar outros administradores.
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>

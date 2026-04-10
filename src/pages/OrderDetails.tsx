@@ -222,7 +222,7 @@ export default function OrderDetails() {
                 <div className="flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
                   <div className="text-sm">
-                    <p className="text-muted-foreground">Criado em</p>
+                    <p className="text-muted-foreground">Data da Ordem</p>
                     <p className="font-bold">{format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
                   </div>
                 </div>
