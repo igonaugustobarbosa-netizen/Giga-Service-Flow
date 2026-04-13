@@ -24,7 +24,8 @@ import { useAuth } from '../components/AuthGuard';
 
 export default function Dashboard() {
   const { userData, isAdmin } = useAuth();
-  const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([]);
+  const [allOrders, setAllOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,14 +35,25 @@ export default function Dashboard() {
     const ordersRef = collection(db, 'serviceOrders');
     const customersRef = collection(db, 'customers');
 
-    const qOrders = isAdmin 
+    // Query for recent orders (limit 10)
+    const qRecent = isAdmin 
       ? query(ordersRef, orderBy('createdAt', 'desc'), limit(10))
       : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'), limit(10));
 
-    const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
+    const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
-      setOrders(data);
+      setRecentOrders(data);
       setLoading(false);
+    });
+
+    // Query for all orders (for stats)
+    const qAll = isAdmin
+      ? query(ordersRef)
+      : query(ordersRef, where('tenantId', '==', userData.tenantId));
+
+    const unsubscribeAll = onSnapshot(qAll, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
+      setAllOrders(data);
     });
 
     const qCustomers = isAdmin
@@ -54,35 +66,54 @@ export default function Dashboard() {
     });
 
     return () => {
-      unsubscribeOrders();
+      unsubscribeRecent();
+      unsubscribeAll();
       unsubscribeCustomers();
     };
   }, [userData, isAdmin]);
 
+  const calculateTotal = (status?: string) => {
+    return allOrders
+      .filter(o => !status || o.status === status)
+      .reduce((acc, o) => acc + o.totalValue, 0);
+  };
+
   const stats = [
     { 
-      title: 'Total de Ordens', 
-      value: orders.length, 
-      icon: ClipboardList, 
-      color: 'bg-blue-500/10 text-blue-500' 
+      title: 'Faturadas Pagas', 
+      value: `R$ ${calculateTotal('paid').toFixed(2)}`, 
+      icon: CheckCircle2, 
+      color: 'bg-emerald-500/10 text-emerald-600' 
     },
     { 
-      title: 'Clientes Ativos', 
-      value: customers.length, 
-      icon: Users, 
-      color: 'bg-green-500/10 text-green-500' 
+      title: 'Aguardando Pagamento', 
+      value: `R$ ${calculateTotal('pending-payment').toFixed(2)}`, 
+      icon: Clock, 
+      color: 'bg-purple-500/10 text-purple-600' 
+    },
+    { 
+      title: 'Orçamentos', 
+      value: `R$ ${calculateTotal('budget').toFixed(2)}`, 
+      icon: ClipboardList, 
+      color: 'bg-blue-500/10 text-blue-600' 
     },
     { 
       title: 'Em Andamento', 
-      value: orders.filter(o => o.status === 'in-progress').length, 
-      icon: Clock, 
-      color: 'bg-orange-500/10 text-orange-500' 
+      value: `R$ ${calculateTotal('in-progress').toFixed(2)}`, 
+      icon: AlertCircle, 
+      color: 'bg-orange-500/10 text-orange-600' 
+    },
+    { 
+      title: 'Fechadas', 
+      value: `R$ ${calculateTotal('closed').toFixed(2)}`, 
+      icon: CheckCircle2, 
+      color: 'bg-green-500/10 text-green-600' 
     },
     { 
       title: 'Faturamento Total', 
-      value: `R$ ${orders.reduce((acc, o) => acc + (o.status === 'closed' ? o.totalValue : 0), 0).toFixed(2)}`, 
+      value: `R$ ${calculateTotal().toFixed(2)}`, 
       icon: TrendingUp, 
-      color: 'bg-purple-500/10 text-purple-500' 
+      color: 'bg-primary/10 text-primary' 
     },
   ];
 
@@ -91,6 +122,8 @@ export default function Dashboard() {
       case 'budget': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">Orçamento</Badge>;
       case 'in-progress': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200">Em Andamento</Badge>;
       case 'closed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Fechada</Badge>;
+      case 'paid': return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200">Faturada Paga</Badge>;
+      case 'pending-payment': return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200">Aguardando Pagamento</Badge>;
       default: return null;
     }
   };
@@ -110,27 +143,27 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
             <motion.div
               key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.05 }}
             >
-              <Card className="border-none shadow-sm bg-orange-50/50 backdrop-blur-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+              <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                  <CardTitle className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
                     {stat.title}
                   </CardTitle>
-                  <div className={cn("p-2 rounded-lg", stat.color)}>
-                    <Icon className="w-4 h-4" />
+                  <div className={cn("p-1.5 rounded-md", stat.color)}>
+                    <Icon className="w-3.5 h-3.5" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <div className="text-lg font-bold truncate">{stat.value}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -151,7 +184,7 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {[1, 2, 3].map(i => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
               </div>
-            ) : orders.length === 0 ? (
+            ) : recentOrders.length === 0 ? (
               <div className="text-center py-12 space-y-4">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
                   <ClipboardList className="w-8 h-8 text-muted-foreground" />
@@ -160,7 +193,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {orders.map((order) => {
+                {recentOrders.map((order) => {
                   const customer = customers.find(c => c.id === order.customerId);
                   return (
                     <Link key={order.id} to={`/orders/${order.id}`}>
@@ -170,7 +203,7 @@ export default function Dashboard() {
                             {customer?.name || 'Cliente não encontrado'}
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2">
-                            <span>{format(new Date(order.createdAt), 'dd MMM yyyy', { locale: ptBR })}</span>
+                            <span>{format(new Date((order.executionDate || order.createdAt).replace('Z', '')), 'dd MMM yyyy', { locale: ptBR })}</span>
                             <span>•</span>
                             <span>R$ {order.totalValue.toFixed(2)}</span>
                           </div>
