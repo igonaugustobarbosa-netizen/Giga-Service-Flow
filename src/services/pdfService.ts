@@ -42,7 +42,7 @@ export const generateServicePDF = (
   doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin, 32);
   
   const dateToDisplay = order.executionDate || order.createdAt;
-  const dateStr = dateToDisplay ? format(new Date(dateToDisplay), 'dd/MM/yyyy HH:mm') : 'N/A';
+  const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
   doc.text(`Data de Execução: ${dateStr}`, pageWidth - margin, 25, { align: 'right' });
   
   y = 50;

@@ -144,6 +144,8 @@ export default function Reports() {
                   <option value="budget">Orçamento</option>
                   <option value="in-progress">Em Andamento</option>
                   <option value="closed">Fechada</option>
+                  <option value="paid">Faturada Paga</option>
+                  <option value="pending-payment">Aguardando Pagamento</option>
                 </Select>
               </div>
 
@@ -279,9 +281,15 @@ export default function Reports() {
                               "px-2 py-1 rounded-full text-[10px] font-bold uppercase",
                               order.status === 'budget' ? "bg-blue-100 text-blue-700" :
                               order.status === 'in-progress' ? "bg-orange-100 text-orange-700" :
-                              "bg-green-100 text-green-700"
+                              order.status === 'closed' ? "bg-green-100 text-green-700" :
+                              order.status === 'paid' ? "bg-emerald-100 text-emerald-700" :
+                              "bg-purple-100 text-purple-700"
                             )}>
-                              {order.status === 'budget' ? 'Orçamento' : order.status === 'in-progress' ? 'Em Aberto' : 'Fechada'}
+                              {order.status === 'budget' ? 'Orçamento' : 
+                               order.status === 'in-progress' ? 'Em Aberto' : 
+                               order.status === 'closed' ? 'Fechada' :
+                               order.status === 'paid' ? 'Faturada Paga' :
+                               'Aguardando Pagamento'}
                             </span>
                           </td>
                           <td className="p-4 text-right font-bold">R$ {order.totalValue.toFixed(2)}</td>

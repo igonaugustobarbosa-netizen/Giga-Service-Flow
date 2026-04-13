@@ -92,8 +92,13 @@ export const generateReportPDF = (
 
     const customer = customers.find(c => c.id === order.customerId);
     const dateToDisplay = order.executionDate || order.createdAt;
-    const dateStr = format(new Date(dateToDisplay), 'dd/MM/yy');
-    const statusLabel = order.status === 'budget' ? 'Orçamento' : order.status === 'in-progress' ? 'Em Aberto' : 'Fechada';
+    const dateStr = format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yy');
+    const statusLabel = 
+      order.status === 'budget' ? 'Orçamento' : 
+      order.status === 'in-progress' ? 'Em Aberto' : 
+      order.status === 'closed' ? 'Fechada' :
+      order.status === 'paid' ? 'Faturada Paga' :
+      'Aguardando Pagamento';
     
     doc.text(order.orderNumber || order.id.substring(0, 5), margin + 2, y);
     doc.text(dateStr, margin + 20, y);

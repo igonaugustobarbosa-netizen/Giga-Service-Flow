@@ -1,4 +1,4 @@
-export type ServiceStatus = 'budget' | 'in-progress' | 'closed';
+export type ServiceStatus = 'budget' | 'in-progress' | 'closed' | 'paid' | 'pending-payment';
 export type PaymentMethod = 'pix' | 'cash' | 'credit' | 'debit';
 
 export interface ServiceLocation {

@@ -20,7 +20,8 @@ import {
   Camera,
   CreditCard,
   CheckCircle2,
-  Trash2
+  Trash2,
+  DollarSign
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -29,6 +30,7 @@ import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 
 export default function OrderDetails() {
@@ -40,6 +42,7 @@ export default function OrderDetails() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
+  const [closeOrderDialog, setCloseOrderDialog] = useState(false);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -107,23 +110,22 @@ export default function OrderDetails() {
     }
   };
 
-  const handleCloseOrder = async () => {
+  const handleCloseOrder = () => {
+    setCloseOrderDialog(true);
+  };
+
+  const handleStatusUpdate = async (status: ServiceOrder['status']) => {
     if (!id) return;
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Encerrar Ordem de Serviço',
-      description: 'Deseja encerrar esta ordem de serviço?',
-      onConfirm: async () => {
-        try {
-          await updateDoc(doc(db, 'serviceOrders', id), {
-            status: 'closed',
-            updatedAt: new Date().toISOString()
-          });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${id}`);
-        }
-      }
-    });
+    
+    try {
+      await updateDoc(doc(db, 'serviceOrders', id), {
+        status,
+        updatedAt: new Date().toISOString()
+      });
+      setCloseOrderDialog(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${id}`);
+    }
   };
 
   const handleDeleteOrder = async () => {
@@ -149,6 +151,8 @@ export default function OrderDetails() {
       case 'budget': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-sm px-3 py-1">Orçamento</Badge>;
       case 'in-progress': return <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-sm px-3 py-1">Em Andamento</Badge>;
       case 'closed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-sm px-3 py-1">Fechada</Badge>;
+      case 'paid': return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-sm px-3 py-1">Faturada Paga</Badge>;
+      case 'pending-payment': return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-sm px-3 py-1">Aguardando Pagamento</Badge>;
       default: return null;
     }
   };
@@ -184,12 +188,17 @@ export default function OrderDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {order.status !== 'closed' && (
-            <Button variant="outline" className="gap-2 text-green-600 border-green-200 hover:bg-green-50" onClick={handleCloseOrder}>
-              <CheckCircle2 className="w-4 h-4" />
-              Encerrar
-            </Button>
-          )}
+          <Button 
+            variant="outline" 
+            className={cn(
+              "gap-2 border-green-200 hover:bg-green-50",
+              (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? "text-primary border-primary/20 hover:bg-primary/5" : "text-green-600"
+            )}
+            onClick={handleCloseOrder}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            { (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? 'Alterar Status' : 'Encerrar' }
+          </Button>
           <Button variant="outline" className="gap-2 text-destructive border-destructive/20 hover:bg-destructive/5" onClick={handleDeleteOrder}>
             <Trash2 className="w-4 h-4" />
             Excluir
@@ -226,7 +235,9 @@ export default function OrderDetails() {
                     <p className="font-bold">
                       {order.createdAt ? (() => {
                         try {
-                          return format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                          // Strip 'Z' to force local time interpretation and avoid day shift
+                          const dateStr = order.createdAt.includes('Z') ? order.createdAt.replace('Z', '') : order.createdAt;
+                          return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
                         } catch (e) {
                           return 'Data inválida';
                         }
@@ -241,11 +252,16 @@ export default function OrderDetails() {
                     <p className="font-bold">
                       {order.executionDate ? (() => {
                         try {
-                          return format(new Date(order.executionDate), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                          // Strip 'Z' to force local time interpretation and avoid day shift
+                          const dateStr = order.executionDate.includes('Z') ? order.executionDate.replace('Z', '') : order.executionDate;
+                          return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
                         } catch (e) {
                           return 'Data inválida';
                         }
-                      })() : (order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'Não informada')}
+                      })() : (order.createdAt ? (() => {
+                        const dateStr = order.createdAt.includes('Z') ? order.createdAt.replace('Z', '') : order.createdAt;
+                        return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                      })() : 'Não informada')}
                     </p>
                   </div>
                 </div>
@@ -542,6 +558,55 @@ export default function OrderDetails() {
         description={confirmDialog.description}
         variant={confirmDialog.variant}
       />
+
+      <Dialog open={closeOrderDialog} onOpenChange={setCloseOrderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Encerrar Ordem de Serviço</DialogTitle>
+            <p className="text-muted-foreground text-sm">Escolha o status final para esta ordem de serviço:</p>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 py-4">
+            <Button 
+              variant="outline" 
+              className="justify-start h-14 px-4 border-green-200 hover:bg-green-50 hover:text-green-700"
+              onClick={() => handleStatusUpdate('closed')}
+            >
+              <CheckCircle2 className="w-5 h-5 mr-3 text-green-600" />
+              <div className="text-left">
+                <p className="font-bold">Fechada</p>
+                <p className="text-xs text-muted-foreground">Serviço concluído (padrão)</p>
+              </div>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="justify-start h-14 px-4 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+              onClick={() => handleStatusUpdate('paid')}
+            >
+              <DollarSign className="w-5 h-5 mr-3 text-emerald-600" />
+              <div className="text-left">
+                <p className="font-bold">Faturada Paga</p>
+                <p className="text-xs text-muted-foreground">Pagamento já recebido</p>
+              </div>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="justify-start h-14 px-4 border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+              onClick={() => handleStatusUpdate('pending-payment')}
+            >
+              <Clock className="w-5 h-5 mr-3 text-purple-600" />
+              <div className="text-left">
+                <p className="font-bold">Aguardando Pagamento</p>
+                <p className="text-xs text-muted-foreground">Serviço feito, aguardando PIX/Cartão</p>
+              </div>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCloseOrderDialog(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

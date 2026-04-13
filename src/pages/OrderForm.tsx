@@ -334,6 +334,8 @@ export default function OrderForm() {
                     <option value="budget">Orçamento</option>
                     <option value="in-progress">Em Andamento</option>
                     <option value="closed">Fechada</option>
+                    <option value="paid">Faturada Paga</option>
+                    <option value="pending-payment">Aguardando Pagamento</option>
                   </Select>
                 </div>
                 <div className="space-y-2">
@@ -362,14 +364,9 @@ export default function OrderForm() {
                       onChange={e => {
                         const date = e.target.value;
                         if (date) {
-                          // Ensure we have a valid time part to maintain ISO format
-                          let timePart = '12:00:00.000Z';
-                          if (formData.createdAt && formData.createdAt.includes('T')) {
-                            timePart = formData.createdAt.split('T')[1];
-                          } else {
-                            timePart = new Date().toISOString().split('T')[1];
-                          }
-                          setFormData({...formData, createdAt: `${date}T${timePart}`});
+                          // Use a fixed time without 'Z' to ensure it's treated as local time
+                          // and doesn't shift days due to timezone conversion
+                          setFormData({...formData, createdAt: `${date}T12:00:00`});
                         }
                       }}
                     />
@@ -388,13 +385,9 @@ export default function OrderForm() {
                       onChange={e => {
                         const date = e.target.value;
                         if (date) {
-                          let timePart = '12:00:00.000Z';
-                          if (formData.executionDate && formData.executionDate.includes('T')) {
-                            timePart = formData.executionDate.split('T')[1];
-                          } else {
-                            timePart = new Date().toISOString().split('T')[1];
-                          }
-                          setFormData({...formData, executionDate: `${date}T${timePart}`});
+                          // Use a fixed time without 'Z' to ensure it's treated as local time
+                          // and doesn't shift days due to timezone conversion
+                          setFormData({...formData, executionDate: `${date}T12:00:00`});
                         }
                       }}
                     />
