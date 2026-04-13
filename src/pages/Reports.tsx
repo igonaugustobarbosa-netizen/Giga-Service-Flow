@@ -100,6 +100,14 @@ export default function Reports() {
 
   const totalBilling = filteredOrders.reduce((acc, order) => acc + order.totalValue, 0);
 
+  const statusBreakdown = {
+    budget: filteredOrders.filter(o => o.status === 'budget').reduce((acc, o) => acc + o.totalValue, 0),
+    'in-progress': filteredOrders.filter(o => o.status === 'in-progress').reduce((acc, o) => acc + o.totalValue, 0),
+    closed: filteredOrders.filter(o => o.status === 'closed').reduce((acc, o) => acc + o.totalValue, 0),
+    paid: filteredOrders.filter(o => o.status === 'paid').reduce((acc, o) => acc + o.totalValue, 0),
+    'pending-payment': filteredOrders.filter(o => o.status === 'pending-payment').reduce((acc, o) => acc + o.totalValue, 0),
+  };
+
   const handleGeneratePDF = () => {
     generateReportPDF(filteredOrders, customers, suppliers, filters);
   };
@@ -242,6 +250,43 @@ export default function Reports() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Status Breakdown (Only when All Statuses is selected) */}
+          {!filters.status && filteredOrders.length > 0 && (
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Resumo por Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs text-blue-600 font-medium">Orçamentos</p>
+                    <p className="text-lg font-bold">R$ {statusBreakdown.budget.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-orange-600 font-medium">Em Andamento</p>
+                    <p className="text-lg font-bold">R$ {statusBreakdown['in-progress'].toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-green-600 font-medium">Fechadas</p>
+                    <p className="text-lg font-bold">R$ {statusBreakdown.closed.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-emerald-600 font-medium">Faturadas Pagas</p>
+                    <p className="text-lg font-bold">R$ {statusBreakdown.paid.toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-purple-600 font-medium">Aguardando Pagto</p>
+                    <p className="text-lg font-bold">R$ {statusBreakdown['pending-payment'].toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-orange-100 flex justify-between items-center">
+                  <p className="text-sm font-bold text-muted-foreground">Subtotal Geral</p>
+                  <p className="text-xl font-black text-primary">R$ {totalBilling.toFixed(2)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Orders Table Preview */}
           <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm overflow-hidden">

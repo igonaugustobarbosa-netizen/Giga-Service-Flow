@@ -117,6 +117,47 @@ export const generateReportPDF = (
   y += 10;
 
   // Summary Box
+  if (!filters.status && orders.length > 0) {
+    const breakdown = {
+      budget: orders.filter(o => o.status === 'budget').reduce((acc, o) => acc + o.totalValue, 0),
+      'in-progress': orders.filter(o => o.status === 'in-progress').reduce((acc, o) => acc + o.totalValue, 0),
+      closed: orders.filter(o => o.status === 'closed').reduce((acc, o) => acc + o.totalValue, 0),
+      paid: orders.filter(o => o.status === 'paid').reduce((acc, o) => acc + o.totalValue, 0),
+      'pending-payment': orders.filter(o => o.status === 'pending-payment').reduce((acc, o) => acc + o.totalValue, 0),
+    };
+
+    if (y > 220) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text('RESUMO POR STATUS:', margin, y);
+    y += 7;
+
+    const statusRows = [
+      { label: 'Orçamentos:', value: breakdown.budget },
+      { label: 'Em Andamento:', value: breakdown['in-progress'] },
+      { label: 'Fechadas:', value: breakdown.closed },
+      { label: 'Faturadas Pagas:', value: breakdown.paid },
+      { label: 'Aguardando Pagamento:', value: breakdown['pending-payment'] },
+    ];
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    statusRows.forEach(row => {
+      doc.text(row.label, margin + 5, y);
+      doc.text(`R$ ${row.value.toFixed(2)}`, pageWidth - margin - 5, y, { align: 'right' });
+      y += 6;
+    });
+
+    y += 4;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y - 2, pageWidth - margin, y - 2);
+  }
+
   if (y > 250) {
     doc.addPage();
     y = 20;
@@ -127,7 +168,7 @@ export const generateReportPDF = (
   doc.setFontSize(12);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('FATURAMENTO TOTAL:', margin + 5, y + 10);
+  doc.text('SUBTOTAL GERAL:', margin + 5, y + 10);
   doc.text(`R$ ${totalBilling.toFixed(2)}`, pageWidth - margin - 5, y + 10, { align: 'right' });
 
   // Footer
