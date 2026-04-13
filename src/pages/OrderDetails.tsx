@@ -32,6 +32,8 @@ import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
+import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
+import { MessageSquare, Bell } from 'lucide-react';
 
 export default function OrderDetails() {
   const { id } = useParams();
@@ -218,6 +220,40 @@ export default function OrderDetails() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          {/* Follow-up Alert */}
+          {order.status === 'budget' && (() => {
+            const alert = getActiveFollowUp(order);
+            if (!alert) return null;
+            return (
+              <Card className="border-none shadow-lg bg-blue-600 text-white overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Bell className="w-24 h-24" />
+                </div>
+                <CardContent className="p-6 relative">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 animate-bounce">
+                      <MessageSquare className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                      <h3 className="text-xl font-bold mb-1">{alert.label}</h3>
+                      <p className="text-blue-100 italic mb-4">"{alert.message}"</p>
+                      <Button 
+                        className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-bold"
+                        onClick={() => {
+                          const formattedMessage = formatFollowUpMessage(alert.message, order, supplier?.name || '');
+                          sendWhatsAppMessage(customer.phone, formattedMessage);
+                        }}
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                        Enviar Lembrete via WhatsApp
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Main Info */}
           <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between">

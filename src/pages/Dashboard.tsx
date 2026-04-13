@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, onSnapshot, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer } from '../types';
+import { ServiceOrder, Customer, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { 
   ClipboardList, 
@@ -19,6 +19,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { cn } from '../lib/utils';
+import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
+import { MessageSquare, Bell } from 'lucide-react';
 
 import { useAuth } from '../components/AuthGuard';
 
@@ -27,6 +29,7 @@ export default function Dashboard() {
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([]);
   const [allOrders, setAllOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +37,7 @@ export default function Dashboard() {
 
     const ordersRef = collection(db, 'serviceOrders');
     const customersRef = collection(db, 'customers');
+    const suppliersRef = collection(db, 'suppliers');
 
     // Query for recent orders (limit 10)
     const qRecent = isAdmin 
@@ -65,10 +69,20 @@ export default function Dashboard() {
       setCustomers(data);
     });
 
+    const qSuppliers = isAdmin
+      ? query(suppliersRef)
+      : query(suppliersRef, where('tenantId', '==', userData.tenantId));
+
+    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any) as Supplier);
+      setSuppliers(data);
+    });
+
     return () => {
       unsubscribeRecent();
       unsubscribeAll();
       unsubscribeCustomers();
+      unsubscribeSuppliers();
     };
   }, [userData, isAdmin]);
 
@@ -116,6 +130,12 @@ export default function Dashboard() {
       color: 'bg-primary/10 text-primary' 
     },
   ];
+
+  const followUpOrders = allOrders
+    .filter(o => o.status === 'budget')
+    .map(o => ({ order: o, alert: getActiveFollowUp(o) }))
+    .filter(item => item.alert !== null)
+    .sort((a, b) => (b.alert?.days || 0) - (a.alert?.days || 0));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -172,7 +192,60 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
+        <div className="lg:col-span-2 space-y-8">
+          {followUpOrders.length > 0 && (
+            <Card className="border-none shadow-md bg-blue-600 text-white overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Bell className="w-5 h-5 animate-bounce" />
+                  Lembretes de Orçamento Pendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {followUpOrders.slice(0, 3).map(({ order, alert }) => {
+                    const customer = customers.find(c => c.id === order.customerId);
+                    return (
+                      <div key={order.id} className="flex items-center justify-between p-3 rounded-lg bg-white/10 border border-white/20">
+                        <div className="min-w-0">
+                          <p className="font-bold truncate">{customer?.name || 'Cliente'}</p>
+                          <p className="text-xs text-blue-100">{alert?.label}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Link to={`/orders/${order.id}`}>
+                            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 h-8 px-2">
+                              Ver OS
+                            </Button>
+                          </Link>
+                          <Button 
+                            size="sm" 
+                            className="bg-white text-blue-600 hover:bg-blue-50 h-8 gap-1 font-bold"
+                            onClick={() => {
+                              if (customer?.phone && alert) {
+                                const supplier = suppliers.find(s => s.id === order.supplierId);
+                                const formattedMessage = formatFollowUpMessage(alert.message, order, supplier?.name || '');
+                                sendWhatsAppMessage(customer.phone, formattedMessage);
+                              }
+                            }}
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            WhatsApp
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {followUpOrders.length > 3 && (
+                    <p className="text-xs text-center text-blue-100 pt-2">
+                      E mais {followUpOrders.length - 3} orçamentos aguardando retorno...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-primary" />
@@ -219,8 +292,9 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
+      <Card className="border-none shadow-sm bg-orange-50/30 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />

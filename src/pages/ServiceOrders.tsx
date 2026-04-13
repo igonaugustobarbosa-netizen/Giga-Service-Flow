@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer } from '../types';
+import { ServiceOrder, Customer, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -28,11 +28,14 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
+import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
+import { MessageSquare, Bell } from 'lucide-react';
 
 export default function ServiceOrders() {
   const { userData, isAdmin } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -66,6 +69,7 @@ export default function ServiceOrders() {
 
     const ordersRef = collection(db, 'serviceOrders');
     const customersRef = collection(db, 'customers');
+    const suppliersRef = collection(db, 'suppliers');
 
     const qOrders = isAdmin
       ? query(ordersRef, orderBy('createdAt', 'desc'))
@@ -86,9 +90,19 @@ export default function ServiceOrders() {
       setCustomers(data);
     });
 
+    const qSuppliers = isAdmin
+      ? query(suppliersRef)
+      : query(suppliersRef, where('tenantId', '==', userData.tenantId));
+
+    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any) as Supplier);
+      setSuppliers(data);
+    });
+
     return () => {
       unsubscribeOrders();
       unsubscribeCustomers();
+      unsubscribeSuppliers();
     };
   }, [userData, isAdmin]);
 
@@ -295,6 +309,18 @@ export default function ServiceOrders() {
                             N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}
                           </Badge>
                           {getStatusBadge(order.status)}
+                          {order.status === 'budget' && (
+                            (() => {
+                              const alert = getActiveFollowUp(order);
+                              if (!alert) return null;
+                              return (
+                                <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 animate-pulse gap-1">
+                                  <Bell className="w-3 h-3" />
+                                  Follow-up: {alert.days}d
+                                </Badge>
+                              );
+                            })()
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{order.description}</p>
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
@@ -319,6 +345,31 @@ export default function ServiceOrders() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {order.status === 'budget' && (
+                          (() => {
+                            const alert = getActiveFollowUp(order);
+                            if (!alert) return null;
+                            return (
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (customer?.phone) {
+                                    const supplier = suppliers.find(s => s.id === order.supplierId);
+                                    const formattedMessage = formatFollowUpMessage(alert.message, order, supplier?.name || '');
+                                    sendWhatsAppMessage(customer.phone, formattedMessage);
+                                  }
+                                }}
+                                title={alert.label}
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </Button>
+                            );
+                          })()
+                        )}
                         <Button 
                           variant="outline" 
                           size="icon" 
