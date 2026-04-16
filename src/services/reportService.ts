@@ -13,12 +13,15 @@ export const generateReportPDF = (
     endDate?: string;
     customerId?: string;
     supplierId?: string;
+    reportType?: 'summary' | 'full';
   }
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let y = 20;
+
+  const isFullReport = filters.reportType === 'full';
 
   // Header
   doc.setFillColor(41, 128, 185);
@@ -27,7 +30,7 @@ export const generateReportPDF = (
   doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('RELATÓRIO DE FATURAMENTO', margin, 22);
+  doc.text(isFullReport ? 'RELATÓRIO DETALHADO DE SERVIÇOS' : 'RELATÓRIO DE FATURAMENTO', margin, 22);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
@@ -64,55 +67,143 @@ export const generateReportPDF = (
     y += 10;
   }
 
-  // Table Header
-  doc.setFillColor(240, 240, 240);
-  doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(50, 50, 50);
-  
-  doc.text('Nº OS', margin + 2, y + 6);
-  doc.text('Data Exec.', margin + 20, y + 6);
-  doc.text('Cliente', margin + 45, y + 6);
-  doc.text('Status', margin + 110, y + 6);
-  doc.text('Valor (R$)', pageWidth - margin - 2, y + 6, { align: 'right' });
-
-  y += 12;
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
-
   let totalBilling = 0;
 
-  orders.forEach((order) => {
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
-      // Repeat header on new page if needed, but let's keep it simple for now
-    }
+  if (isFullReport) {
+    // Group orders by customer
+    const ordersByCustomer: Record<string, ServiceOrder[]> = {};
+    orders.forEach(order => {
+      if (!ordersByCustomer[order.customerId]) {
+        ordersByCustomer[order.customerId] = [];
+      }
+      ordersByCustomer[order.customerId].push(order);
+    });
 
-    const customer = customers.find(c => c.id === order.customerId);
-    const dateToDisplay = order.executionDate || order.createdAt;
-    const dateStr = format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yy');
-    const statusLabel = 
-      order.status === 'budget' ? 'Orçamento' : 
-      order.status === 'in-progress' ? 'Em Aberto' : 
-      order.status === 'closed' ? 'Fechada' :
-      order.status === 'paid' ? 'Faturada Paga' :
-      'Aguardando Pagamento';
-    
-    doc.text(order.orderNumber || order.id.substring(0, 5), margin + 2, y);
-    doc.text(dateStr, margin + 20, y);
-    doc.text(customer?.name.substring(0, 30) || 'N/A', margin + 45, y);
-    doc.text(statusLabel, margin + 110, y);
-    doc.text(order.totalValue.toFixed(2), pageWidth - margin - 2, y, { align: 'right' });
+    Object.entries(ordersByCustomer).forEach(([customerId, customerOrders]) => {
+      const customer = customers.find(c => c.id === customerId);
+      
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
 
-    totalBilling += order.totalValue;
-    y += 7;
+      // Customer Header
+      doc.setFillColor(230, 230, 230);
+      doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(41, 128, 185);
+      doc.text(`CLIENTE: ${customer?.name || 'N/A'}`, margin + 2, y + 6);
+      y += 12;
+
+      let customerTotal = 0;
+
+      customerOrders.forEach((order) => {
+        if (y > 240) {
+          doc.addPage();
+          y = 20;
+        }
+
+        const dateToDisplay = order.executionDate || order.createdAt;
+        const dateStr = format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yy');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`OS: ${order.orderNumber || order.id.substring(0, 8)} - ${dateStr}`, margin + 2, y);
+        y += 5;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        
+        // Description
+        const splitDescription = doc.splitTextToSize(`Descrição: ${order.description || 'Sem descrição'}`, pageWidth - margin * 2 - 10);
+        doc.text(splitDescription, margin + 5, y);
+        y += splitDescription.length * 4;
+
+        // Labor
+        if (order.hoursWorked > 0) {
+          const rate = order.laborRate || 0;
+          doc.text(`Mão de Obra: ${order.hoursWorked}h x R$ ${rate.toFixed(2)} = R$ ${(order.hoursWorked * rate).toFixed(2)}`, margin + 5, y);
+          y += 4;
+        }
+
+        // Parts
+        if (order.parts && order.parts.length > 0) {
+          doc.text('Peças:', margin + 5, y);
+          y += 4;
+          order.parts.forEach(part => {
+            doc.text(`- ${part.name}: ${part.quantity} x R$ ${part.price.toFixed(2)} = R$ ${(part.quantity * part.price).toFixed(2)}`, margin + 10, y);
+            y += 4;
+          });
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Total da OS: R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y, { align: 'right' });
+        y += 8;
+        
+        doc.setDrawColor(240, 240, 240);
+        doc.line(margin + 5, y - 4, pageWidth - margin - 5, y - 4);
+
+        customerTotal += order.totalValue;
+        totalBilling += order.totalValue;
+      });
+
+      // Customer Total
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(41, 128, 185);
+      doc.text(`TOTAL DO CLIENTE: R$ ${customerTotal.toFixed(2)}`, pageWidth - margin - 2, y + 2, { align: 'right' });
+      y += 15;
+    });
+  } else {
+    // Table Header (Summary)
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(50, 50, 50);
     
-    // Draw a very light line
-    doc.setDrawColor(245, 245, 245);
-    doc.line(margin, y - 5, pageWidth - margin, y - 5);
-  });
+    doc.text('Nº OS', margin + 2, y + 6);
+    doc.text('Data Exec.', margin + 20, y + 6);
+    doc.text('Cliente', margin + 45, y + 6);
+    doc.text('Status', margin + 110, y + 6);
+    doc.text('Valor (R$)', pageWidth - margin - 2, y + 6, { align: 'right' });
+
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+
+    orders.forEach((order) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+
+      const customer = customers.find(c => c.id === order.customerId);
+      const dateToDisplay = order.executionDate || order.createdAt;
+      const dateStr = format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yy');
+      const statusLabel = 
+        order.status === 'budget' ? 'Orçamento' : 
+        order.status === 'in-progress' ? 'Em Aberto' : 
+        order.status === 'closed' ? 'Fechada' :
+        order.status === 'paid' ? 'Faturada Paga' :
+        'Aguardando Pagamento';
+      
+      doc.text(order.orderNumber || order.id.substring(0, 5), margin + 2, y);
+      doc.text(dateStr, margin + 20, y);
+      doc.text(customer?.name.substring(0, 30) || 'N/A', margin + 45, y);
+      doc.text(statusLabel, margin + 110, y);
+      doc.text(order.totalValue.toFixed(2), pageWidth - margin - 2, y, { align: 'right' });
+
+      totalBilling += order.totalValue;
+      y += 7;
+      
+      doc.setDrawColor(245, 245, 245);
+      doc.line(margin, y - 5, pageWidth - margin, y - 5);
+    });
+  }
 
   y += 10;
 

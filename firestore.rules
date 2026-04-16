@@ -58,10 +58,10 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || resource.data.tenantId == getTenantId() || isAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow create: if isAuthenticated() && (isAdmin() || request.resource.data.tenantId == getTenantId());
-      allow update: if isAuthenticated() && (isAdmin() || (resource.data.tenantId == getTenantId() && request.resource.data.role == resource.data.role) || (request.auth.uid == userId && request.resource.data.role == resource.data.role));
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.tenantId == getTenantId() && request.auth.uid != userId);
+      allow update: if isAuthenticated() && (isAdmin() || (request.auth.uid == userId && request.resource.data.role == resource.data.role && request.resource.data.tenantId == resource.data.tenantId));
+      allow delete: if isAdmin();
     }
 
     match /customers/{customerId} {

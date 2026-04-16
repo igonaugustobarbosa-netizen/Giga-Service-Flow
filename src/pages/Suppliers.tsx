@@ -172,17 +172,19 @@ export default function Suppliers() {
             >
               <Card className="group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-bold text-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-bold text-xl shrink-0">
                       {supplier.name.charAt(0)}
                     </div>
-                    <CardTitle className="text-lg font-bold">{supplier.name}</CardTitle>
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg font-bold truncate">{supplier.name}</CardTitle>
+                    </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(supplier)}>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="icon" className="h-8 w-8 bg-background/50 border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-all" onClick={() => handleOpenDialog(supplier)}>
                       <Edit2 className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(supplier.id)}>
+                    <Button variant="outline" size="icon" className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all" onClick={() => handleDelete(supplier.id)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

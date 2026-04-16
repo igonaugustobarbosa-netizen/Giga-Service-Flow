@@ -532,25 +532,30 @@ export default function OrderForm() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {formData.beforePhotos?.map((photo, index) => (
-                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border group">
-                      <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
+                        <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
+                      </div>
                       <Button 
                         type="button" 
-                        variant="destructive" 
+                        variant="outline" 
                         size="icon" 
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0"
                         onClick={() => setFormData(prev => ({
                           ...prev,
                           beforePhotos: (prev.beforePhotos || []).filter((_, i) => i !== index)
                         }))}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </Button>
                     </div>
                   ))}
-                  <div className="relative aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
+                  <div className="relative h-20 rounded-xl border-2 border-dashed flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
                     {isUploadingPhoto ? (
                       <div className="flex flex-col items-center">
                         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />
@@ -582,25 +587,30 @@ export default function OrderForm() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {formData.afterPhotos?.map((photo, index) => (
-                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border group">
-                      <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
+                        <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
+                      </div>
                       <Button 
                         type="button" 
-                        variant="destructive" 
+                        variant="outline" 
                         size="icon" 
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0"
                         onClick={() => setFormData(prev => ({
                           ...prev,
                           afterPhotos: (prev.afterPhotos || []).filter((_, i) => i !== index)
                         }))}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </Button>
                     </div>
                   ))}
-                  <div className="relative aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
+                  <div className="relative h-20 rounded-xl border-2 border-dashed flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
                     {isUploadingPhoto ? (
                       <div className="flex flex-col items-center">
                         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />

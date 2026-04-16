@@ -36,7 +36,8 @@ export default function Reports() {
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     customerId: '',
-    supplierId: ''
+    supplierId: '',
+    reportType: 'summary' as 'summary' | 'full'
   });
 
   useEffect(() => {
@@ -201,6 +202,18 @@ export default function Reports() {
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="reportType">Tipo de Relatório</Label>
+                <Select 
+                  id="reportType" 
+                  value={filters.reportType} 
+                  onChange={e => setFilters({...filters, reportType: e.target.value as 'summary' | 'full'})}
+                >
+                  <option value="summary">Resumido</option>
+                  <option value="full">Completo (Detalhado)</option>
+                </Select>
+              </div>
+
               <Button 
                 variant="outline" 
                 className="w-full" 
@@ -209,7 +222,8 @@ export default function Reports() {
                   startDate: '',
                   endDate: '',
                   customerId: '',
-                  supplierId: ''
+                  supplierId: '',
+                  reportType: 'summary'
                 })}
               >
                 Limpar Filtros

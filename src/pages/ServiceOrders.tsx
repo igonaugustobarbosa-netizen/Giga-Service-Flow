@@ -344,7 +344,7 @@ export default function ServiceOrders() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         {order.status === 'budget' && (
                           (() => {
                             const alert = getActiveFollowUp(order);
@@ -388,7 +388,7 @@ export default function ServiceOrders() {
                             Detalhes
                           </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(order.id)}>
+                        <Button variant="outline" size="icon" className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all" onClick={() => handleDelete(order.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

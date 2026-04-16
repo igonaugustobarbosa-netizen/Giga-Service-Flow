@@ -46,6 +46,30 @@ export default function OrderDetails() {
   const [loading, setLoading] = useState(true);
   const [closeOrderDialog, setCloseOrderDialog] = useState(false);
 
+  const handleDeletePhoto = async (type: 'before' | 'after', index: number) => {
+    if (!order || !id) return;
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Foto',
+      description: 'Tem certeza que deseja excluir esta foto permanentemente?',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          const updatedPhotos = type === 'before' 
+            ? [...(order.beforePhotos || [])].filter((_, i) => i !== index)
+            : [...(order.afterPhotos || [])].filter((_, i) => i !== index);
+          
+          await updateDoc(doc(db, 'serviceOrders', id), {
+            [type === 'before' ? 'beforePhotos' : 'afterPhotos']: updatedPhotos
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `serviceOrders/${id}`);
+        }
+      }
+    });
+  };
+
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -375,10 +399,23 @@ export default function OrderDetails() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
                     {order.beforePhotos.map((photo, index) => (
-                      <div key={index} className="aspect-square rounded-xl overflow-hidden border">
-                        <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                      <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
+                          <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0"
+                          onClick={() => handleDeletePhoto('before', index)}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -395,10 +432,23 @@ export default function OrderDetails() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
                     {order.afterPhotos.map((photo, index) => (
-                      <div key={index} className="aspect-square rounded-xl overflow-hidden border">
-                        <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                      <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
+                          <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0"
+                          onClick={() => handleDeletePhoto('after', index)}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
                       </div>
                     ))}
                   </div>
