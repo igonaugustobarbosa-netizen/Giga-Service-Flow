@@ -56,3 +56,26 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+// Helper to parse dates safely from Firestore or JS strings
+export const parseDateSafely = (dateValue: any): Date => {
+  if (!dateValue) return new Date();
+  
+  // Handle Firestore Timestamps
+  if (dateValue?.toDate && typeof dateValue.toDate === 'function') {
+    return dateValue.toDate();
+  }
+  
+  // Handle JS Dates
+  if (dateValue instanceof Date) return dateValue;
+
+  try {
+    const dateStr = String(dateValue);
+    // Strip 'Z' to avoid day jumps if we want to stay in local time interpretation
+    const cleanStr = dateStr.includes('Z') ? dateStr.replace('Z', '') : dateStr;
+    const date = new Date(cleanStr);
+    return isNaN(date.getTime()) ? new Date() : date;
+  } catch (e) {
+    return new Date();
+  }
+};

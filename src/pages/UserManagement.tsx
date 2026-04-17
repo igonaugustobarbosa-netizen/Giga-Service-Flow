@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
+import { logActivity } from '../services/activityService';
 
 export default function UserManagement() {
   const { userData: currentUser, isAdmin } = useAuth();
@@ -129,6 +130,15 @@ export default function UserManagement() {
         }
         
         await updateDoc(doc(db, 'users', editingUser.id), data);
+        logActivity({
+          type: 'update',
+          entity: 'user',
+          entityId: editingUser.id,
+          entityName: formData.name,
+          userId: currentUser!.id,
+          userName: currentUser!.name,
+          tenantId: currentUser!.tenantId
+        });
       } else {
         if (!formData.password || formData.password.length < 6) {
           throw new Error('A senha deve ter pelo menos 6 caracteres.');
@@ -162,6 +172,16 @@ export default function UserManagement() {
 
         await setDoc(doc(db, 'users', uid), userData);
         
+        logActivity({
+          type: 'create',
+          entity: 'user',
+          entityId: uid,
+          entityName: formData.name,
+          userId: currentUser!.id,
+          userName: currentUser!.name,
+          tenantId: currentUser!.tenantId
+        });
+
         // Sign out and delete the secondary app to clean up completely
         await secondaryAuth.signOut();
         try {
@@ -208,7 +228,19 @@ export default function UserManagement() {
       variant: 'destructive',
       onConfirm: async () => {
         try {
+          const userToDelete = users.find(u => u.id === id);
           await deleteDoc(doc(db, 'users', id));
+          if (userToDelete && currentUser) {
+            logActivity({
+              type: 'delete',
+              entity: 'user',
+              entityId: id,
+              entityName: userToDelete.name,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              tenantId: currentUser.tenantId
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
         }

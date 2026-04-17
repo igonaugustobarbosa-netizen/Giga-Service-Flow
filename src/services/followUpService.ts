@@ -36,7 +36,23 @@ export function formatFollowUpMessage(
   supplierName: string
 ): string {
   const osNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
-  const osDate = parseISO(order.createdAt);
+  
+  let osDate: Date;
+  try {
+    const rawDate = order.createdAt as any;
+    if (rawDate?.toDate && typeof rawDate.toDate === 'function') {
+      osDate = rawDate.toDate();
+    } else {
+      osDate = new Date(order.createdAt);
+    }
+    
+    if (isNaN(osDate.getTime())) {
+      osDate = new Date();
+    }
+  } catch (e) {
+    osDate = new Date();
+  }
+  
   const formattedDate = osDate.toLocaleDateString('pt-BR');
   
   return message
@@ -48,7 +64,22 @@ export function formatFollowUpMessage(
 export function getActiveFollowUp(order: ServiceOrder): FollowUpAlert | null {
   if (order.status !== 'budget') return null;
 
-  const createdAt = parseISO(order.createdAt);
+  let createdAt: Date;
+  try {
+    const rawDate = order.createdAt as any;
+    if (rawDate?.toDate && typeof rawDate.toDate === 'function') {
+      createdAt = rawDate.toDate();
+    } else {
+      createdAt = new Date(order.createdAt);
+    }
+    
+    if (isNaN(createdAt.getTime())) {
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
+
   const today = new Date();
   const daysDiff = differenceInDays(today, createdAt);
 

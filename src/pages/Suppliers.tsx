@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
+import { logActivity } from '../services/activityService';
 
 export default function Suppliers() {
   const { userData, isAdmin } = useAuth();
@@ -102,9 +103,27 @@ export default function Suppliers() {
     try {
       if (editingSupplier) {
         await updateDoc(doc(db, 'suppliers', editingSupplier.id), formData);
+        logActivity({
+          type: 'update',
+          entity: 'supplier',
+          entityId: editingSupplier.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
       } else {
-        await addDoc(collection(db, 'suppliers'), {
+        const docRef = await addDoc(collection(db, 'suppliers'), {
           ...formData,
+          tenantId: userData.tenantId
+        });
+        logActivity({
+          type: 'create',
+          entity: 'supplier',
+          entityId: docRef.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
           tenantId: userData.tenantId
         });
       }
@@ -122,7 +141,19 @@ export default function Suppliers() {
       variant: 'destructive',
       onConfirm: async () => {
         try {
+          const supplier = suppliers.find(s => s.id === id);
           await deleteDoc(doc(db, 'suppliers', id));
+          if (supplier && userData) {
+            logActivity({
+              type: 'delete',
+              entity: 'supplier',
+              entityId: id,
+              entityName: supplier.name,
+              userId: userData.id,
+              userName: userData.name,
+              tenantId: userData.tenantId
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `suppliers/${id}`);
         }

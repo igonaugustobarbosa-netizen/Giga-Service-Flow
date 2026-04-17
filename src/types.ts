@@ -90,3 +90,15 @@ export interface Settings {
   laborHourValue?: number;
   lastOrderNumber: number;
 }
+
+export interface Activity {
+  id: string;
+  type: 'create' | 'update' | 'delete';
+  entity: 'customer' | 'technician' | 'supplier' | 'order' | 'user';
+  entityId: string;
+  entityName: string;
+  userId: string;
+  userName: string;
+  timestamp: string;
+  tenantId: string;
+}

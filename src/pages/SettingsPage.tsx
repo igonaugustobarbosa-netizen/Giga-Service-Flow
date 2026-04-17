@@ -17,6 +17,7 @@ import {
 import { motion } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
 import { cn } from '../lib/utils';
+import { logActivity } from '../services/activityService';
 
 import { useAuth } from '../components/AuthGuard';
 
@@ -47,6 +48,15 @@ export default function SettingsPage() {
     setMessage(null);
     try {
       await setDoc(doc(db, 'settings', userData.tenantId), settings);
+      logActivity({
+        type: 'update',
+        entity: 'user', // Best fit for system settings as it's a global config
+        entityId: userData.tenantId,
+        entityName: 'Configurações do Sistema',
+        userId: userData.id,
+        userName: userData.name,
+        tenantId: userData.tenantId
+      });
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);

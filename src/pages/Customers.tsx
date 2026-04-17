@@ -25,6 +25,7 @@ import { getCurrentLocation } from '../services/locationService';
 import { ServiceLocation } from '../types';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
+import { logActivity } from '../services/activityService';
 
 export default function Customers() {
   const { userData, isAdmin } = useAuth();
@@ -100,9 +101,27 @@ export default function Customers() {
     try {
       if (editingCustomer) {
         await updateDoc(doc(db, 'customers', editingCustomer.id), formData);
+        logActivity({
+          type: 'update',
+          entity: 'customer',
+          entityId: editingCustomer.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
       } else {
-        await addDoc(collection(db, 'customers'), {
+        const docRef = await addDoc(collection(db, 'customers'), {
           ...formData,
+          tenantId: userData.tenantId
+        });
+        logActivity({
+          type: 'create',
+          entity: 'customer',
+          entityId: docRef.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
           tenantId: userData.tenantId
         });
       }
@@ -120,7 +139,19 @@ export default function Customers() {
       variant: 'destructive',
       onConfirm: async () => {
         try {
+          const customer = customers.find(c => c.id === id);
           await deleteDoc(doc(db, 'customers', id));
+          if (customer && userData) {
+            logActivity({
+              type: 'delete',
+              entity: 'customer',
+              entityId: id,
+              entityName: customer.name,
+              userId: userData.id,
+              userName: userData.name,
+              tenantId: userData.tenantId
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `customers/${id}`);
         }

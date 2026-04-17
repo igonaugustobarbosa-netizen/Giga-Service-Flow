@@ -28,6 +28,7 @@ import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
 import { compressImage } from '../lib/imageUtils';
+import { logActivity } from '../services/activityService';
 
 export default function OrderForm() {
   const { id } = useParams();
@@ -74,18 +75,24 @@ export default function OrderForm() {
     const qCustomers = isAdmin ? query(customersRef, orderBy('name')) : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+    }, (error) => {
+      console.error('Erro ao carregar clientes:', error);
     });
 
     // Load technicians
     const qTechnicians = isAdmin ? query(techniciansRef, orderBy('name')) : query(techniciansRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
     const unsubscribeTechnicians = onSnapshot(qTechnicians, (snapshot) => {
       setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
+    }, (error) => {
+      console.error('Erro ao carregar técnicos:', error);
     });
 
     // Load suppliers
     const qSuppliers = isAdmin ? query(suppliersRef, orderBy('name')) : query(suppliersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
     const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+    }, (error) => {
+      console.error('Erro ao carregar fornecedores:', error);
     });
 
     // Load settings
@@ -94,6 +101,8 @@ export default function OrderForm() {
         const data = doc.data() as Settings;
         setSettings(data);
       }
+    }, (error) => {
+      console.error('Erro ao carregar configurações:', error);
     });
 
     // Load order if editing
@@ -236,6 +245,15 @@ export default function OrderForm() {
 
       if (id) {
         await updateDoc(doc(db, 'serviceOrders', id), dataToSave);
+        logActivity({
+          type: 'update',
+          entity: 'order',
+          entityId: id,
+          entityName: formData.orderNumber || id,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
       } else {
         // Use a transaction to increment the order number
         await runTransaction(db, async (transaction) => {
@@ -259,6 +277,16 @@ export default function OrderForm() {
           
           transaction.set(newOrderRef, newOrderData);
           transaction.set(settingsRef, { lastOrderNumber: nextNumber }, { merge: true });
+
+          logActivity({
+            type: 'create',
+            entity: 'order',
+            entityId: newOrderRef.id,
+            entityName: formattedNumber,
+            userId: userData.id,
+            userName: userData.name,
+            tenantId: userData.tenantId
+          });
         });
       }
       navigate('/orders');

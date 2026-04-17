@@ -16,22 +16,25 @@ import {
   MapPin,
   CheckCircle2
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
-import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
+import { logActivity } from '../services/activityService';
+import { toast } from 'sonner';
 
 export default function ServiceOrders() {
+  const navigate = useNavigate();
   const { userData, isAdmin } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -79,6 +82,10 @@ export default function ServiceOrders() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
       setOrders(data);
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar ordens:', error);
+      setLoading(false);
+      toast.error('Erro ao carregar lista de ordens. Verifique as permissões.');
     });
 
     const qCustomers = isAdmin
@@ -88,6 +95,8 @@ export default function ServiceOrders() {
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(data);
+    }, (error) => {
+      console.error('Erro ao carregar clientes:', error);
     });
 
     const qSuppliers = isAdmin
@@ -97,6 +106,8 @@ export default function ServiceOrders() {
     const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any) as Supplier);
       setSuppliers(data);
+    }, (error) => {
+      console.error('Erro ao carregar fornecedores:', error);
     });
 
     return () => {
@@ -114,8 +125,21 @@ export default function ServiceOrders() {
       variant: 'destructive',
       onConfirm: async () => {
         try {
+          const order = orders.find(o => o.id === id);
           await deleteDoc(doc(db, 'serviceOrders', id));
+          if (order && userData) {
+            logActivity({
+              type: 'delete',
+              entity: 'order',
+              entityId: id,
+              entityName: order.orderNumber || id,
+              userId: userData.id,
+              userName: userData.name,
+              tenantId: userData.tenantId
+            });
+          }
         } catch (error) {
+          toast.error('Não foi possível excluir a ordem de serviço.');
           handleFirestoreError(error, OperationType.DELETE, `serviceOrders/${id}`);
         }
       }
@@ -130,12 +154,28 @@ export default function ServiceOrders() {
     if (!closeOrderDialog.orderId) return;
     
     try {
+      const order = orders.find(o => o.id === closeOrderDialog.orderId);
       await updateDoc(doc(db, 'serviceOrders', closeOrderDialog.orderId), {
         status,
         updatedAt: new Date().toISOString()
       });
+      
+      if (order && userData) {
+        logActivity({
+          type: 'update',
+          entity: 'order',
+          entityId: closeOrderDialog.orderId,
+          entityName: `${order.orderNumber || closeOrderDialog.orderId} (Status: ${status})`,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
+      }
+
       setCloseOrderDialog({ isOpen: false, orderId: '' });
+      toast.success('Status atualizado com sucesso!');
     } catch (error) {
+      toast.error('Não foi possível atualizar o status.');
       handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${closeOrderDialog.orderId}`);
     }
   };
@@ -162,7 +202,7 @@ export default function ServiceOrders() {
     const matchesCustomer = !filters.customerId || order.customerId === filters.customerId;
     
     // Date filtering
-    const orderDate = new Date((order.executionDate || order.createdAt).replace('Z', ''));
+    const orderDate = parseDateSafely(order.executionDate || order.createdAt);
     const start = filters.startDate ? new Date(filters.startDate) : null;
     const end = filters.endDate ? new Date(filters.endDate) : null;
     
@@ -294,8 +334,15 @@ export default function ServiceOrders() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ delay: i * 0.05 }}
               >
-                <Card className="group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all overflow-hidden">
-                  <div className="flex flex-col md:flex-row">
+                <Card 
+                  className="relative group border-none shadow-sm bg-orange-50/20 backdrop-blur-sm hover:bg-orange-50/40 hover:shadow-md transition-all overflow-hidden"
+                >
+                  <Link 
+                    to={`/orders/${order.id}`} 
+                    className="absolute inset-0 z-0 block cursor-pointer" 
+                    aria-label={`Ver detalhes da ordem ${order.orderNumber}`}
+                  />
+                  <div className="relative z-10 pointer-events-none flex flex-col md:flex-row w-full h-full">
                     <div className={cn(
                       "w-2 md:w-3",
                       order.status === 'budget' ? "bg-blue-500" : 
@@ -303,30 +350,32 @@ export default function ServiceOrders() {
                     )} />
                     <div className="flex-1 p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="space-y-3 flex-1">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-bold">{customer?.name || 'Cliente não encontrado'}</h3>
-                          <Badge variant="secondary" className="bg-muted text-muted-foreground font-mono">
-                            N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}
-                          </Badge>
-                          {getStatusBadge(order.status)}
-                          {order.status === 'budget' && (
-                            (() => {
-                              const alert = getActiveFollowUp(order);
-                              if (!alert) return null;
-                              return (
-                                <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 animate-pulse gap-1">
-                                  <Bell className="w-3 h-3" />
-                                  Follow-up: {alert.days}d
-                                </Badge>
-                              );
-                            })()
-                          )}
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-lg font-bold">{customer?.name || 'Cliente não encontrado (ou excluído)'}</h3>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground font-mono">
+                              N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}
+                            </Badge>
+                            {getStatusBadge(order.status)}
+                            {order.status === 'budget' && (
+                              (() => {
+                                const alert = getActiveFollowUp(order);
+                                if (!alert) return null;
+                                return (
+                                  <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 animate-pulse gap-1">
+                                    <Bell className="w-3 h-3" />
+                                    Follow-up: {alert.days}d
+                                  </Badge>
+                                );
+                              })()
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{order.description}</p>
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            <span>{format(new Date((order.executionDate || order.createdAt).replace('Z', '')), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                            <span>{format(parseDateSafely(order.executionDate || order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-3 h-3" />
@@ -344,7 +393,7 @@ export default function ServiceOrders() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center justify-end gap-3 shrink-0 flex-wrap pt-4 lg:pt-0 border-t lg:border-none pointer-events-auto" onClick={(e) => e.stopPropagation()}>
                         {order.status === 'budget' && (
                           (() => {
                             const alert = getActiveFollowUp(order);
@@ -353,7 +402,7 @@ export default function ServiceOrders() {
                               <Button 
                                 variant="outline" 
                                 size="icon" 
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                className="h-12 w-12 lg:h-10 lg:w-10 text-blue-600 border-blue-200 hover:bg-blue-50 shrink-0"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -365,7 +414,7 @@ export default function ServiceOrders() {
                                 }}
                                 title={alert.label}
                               >
-                                <MessageSquare className="w-4 h-4" />
+                                <MessageSquare className="w-5 h-5" />
                               </Button>
                             );
                           })()
@@ -374,22 +423,40 @@ export default function ServiceOrders() {
                           variant="outline" 
                           size="icon" 
                           className={cn(
-                            "border-green-200 hover:bg-green-50",
+                            "h-12 w-12 lg:h-10 lg:w-10 border-green-200 hover:bg-green-50 shrink-0",
                             (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? "text-primary border-primary/20 hover:bg-primary/5" : "text-green-600"
                           )}
-                          onClick={() => handleCloseOrder(order.id)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleCloseOrder(order.id);
+                          }}
                           title="Alterar Status"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-5 h-5" />
                         </Button>
-                        <Link to={`/orders/${order.id}`}>
-                          <Button variant="secondary" className="gap-2">
-                            <Eye className="w-4 h-4" />
-                            Detalhes
-                          </Button>
-                        </Link>
-                        <Button variant="outline" size="icon" className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all" onClick={() => handleDelete(order.id)}>
-                          <Trash2 className="w-4 h-4" />
+                        <Button 
+                          variant="secondary" 
+                          className="gap-2 h-12 px-5 lg:h-10 lg:px-4 shrink-0 font-bold"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/orders/${order.id}`);
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Detalhes</span>
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-12 w-12 lg:h-10 lg:w-10 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleDelete(order.id);
+                          }}
+                        >
+                          <Trash2 className="w-5 h-5" />
                         </Button>
                       </div>
                     </div>

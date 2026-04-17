@@ -22,6 +22,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
+import { logActivity } from '../services/activityService';
+import { toast } from 'sonner';
 
 export default function Technicians() {
   const { userData, isAdmin } = useAuth();
@@ -68,6 +70,10 @@ export default function Technicians() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician));
       setTechnicians(data);
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar técnicos:', error);
+      setLoading(false);
+      toast.error('Erro ao carregar lista de técnicos.');
     });
     return () => unsubscribe();
   }, [userData, isAdmin]);
@@ -104,9 +110,27 @@ export default function Technicians() {
     try {
       if (editingTechnician) {
         await updateDoc(doc(db, 'technicians', editingTechnician.id), formData);
+        logActivity({
+          type: 'update',
+          entity: 'technician',
+          entityId: editingTechnician.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
       } else {
-        await addDoc(collection(db, 'technicians'), {
+        const docRef = await addDoc(collection(db, 'technicians'), {
           ...formData,
+          tenantId: userData.tenantId
+        });
+        logActivity({
+          type: 'create',
+          entity: 'technician',
+          entityId: docRef.id,
+          entityName: formData.name,
+          userId: userData.id,
+          userName: userData.name,
           tenantId: userData.tenantId
         });
       }
@@ -124,7 +148,19 @@ export default function Technicians() {
       variant: 'destructive',
       onConfirm: async () => {
         try {
+          const technician = technicians.find(t => t.id === id);
           await deleteDoc(doc(db, 'technicians', id));
+          if (technician && userData) {
+            logActivity({
+              type: 'delete',
+              entity: 'technician',
+              entityId: id,
+              entityName: technician.name,
+              userId: userData.id,
+              userName: userData.name,
+              tenantId: userData.tenantId
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `technicians/${id}`);
         }
@@ -132,10 +168,12 @@ export default function Technicians() {
     });
   };
 
-  const filteredTechnicians = technicians.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.specialty?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTechnicians = technicians.filter(t => {
+    const name = (t.name || '').toLowerCase();
+    const specialty = (t.specialty || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return name.includes(search) || specialty.includes(search);
+  });
 
   return (
     <div className="space-y-8">

@@ -12,7 +12,14 @@ export const generateServicePDF = (
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
+  const pageHeight = doc.internal.pageSize.getHeight();
   let y = 20;
+
+  const drawFooter = () => {
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - Desenvolvedor Giga Elétrica Fone 43 996118806`, margin, pageHeight - 10);
+  };
 
   // Helper for drawing section boxes
   const drawSectionBox = (startY: number, height: number, title: string) => {
@@ -30,56 +37,62 @@ export const generateServicePDF = (
 
   // Header
   doc.setFillColor(41, 128, 185); // Primary blue
-  doc.rect(0, 0, pageWidth, 40, 'F');
+  doc.rect(0, 0, pageWidth, 25, 'F');
   
-  doc.setFontSize(22);
+  doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('ORDEM DE SERVIÇO', margin, 25);
+  doc.text('ORDEM DE SERVIÇO', margin, 17);
   
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin, 32);
+  doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 80, 17);
   
   const dateToDisplay = order.executionDate || order.createdAt;
   const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
-  doc.text(`Data de Execução: ${dateStr}`, pageWidth - margin, 25, { align: 'right' });
+  doc.text(`Data: ${dateStr}`, pageWidth - margin, 17, { align: 'right' });
   
-  y = 50;
+  y = 35;
 
   // Customer Section
-  const customerBoxHeight = 30;
+  const customerBoxHeight = 32;
   drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
   doc.setFontSize(10);
-  doc.text(`Nome: ${customer.name}`, margin + 5, y + 15);
-  doc.text(`Telefone: ${customer.phone}`, margin + 5, y + 22);
-  if (customer.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 22);
-  if (customer.address) doc.text(`Endereço: ${customer.address}`, margin + 5, y + 29);
+  doc.text(`Nome: ${customer.name}`, margin + 5, y + 14);
+  doc.text(`Telefone: ${customer.phone}`, margin + 5, y + 21);
+  if (customer.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 21);
+  if (customer.address) {
+    const splitAddr = doc.splitTextToSize(`Endereço: ${customer.address}`, contentWidth - 10);
+    doc.text(splitAddr, margin + 5, y + 28);
+  }
   
-  y += customerBoxHeight + 10;
+  y += customerBoxHeight + 5;
 
   // Supplier Section (if exists)
   if (supplier) {
-    const supplierBoxHeight = 30;
+    const supplierBoxHeight = 32;
     drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
-    doc.text(`Nome: ${supplier.name}`, margin + 5, y + 15);
-    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 22);
-    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 22);
-    if (supplier.address) doc.text(`Endereço: ${supplier.address}`, margin + 5, y + 29);
-    y += supplierBoxHeight + 10;
+    doc.text(`Nome: ${supplier.name}`, margin + 5, y + 14);
+    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 21);
+    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 21);
+    if (supplier.address) {
+      const splitAddr = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
+      doc.text(splitAddr, margin + 5, y + 28);
+    }
+    y += supplierBoxHeight + 5;
   }
 
   // Service Description
   const splitDescription = doc.splitTextToSize(order.description, contentWidth - 10);
-  const descHeight = (splitDescription.length * 6) + 15;
+  const descHeight = (splitDescription.length * 6) + 12;
   drawSectionBox(y, descHeight, 'DESCRIÇÃO DO SERVIÇO');
-  doc.text(splitDescription, margin + 5, y + 15);
-  y += descHeight + 10;
+  doc.text(splitDescription, margin + 5, y + 13);
+  y += descHeight + 5;
 
   // Technicians
-  drawSectionBox(y, 15, 'TÉCNICOS RESPONSÁVEIS');
-  doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 13);
-  y += 25;
+  drawSectionBox(y, 12, 'TÉCNICOS RESPONSÁVEIS');
+  doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 11);
+  y += 18;
 
   // Parts Table
   if (order.parts.length > 0) {
@@ -102,7 +115,11 @@ export const generateServicePDF = (
     
     doc.setFont('helvetica', 'normal');
     order.parts.forEach((part: Part) => {
-      if (y > 270) { doc.addPage(); y = 20; }
+      if (y > 270) { 
+        drawFooter();
+        doc.addPage(); 
+        y = 20; 
+      }
       doc.text(part.name, margin + 5, y);
       doc.text(part.quantity.toString(), margin + 100, y);
       doc.text(`R$ ${part.price.toFixed(2)}`, margin + 130, y);
@@ -113,7 +130,11 @@ export const generateServicePDF = (
   }
 
   // Financial Summary
-  if (y > 230) { doc.addPage(); y = 20; }
+  if (y > 230) { 
+    drawFooter();
+    doc.addPage(); 
+    y = 20; 
+  }
   
   const summaryY = y;
   let summaryHeight = 45;
@@ -176,15 +197,35 @@ export const generateServicePDF = (
   doc.text('VALOR TOTAL DA ORDEM:', margin + 5, y + 8);
   doc.text(`R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y + 8, { align: 'right' });
 
-  // Footer
+  y += 20;
+
+  // Validity Message
+  if (y > 260) {
+    drawFooter();
+    doc.addPage();
+    y = 20;
+  }
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  doc.text('Validade da Proposta:', margin, y);
+  
+  y += 5;
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ServiceFlow`, margin, doc.internal.pageSize.getHeight() - 10);
+  doc.setTextColor(100, 100, 100);
+  const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
+  const splitValidity = doc.splitTextToSize(validityText, contentWidth);
+  doc.text(splitValidity, margin, y);
+
+  drawFooter();
 
   // Photos Section
   const addPhotosToPDF = (title: string, photos: string[]) => {
     if (!photos || photos.length === 0) return;
     
+    drawFooter(); // Draw footer on previous page before adding photo page
     doc.addPage();
     let photoY = 20;
     
@@ -206,6 +247,7 @@ export const generateServicePDF = (
     photos.forEach((photo, index) => {
       // Check if we need a new page for the next row of photos
       if (photoY + photoSize > 270) {
+        drawFooter();
         doc.addPage();
         photoY = 20;
       }
@@ -223,6 +265,8 @@ export const generateServicePDF = (
         photoY += photoSize + 5;
       }
     });
+
+    drawFooter(); // Final footer for the last photo page
   };
 
   addPhotosToPDF('FOTOS: ANTES', order.beforePhotos);

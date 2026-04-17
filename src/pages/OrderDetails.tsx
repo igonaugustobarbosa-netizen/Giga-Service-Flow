@@ -28,12 +28,14 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
-import { cn, handleFirestoreError, OperationType } from '../lib/utils';
+import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
+import { logActivity } from '../services/activityService';
+import { toast } from 'sonner';
 
 export default function OrderDetails() {
   const { id } = useParams();
@@ -63,6 +65,18 @@ export default function OrderDetails() {
           await updateDoc(doc(db, 'serviceOrders', id), {
             [type === 'before' ? 'beforePhotos' : 'afterPhotos']: updatedPhotos
           });
+          
+          if (userData) {
+            logActivity({
+              type: 'update',
+              entity: 'order',
+              entityId: id,
+              entityName: `${order.orderNumber || id} (Foto excluída)`,
+              userId: userData.id,
+              userName: userData.name,
+              tenantId: userData.tenantId
+            });
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, `serviceOrders/${id}`);
         }
@@ -89,41 +103,77 @@ export default function OrderDetails() {
     if (!id || !userData) return;
 
     const unsubscribe = onSnapshot(doc(db, 'serviceOrders', id), async (snapshot) => {
-      if (snapshot.exists()) {
-        const orderData = { id: snapshot.id, ...snapshot.data() } as ServiceOrder;
-        
-        // Security check (redundant but good for UX)
-        if (!isAdmin && orderData.tenantId !== userData.tenantId) {
-          navigate('/orders');
-          return;
-        }
-
-        setOrder(orderData);
-
-        // Load customer
-        const custSnap = await getDoc(doc(db, 'customers', orderData.customerId));
-        if (custSnap.exists()) {
-          setCustomer({ id: custSnap.id, ...custSnap.data() } as Customer);
-        }
-
-        // Load technicians
-        const techPromises = (orderData.technicianIds || []).map(tid => getDoc(doc(db, 'technicians', tid)));
-        const techSnaps = await Promise.all(techPromises);
-        setTechnicians(techSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() } as Technician)));
-
-        // Load supplier
-        if (orderData.supplierId) {
-          const supplierSnap = await getDoc(doc(db, 'suppliers', orderData.supplierId));
-          if (supplierSnap.exists()) {
-            setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
+      try {
+        if (snapshot.exists()) {
+          const orderData = { id: snapshot.id, ...snapshot.data() } as ServiceOrder;
+          
+          // Security check (redundant but good for UX)
+          // Relaxed for backward compatibility with orders that might not have tenantId
+          if (!isAdmin && orderData.tenantId && userData.tenantId && orderData.tenantId !== userData.tenantId) {
+            navigate('/orders');
+            return;
           }
+
+          // Set order immediately so basic info shows up
+          setOrder(orderData);
+
+          // Load related data in parallel with independent error handling
+          const loadRelatedData = async () => {
+            // Load customer
+            try {
+              if (orderData.customerId) {
+                const custSnap = await getDoc(doc(db, 'customers', orderData.customerId));
+                if (custSnap.exists()) {
+                  setCustomer({ id: custSnap.id, ...custSnap.data() } as Customer);
+                }
+              }
+            } catch (err) {
+              console.error('Erro ao carregar cliente:', err);
+            }
+
+            // Load technicians
+            try {
+              const ids = orderData.technicianIds || [];
+              if (ids.length > 0) {
+                const techPromises = ids.map(tid => getDoc(doc(db, 'technicians', tid)));
+                const techSnaps = await Promise.all(techPromises);
+                setTechnicians(techSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() } as Technician)));
+              } else {
+                setTechnicians([]);
+              }
+            } catch (err) {
+              console.error('Erro ao carregar técnicos:', err);
+            }
+
+            // Load supplier
+            try {
+              if (orderData.supplierId) {
+                const supplierSnap = await getDoc(doc(db, 'suppliers', orderData.supplierId));
+                if (supplierSnap.exists()) {
+                  setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
+                }
+              } else {
+                setSupplier(null);
+              }
+            } catch (err) {
+              console.error('Erro ao carregar fornecedor:', err);
+            }
+          };
+
+          loadRelatedData();
         } else {
-          setSupplier(null);
+          toast.error('Ordem de serviço não encontrada.');
+          navigate('/orders');
         }
+      } catch (error) {
+        console.error('Erro ao processar dados da ordem:', error);
+        toast.error('Erro ao carregar detalhes da ordem.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `serviceOrders/${id}`);
+      console.error('Erro no snapshot da ordem:', error);
+      toast.error('Sem permissão para acessar esta ordem.');
       navigate('/orders');
     });
 
@@ -131,8 +181,12 @@ export default function OrderDetails() {
   }, [id, userData, isAdmin, navigate]);
 
   const handleGeneratePDF = () => {
-    if (order && customer) {
-      generateServicePDF(order, customer, technicians, supplier || undefined);
+    if (order) {
+      if (customer) {
+        generateServicePDF(order, customer, technicians, supplier || undefined);
+      } else {
+        toast.error('Não é possível gerar o PDF pois o cliente original foi excluído. Por favor, edite a ordem e selecione um novo cliente.');
+      }
     }
   };
 
@@ -148,6 +202,19 @@ export default function OrderDetails() {
         status,
         updatedAt: new Date().toISOString()
       });
+
+      if (order && userData) {
+        logActivity({
+          type: 'update',
+          entity: 'order',
+          entityId: id,
+          entityName: `${order.orderNumber || id} (Status: ${status})`,
+          userId: userData.id,
+          userName: userData.name,
+          tenantId: userData.tenantId
+        });
+      }
+
       setCloseOrderDialog(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `serviceOrders/${id}`);
@@ -193,11 +260,28 @@ export default function OrderDetails() {
     }
   };
 
-  if (loading) return <div>Carregando...</div>;
-  if (!order || !customer) return <div>Ordem de serviço não encontrada.</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center p-20">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <span className="ml-3">Carregando detalhes...</span>
+    </div>
+  );
+  
+  if (!order) return (
+    <div className="p-8 text-center">
+      <p className="text-destructive mb-4">Ordem de serviço não encontrada.</p>
+      <Link to="/orders">
+        <Button variant="outline">Voltar para Ordens</Button>
+      </Link>
+    </div>
+  );
 
-  const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
-  const kmTotal = order.kmDriven * order.kmValue;
+  // Even if customer is deleted, we should show the order information
+  // We'll show "Cliente excluído" if customer is null
+  const displayCustomerName = customer?.name || 'Cliente não encontrado (ou excluído)';
+
+  const partsTotal = (order.parts || []).reduce((acc, p) => acc + (Number(p.quantity || 0) * Number(p.price || 0)), 0);
+  const kmTotal = (Number(order.kmDriven) || 0) * (Number(order.kmValue) || 0);
 
   return (
     <div className="space-y-8 pb-20">
@@ -213,9 +297,10 @@ export default function OrderDetails() {
             <p className="text-muted-foreground font-mono">OS N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button 
             variant="outline" 
+            size="sm"
             className={cn(
               "gap-2 border-green-200 hover:bg-green-50",
               (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? "text-primary border-primary/20 hover:bg-primary/5" : "text-green-600"
@@ -223,20 +308,20 @@ export default function OrderDetails() {
             onClick={handleCloseOrder}
           >
             <CheckCircle2 className="w-4 h-4" />
-            { (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? 'Alterar Status' : 'Encerrar' }
+            <span className="hidden sm:inline">{ (order.status === 'closed' || order.status === 'paid' || order.status === 'pending-payment') ? 'Status' : 'Encerrar' }</span>
           </Button>
-          <Button variant="outline" className="gap-2 text-destructive border-destructive/20 hover:bg-destructive/5" onClick={handleDeleteOrder}>
+          <Button variant="outline" size="sm" className="gap-2 text-destructive border-destructive/20 hover:bg-destructive/5" onClick={handleDeleteOrder}>
             <Trash2 className="w-4 h-4" />
-            Excluir
+            <span className="hidden sm:inline">Excluir</span>
           </Button>
-          <Button variant="outline" className="gap-2" onClick={handleGeneratePDF}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleGeneratePDF}>
             <FileText className="w-4 h-4" />
-            Gerar PDF
+            <span className="hidden sm:inline">PDF</span>
           </Button>
           <Link to={`/orders/${order.id}/edit`}>
-            <Button className="gap-2">
+            <Button size="sm" className="gap-2">
               <Edit2 className="w-4 h-4" />
-              Editar
+              <span className="hidden sm:inline">Editar</span>
             </Button>
           </Link>
         </div>
@@ -264,8 +349,12 @@ export default function OrderDetails() {
                       <Button 
                         className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-bold"
                         onClick={() => {
-                          const formattedMessage = formatFollowUpMessage(alert.message, order, supplier?.name || '');
-                          sendWhatsAppMessage(customer.phone, formattedMessage);
+                          if (customer?.phone) {
+                            const formattedMessage = formatFollowUpMessage(alert.message, order, supplier?.name || '');
+                            sendWhatsAppMessage(customer.phone, formattedMessage);
+                          } else {
+                            toast.error('Não é possível enviar o WhatsApp pois o cliente or telefone não foram encontrados.');
+                          }
                         }}
                       >
                         <MessageSquare className="w-5 h-5" />
@@ -310,18 +399,7 @@ export default function OrderDetails() {
                   <div className="text-sm">
                     <p className="text-muted-foreground">Data de Execução</p>
                     <p className="font-bold">
-                      {order.executionDate ? (() => {
-                        try {
-                          // Strip 'Z' to force local time interpretation and avoid day shift
-                          const dateStr = order.executionDate.includes('Z') ? order.executionDate.replace('Z', '') : order.executionDate;
-                          return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
-                        } catch (e) {
-                          return 'Data inválida';
-                        }
-                      })() : (order.createdAt ? (() => {
-                        const dateStr = order.createdAt.includes('Z') ? order.createdAt.replace('Z', '') : order.createdAt;
-                        return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
-                      })() : 'Não informada')}
+                      {format(parseDateSafely(order.executionDate || order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                     </p>
                   </div>
                 </div>
@@ -367,7 +445,7 @@ export default function OrderDetails() {
                     <div key={index} className="flex items-center gap-4 p-4 rounded-xl border bg-background">
                       <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden border flex-shrink-0">
                         {part.photoUrl ? (
-                          <img src={part.photoUrl} alt={part.name} className="w-full h-full object-cover" />
+                          <img src={part.photoUrl} alt={part.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                             <Camera className="w-6 h-6" />
@@ -403,7 +481,7 @@ export default function OrderDetails() {
                     {order.beforePhotos.map((photo, index) => (
                       <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
                         <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
-                          <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" />
+                          <img src={photo} alt={`Antes ${index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
@@ -436,7 +514,7 @@ export default function OrderDetails() {
                     {order.afterPhotos.map((photo, index) => (
                       <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
                         <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
-                          <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" />
+                          <img src={photo} alt={`Depois ${index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
@@ -470,16 +548,18 @@ export default function OrderDetails() {
             <CardContent className="space-y-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Nome</p>
-                <p className="font-bold">{customer.name}</p>
+                <p className="font-bold">{customer?.name || 'Cliente excluído'}</p>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Telefone</p>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-primary" />
-                  <p className="font-bold">{customer.phone}</p>
+              {customer?.phone && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Telefone</p>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-primary" />
+                    <p className="font-bold">{customer.phone}</p>
+                  </div>
                 </div>
-              </div>
-              {customer.email && (
+              )}
+              {customer?.email && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Email</p>
                   <div className="flex items-center gap-2">
@@ -488,7 +568,7 @@ export default function OrderDetails() {
                   </div>
                 </div>
               )}
-              {customer.address && (
+              {customer?.address && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Endereço</p>
                   <div className="flex items-start gap-2">

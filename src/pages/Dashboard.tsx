@@ -18,7 +18,7 @@ import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
-import { cn } from '../lib/utils';
+import { cn, parseDateSafely } from '../lib/utils';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
 
@@ -48,6 +48,9 @@ export default function Dashboard() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
       setRecentOrders(data);
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar ordens recentes:', error);
+      setLoading(false);
     });
 
     // Query for all orders (for stats)
@@ -58,6 +61,8 @@ export default function Dashboard() {
     const unsubscribeAll = onSnapshot(qAll, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
       setAllOrders(data);
+    }, (error) => {
+      console.error('Erro ao carregar todas as ordens:', error);
     });
 
     const qCustomers = isAdmin
@@ -65,8 +70,9 @@ export default function Dashboard() {
       : query(customersRef, where('tenantId', '==', userData.tenantId));
 
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
-      setCustomers(data);
+      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+    }, (error) => {
+      console.error('Erro ao carregar clientes:', error);
     });
 
     const qSuppliers = isAdmin
@@ -76,6 +82,8 @@ export default function Dashboard() {
     const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any) as Supplier);
       setSuppliers(data);
+    }, (error) => {
+      console.error('Erro ao carregar fornecedores:', error);
     });
 
     return () => {
@@ -276,7 +284,7 @@ export default function Dashboard() {
                             {customer?.name || 'Cliente não encontrado'}
                           </div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2">
-                            <span>{format(new Date((order.executionDate || order.createdAt).replace('Z', '')), 'dd MMM yyyy', { locale: ptBR })}</span>
+                            <span>{format(parseDateSafely(order.executionDate || order.createdAt), 'dd MMM yyyy', { locale: ptBR })}</span>
                             <span>•</span>
                             <span>R$ {order.totalValue.toFixed(2)}</span>
                           </div>

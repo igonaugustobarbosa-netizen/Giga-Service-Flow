@@ -18,25 +18,32 @@ export const generateReportPDF = (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
   let y = 20;
+
+  const drawFooter = () => {
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Desenvolvedor Giga Elétrica Fone 43 996118806', margin, pageHeight - 10);
+  };
 
   const isFullReport = filters.reportType === 'full';
 
   // Header
   doc.setFillColor(41, 128, 185);
-  doc.rect(0, 0, pageWidth, 35, 'F');
+  doc.rect(0, 0, pageWidth, 25, 'F');
   
-  doc.setFontSize(20);
+  doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text(isFullReport ? 'RELATÓRIO DETALHADO DE SERVIÇOS' : 'RELATÓRIO DE FATURAMENTO', margin, 22);
+  doc.text(isFullReport ? 'RELATÓRIO DETALHADO' : 'RELATÓRIO DE FATURAMENTO', margin, 15);
   
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, 30);
+  doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, 21);
 
-  y = 45;
+  y = 35;
 
   // Filters Summary
   doc.setFontSize(10);
@@ -83,23 +90,25 @@ export const generateReportPDF = (
       const customer = customers.find(c => c.id === customerId);
       
       if (y > 250) {
+        drawFooter();
         doc.addPage();
         y = 20;
       }
 
       // Customer Header
       doc.setFillColor(230, 230, 230);
-      doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
+      doc.rect(margin, y, pageWidth - (margin * 2), 7, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(10);
       doc.setTextColor(41, 128, 185);
-      doc.text(`CLIENTE: ${customer?.name || 'N/A'}`, margin + 2, y + 6);
-      y += 12;
+      doc.text(`CLIENTE: ${customer?.name || 'N/A'}`, margin + 2, y + 5);
+      y += 10;
 
       let customerTotal = 0;
 
       customerOrders.forEach((order) => {
         if (y > 240) {
+          drawFooter();
           doc.addPage();
           y = 20;
         }
@@ -111,7 +120,7 @@ export const generateReportPDF = (
         doc.setFontSize(9);
         doc.setTextColor(0, 0, 0);
         doc.text(`OS: ${order.orderNumber || order.id.substring(0, 8)} - ${dateStr}`, margin + 2, y);
-        y += 5;
+        y += 4;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
@@ -126,22 +135,22 @@ export const generateReportPDF = (
         if (order.hoursWorked > 0) {
           const rate = order.laborRate || 0;
           doc.text(`Mão de Obra: ${order.hoursWorked}h x R$ ${rate.toFixed(2)} = R$ ${(order.hoursWorked * rate).toFixed(2)}`, margin + 5, y);
-          y += 4;
+          y += 3.5;
         }
 
         // Parts
         if (order.parts && order.parts.length > 0) {
           doc.text('Peças:', margin + 5, y);
-          y += 4;
+          y += 3.5;
           order.parts.forEach(part => {
             doc.text(`- ${part.name}: ${part.quantity} x R$ ${part.price.toFixed(2)} = R$ ${(part.quantity * part.price).toFixed(2)}`, margin + 10, y);
-            y += 4;
+            y += 3.5;
           });
         }
 
         doc.setFont('helvetica', 'bold');
         doc.text(`Total da OS: R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y, { align: 'right' });
-        y += 8;
+        y += 6;
         
         doc.setDrawColor(240, 240, 240);
         doc.line(margin + 5, y - 4, pageWidth - margin - 5, y - 4);
@@ -177,6 +186,7 @@ export const generateReportPDF = (
 
     orders.forEach((order) => {
       if (y > 270) {
+        drawFooter();
         doc.addPage();
         y = 20;
       }
@@ -218,6 +228,7 @@ export const generateReportPDF = (
     };
 
     if (y > 220) {
+      drawFooter();
       doc.addPage();
       y = 20;
     }
@@ -250,6 +261,7 @@ export const generateReportPDF = (
   }
 
   if (y > 250) {
+    drawFooter();
     doc.addPage();
     y = 20;
   }
@@ -262,10 +274,27 @@ export const generateReportPDF = (
   doc.text('SUBTOTAL GERAL:', margin + 5, y + 10);
   doc.text(`R$ ${totalBilling.toFixed(2)}`, pageWidth - margin - 5, y + 10, { align: 'right' });
 
-  // Footer
+  y += 25;
+  if (y > 270) {
+    drawFooter();
+    doc.addPage();
+    y = 20;
+  }
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  doc.text('Validade da Proposta:', margin, y);
+  
+  y += 5;
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text('ServiceFlow - Sistema de Gestão de Serviços', margin, doc.internal.pageSize.getHeight() - 10);
+  doc.setTextColor(100, 100, 100);
+  const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
+  const splitValidity = doc.splitTextToSize(validityText, pageWidth - (margin * 2));
+  doc.text(splitValidity, margin, y);
+
+  drawFooter();
 
   doc.save(`Relatorio_Faturamento_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
 };

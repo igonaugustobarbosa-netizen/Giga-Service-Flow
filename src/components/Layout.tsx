@@ -17,6 +17,7 @@ import { Button } from './ui/Button';
 import { auth } from '../firebase';
 import { cn } from '../lib/utils';
 import { useAuth } from './AuthGuard';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -51,6 +52,10 @@ export default function Layout({ children }: LayoutProps) {
             SF
           </div>
           <h1 className="text-xl font-bold tracking-tight">ServiceFlow</h1>
+        </div>
+
+        <div className="mb-4 px-2">
+          <NotificationBell />
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -95,9 +100,12 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <h1 className="text-xl font-bold tracking-tight">ServiceFlow</h1>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-          {isMobileMenuOpen ? <X /> : <Menu />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+            {isMobileMenuOpen ? <X /> : <Menu />}
+          </Button>
+        </div>
       </header>
 
       {/* Mobile Menu Overlay */}
