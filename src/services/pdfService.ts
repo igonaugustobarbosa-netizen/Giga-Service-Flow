@@ -115,7 +115,8 @@ export const generateServicePDF = (
     
     doc.setFont('helvetica', 'normal');
     order.parts.forEach((part: Part) => {
-      if (y > 270) { 
+      const pageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 245 : 270;
+      if (y > pageLimit) { 
         drawFooter();
         doc.addPage(); 
         y = 20; 
@@ -130,7 +131,8 @@ export const generateServicePDF = (
   }
 
   // Financial Summary
-  if (y > 230) { 
+  const summaryPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 205 : 230;
+  if (y > summaryPageLimit) { 
     drawFooter();
     doc.addPage(); 
     y = 20; 
@@ -197,37 +199,51 @@ export const generateServicePDF = (
   doc.text('VALOR TOTAL DA ORDEM:', margin + 5, y + 8);
   doc.text(`R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y + 8, { align: 'right' });
 
-  y += 20;
+  // Validity Message - ALWAYS ON PAGE 1 AT THE BOTTOM
+  const drawValidityOnPage1 = () => {
+    const currentPage = doc.getCurrentPageInfo().pageNumber;
+    doc.setPage(1);
+    
+    const validityY = pageHeight - 35; // Position above footer
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(50, 50, 50);
+    doc.text('Validade da Proposta:', margin, validityY);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
+    const splitValidity = doc.splitTextToSize(validityText, contentWidth);
+    doc.text(splitValidity, margin, validityY + 5);
+    
+    doc.setPage(currentPage);
+  };
 
-  // Validity Message
-  if (y > 260) {
-    drawFooter();
-    doc.addPage();
-    y = 20;
-  }
-  
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(50, 50, 50);
-  doc.text('Validade da Proposta:', margin, y);
-  
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
-  const splitValidity = doc.splitTextToSize(validityText, contentWidth);
-  doc.text(splitValidity, margin, y);
-
+  drawValidityOnPage1();
   drawFooter();
 
   // Photos Section
-  const addPhotosToPDF = (title: string, photos: string[]) => {
+  let photoY = 20;
+  let firstPhotoPage = true;
+
+  const addPhotoSection = (title: string, photos: string[]) => {
     if (!photos || photos.length === 0) return;
     
-    drawFooter(); // Draw footer on previous page before adding photo page
-    doc.addPage();
-    let photoY = 20;
+    if (firstPhotoPage) {
+      doc.addPage();
+      firstPhotoPage = false;
+    } else {
+      // Check if we need a new page for the title
+      if (photoY + 25 > 270) {
+        drawFooter();
+        doc.addPage();
+        photoY = 20;
+      } else {
+        photoY += 5; // Add some spacing between sections
+      }
+    }
     
     // Title for photo section
     doc.setDrawColor(200, 200, 200);
@@ -241,11 +257,11 @@ export const generateServicePDF = (
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
     
-    photoY += 15;
+    photoY += 12;
     
     const photoSize = (contentWidth - 5) / 2;
     photos.forEach((photo, index) => {
-      // Check if we need a new page for the next row of photos
+      // Check if we need a new page for the next photo row
       if (photoY + photoSize > 270) {
         drawFooter();
         doc.addPage();
@@ -259,6 +275,10 @@ export const generateServicePDF = (
         doc.addImage(photo, 'JPEG', x, photoY, photoSize, photoSize, undefined, 'FAST');
       } catch (e) {
         console.error('Erro ao adicionar imagem ao PDF:', e);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(x, photoY, photoSize, photoSize);
+        doc.setFontSize(8);
+        doc.text('Erro ao carregar imagem', x + 5, photoY + photoSize/2);
       }
       
       if (index % 2 !== 0 || index === photos.length - 1) {
@@ -266,11 +286,11 @@ export const generateServicePDF = (
       }
     });
 
-    drawFooter(); // Final footer for the last photo page
+    drawFooter(); // Final footer for the current photo page
   };
 
-  addPhotosToPDF('FOTOS: ANTES', order.beforePhotos);
-  addPhotosToPDF('FOTOS: DEPOIS', order.afterPhotos);
+  addPhotoSection('FOTOS: ANTES', order.beforePhotos);
+  addPhotoSection('FOTOS: DEPOIS', order.afterPhotos);
 
   doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customer.name.replace(/\s+/g, '_')}.pdf`);
 };
