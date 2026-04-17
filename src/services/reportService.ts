@@ -105,6 +105,7 @@ export const generateReportPDF = (
       y += 10;
 
       let customerTotal = 0;
+      let customerTotalHours = 0;
 
       customerOrders.forEach((order) => {
         if (y > 240) {
@@ -136,6 +137,7 @@ export const generateReportPDF = (
           const rate = order.laborRate || 0;
           doc.text(`Mão de Obra: ${order.hoursWorked}h x R$ ${rate.toFixed(2)} = R$ ${(order.hoursWorked * rate).toFixed(2)}`, margin + 5, y);
           y += 3.5;
+          customerTotalHours += order.hoursWorked;
         }
 
         // Parts
@@ -146,6 +148,14 @@ export const generateReportPDF = (
             doc.text(`- ${part.name}: ${part.quantity} x R$ ${part.price.toFixed(2)} = R$ ${(part.quantity * part.price).toFixed(2)}`, margin + 10, y);
             y += 3.5;
           });
+        }
+
+        // Discount
+        if ((order.discountPercent || 0) > 0) {
+          doc.setTextColor(41, 128, 185);
+          doc.text(`Desconto (${order.discountPercent}%): - R$ ${(order.discountValue || 0).toFixed(2)}`, margin + 5, y);
+          doc.setTextColor(80, 80, 80);
+          y += 3.5;
         }
 
         doc.setFont('helvetica', 'bold');
@@ -163,6 +173,7 @@ export const generateReportPDF = (
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(41, 128, 185);
+      doc.text(`TOTAL DE HORAS: ${customerTotalHours}h`, margin + 2, y + 2);
       doc.text(`TOTAL DO CLIENTE: R$ ${customerTotal.toFixed(2)}`, pageWidth - margin - 2, y + 2, { align: 'right' });
       y += 15;
     });

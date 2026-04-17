@@ -698,7 +698,14 @@ export default function OrderDetails() {
                 <span>R$ {kmTotal.toFixed(2)}</span>
               </div>
 
-              {order.paymentMethod === 'pix' && supplier?.pixKey && (
+              {(order.discountPercent || 0) > 0 && (
+                <div className="flex justify-between text-sm text-white font-medium">
+                  <span>Desconto ({order.discountPercent}%):</span>
+                  <span>- R$ {(order.discountValue || 0).toFixed(2)}</span>
+                </div>
+              )}
+
+              {supplier?.pixKey && (
                 <div className="mt-4 p-3 rounded-lg bg-white/10 border border-white/20">
                   <p className="text-[10px] uppercase font-bold text-white/70 mb-1">Chave PIX para Pagamento</p>
                   <p className="text-sm font-mono break-all text-white">

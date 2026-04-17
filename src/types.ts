@@ -79,6 +79,8 @@ export interface ServiceOrder {
   location?: ServiceLocation;
   paymentMethod?: PaymentMethod;
   totalValue: number;
+  discountPercent?: number;
+  discountValue?: number;
   executionDate?: string;
   createdAt: string;
   updatedAt: string;

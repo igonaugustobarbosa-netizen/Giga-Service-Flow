@@ -15,7 +15,8 @@ import {
   Users,
   Building2,
   TrendingUp,
-  ClipboardList
+  ClipboardList,
+  DollarSign
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { generateReportPDF } from '../services/reportService';
@@ -100,6 +101,7 @@ export default function Reports() {
   });
 
   const totalBilling = filteredOrders.reduce((acc, order) => acc + order.totalValue, 0);
+  const totalDiscount = filteredOrders.reduce((acc, order) => acc + (order.discountValue || 0), 0);
 
   const statusBreakdown = {
     budget: filteredOrders.filter(o => o.status === 'budget').reduce((acc, o) => acc + o.totalValue, 0),
@@ -235,16 +237,30 @@ export default function Reports() {
         {/* Report Content */}
         <div className="lg:col-span-3 space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="border-none shadow-sm bg-primary text-primary-foreground">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-primary-foreground/70 text-sm font-medium">Faturamento Total</p>
-                    <h3 className="text-3xl font-bold mt-1">R$ {totalBilling.toFixed(2)}</h3>
+                    <h3 className="text-2xl font-bold mt-1">R$ {totalBilling.toFixed(2)}</h3>
                   </div>
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm border-orange-100">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-muted-foreground text-sm font-medium">Total Descontos</p>
+                    <h3 className="text-2xl font-bold mt-1 text-primary">R$ {totalDiscount.toFixed(2)}</h3>
+                  </div>
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -255,10 +271,10 @@ export default function Reports() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-muted-foreground text-sm font-medium">Total de Ordens</p>
-                    <h3 className="text-3xl font-bold mt-1">{filteredOrders.length}</h3>
+                    <h3 className="text-2xl font-bold mt-1">{filteredOrders.length}</h3>
                   </div>
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                    <ClipboardList className="w-6 h-6 text-primary" />
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <ClipboardList className="w-5 h-5 text-primary" />
                   </div>
                 </div>
               </CardContent>

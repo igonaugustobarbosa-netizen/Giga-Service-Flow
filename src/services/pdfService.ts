@@ -70,15 +70,31 @@ export const generateServicePDF = (
 
   // Supplier Section (if exists)
   if (supplier) {
-    const supplierBoxHeight = 32;
+    let supplierBoxHeight = 25;
+    if (supplier.address) supplierBoxHeight += 12;
+    if (supplier.pixKey) supplierBoxHeight += 7;
+    if (supplier.paymentDetails && !supplier.pixKey) supplierBoxHeight += 7;
+
     drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
     doc.text(`Nome: ${supplier.name}`, margin + 5, y + 14);
     doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 21);
     if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 21);
+    
+    let currentSupplierY = y + 28;
     if (supplier.address) {
       const splitAddr = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
-      doc.text(splitAddr, margin + 5, y + 28);
+      doc.text(splitAddr, margin + 5, currentSupplierY);
+      currentSupplierY += 8;
     }
+    
+    if (supplier.pixKey) {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, currentSupplierY);
+      doc.setFont('helvetica', 'normal');
+    } else if (supplier.paymentDetails) {
+      doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, currentSupplierY);
+    }
+    
     y += supplierBoxHeight + 5;
   }
 
@@ -141,12 +157,16 @@ export const generateServicePDF = (
   const summaryY = y;
   let summaryHeight = 45;
   
-  // Increase summary height if PIX key or payment details are shown
-  const showPix = order.paymentMethod === 'pix' && supplier?.pixKey;
+  // Increase summary height if PIX key, payment details or discount are shown
+  const showPix = !!supplier?.pixKey;
   const showDetails = supplier?.paymentDetails;
+  const showDiscount = (order.discountPercent || 0) > 0;
   
   if (showPix || showDetails) {
     summaryHeight += 8;
+  }
+  if (showDiscount) {
+    summaryHeight += 7;
   }
   
   drawSectionBox(summaryY, summaryHeight, 'RESUMO FINANCEIRO');
@@ -166,6 +186,15 @@ export const generateServicePDF = (
   
   doc.text(`Deslocamento (${order.kmDriven}km):`, margin + 5, summaryY + 29);
   doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 5, summaryY + 29, { align: 'right' });
+
+  let financialYOffset = 36;
+  if (showDiscount) {
+    doc.setTextColor(41, 128, 185); // Blue for discount
+    doc.text(`Desconto Aplicado (${order.discountPercent}%):`, margin + 5, summaryY + financialYOffset);
+    doc.text(`- R$ ${(order.discountValue || 0).toFixed(2)}`, pageWidth - margin - 5, summaryY + financialYOffset, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    financialYOffset += 7;
+  }
   
   const getPaymentMethodLabel = (method?: string) => {
     switch (method) {
@@ -178,15 +207,15 @@ export const generateServicePDF = (
   };
   
   doc.setFont('helvetica', 'bold');
-  doc.text('Forma de Pagamento:', margin + 5, summaryY + 38);
-  doc.text(getPaymentMethodLabel(order.paymentMethod), margin + 45, summaryY + 38);
+  doc.text('Forma de Pagamento:', margin + 5, summaryY + financialYOffset);
+  doc.text(getPaymentMethodLabel(order.paymentMethod), margin + 45, summaryY + financialYOffset);
   
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   if (showPix) {
-    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, summaryY + 45);
+    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, summaryY + financialYOffset + 7);
   } else if (showDetails) {
-    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, summaryY + 45);
+    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, summaryY + financialYOffset + 7);
   }
   
   y += summaryHeight + 5;

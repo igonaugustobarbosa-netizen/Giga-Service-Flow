@@ -58,6 +58,8 @@ export default function OrderForm() {
     afterPhotos: [],
     paymentMethod: 'pix',
     totalValue: 0,
+    discountPercent: 0,
+    discountValue: 0,
     executionDate: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -144,10 +146,17 @@ export default function OrderForm() {
     const partsTotal = (formData.parts || []).reduce((acc, p) => acc + (Number(p.quantity) * Number(p.price)), 0);
     const laborTotal = Number(formData.laborCost) || 0;
     const kmTotal = (Number(formData.kmDriven) || 0) * (Number(formData.kmValue) || 0);
-    const total = partsTotal + laborTotal + kmTotal;
+    const subtotal = partsTotal + laborTotal + kmTotal;
+    const discountPercent = Number(formData.discountPercent) || 0;
+    const discountVal = (subtotal * discountPercent) / 100;
+    const total = Math.max(0, subtotal - discountVal);
     
-    setFormData(prev => ({ ...prev, totalValue: total }));
-  }, [formData.parts, formData.laborCost, formData.kmDriven, formData.kmValue]);
+    setFormData(prev => ({ 
+      ...prev, 
+      totalValue: total,
+      discountValue: discountVal
+    }));
+  }, [formData.parts, formData.laborCost, formData.kmDriven, formData.kmValue, formData.discountPercent]);
 
   const handleAddPart = () => {
     setFormData(prev => ({
@@ -742,6 +751,27 @@ export default function OrderForm() {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-2 pt-2">
+                  <Label className="flex items-center gap-2 text-primary">
+                    <DollarSign className="w-4 h-4" /> Desconto (%)
+                  </Label>
+                  <div className="relative">
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      placeholder="Ex: 10"
+                      className="border-primary/20 bg-primary/5 focus:ring-primary/20 pr-10"
+                      value={formData.discountPercent === 0 ? '' : formData.discountPercent} 
+                      onChange={e => setFormData({...formData, discountPercent: e.target.value === '' ? 0 : Number(e.target.value)})} 
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
+                      %
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -778,12 +808,19 @@ export default function OrderForm() {
                   <span>Deslocamento:</span>
                   <span>R$ {((formData.kmDriven || 0) * (formData.kmValue || 0)).toFixed(2)}</span>
                 </div>
+
+                {Number(formData.discountPercent) > 0 && (
+                  <div className="flex justify-between text-sm text-primary font-medium">
+                    <span>Desconto ({formData.discountPercent}%):</span>
+                    <span>- R$ {(Number(formData.discountValue) || 0).toFixed(2)}</span>
+                  </div>
+                )}
                 
-                {formData.paymentMethod === 'pix' && formData.supplierId && (
+                {formData.supplierId && (
                   <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
-                    <p className="text-[10px] uppercase font-bold text-primary mb-1">Chave PIX para Pagamento</p>
+                    <p className="text-[10px] uppercase font-bold text-primary mb-1">Chave PIX do Fornecedor</p>
                     <p className="text-sm font-mono break-all">
-                      {suppliers.find(s => s.id === formData.supplierId)?.pixKey || 'Chave não cadastrada'}
+                      {suppliers.find(s => s.id === formData.supplierId)?.pixKey || 'Chave PIX não cadastrada'}
                     </p>
                   </div>
                 )}
