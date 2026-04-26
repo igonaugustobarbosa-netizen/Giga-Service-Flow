@@ -10,17 +10,33 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle,
-  Plus
+  AlarmClock,
+  Calendar,
+  Plus,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { cn, parseDateSafely } from '../lib/utils';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell,
+  LabelList
+} from 'recharts';
 
 import { useAuth } from '../components/AuthGuard';
 
@@ -31,6 +47,11 @@ export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  const handlePrevMonth = () => setSelectedDate(subMonths(selectedDate, 1));
+  const handleNextMonth = () => setSelectedDate(addMonths(selectedDate, 1));
 
   useEffect(() => {
     if (!userData) return;
@@ -94,11 +115,47 @@ export default function Dashboard() {
     };
   }, [userData, isAdmin]);
 
-  const calculateTotal = (status?: string) => {
-    return allOrders
+  const calculateTotal = (status?: string, orders = allOrders) => {
+    return orders
       .filter(o => !status || o.status === status)
       .reduce((acc, o) => acc + o.totalValue, 0);
   };
+
+  const getWorkedStats = (orders = allOrders, date = new Date()) => {
+    const monthOrders = orders.filter(o => {
+      const orderDate = parseDateSafely(o.executionDate || o.createdAt);
+      return orderDate.getMonth() === date.getMonth() && orderDate.getFullYear() === date.getFullYear();
+    });
+
+    const workedHours = monthOrders.reduce((acc, o) => acc + (o.hoursWorked || 0), 0);
+    const workedDays = new Set(monthOrders.map(o => {
+      const orderDate = parseDateSafely(o.executionDate || o.createdAt);
+      return format(orderDate, 'yyyy-MM-dd');
+    })).size;
+
+    return { workedDays, workedHours, monthOrders };
+  };
+
+  const { workedDays, workedHours } = getWorkedStats(allOrders, new Date());
+
+  // Chart Logic
+  const filteredOrders = allOrders.filter(o => {
+    const orderDate = parseDateSafely(o.executionDate || o.createdAt);
+    return orderDate.getMonth() === selectedDate.getMonth() && 
+           orderDate.getFullYear() === selectedDate.getFullYear();
+  });
+
+  const { workedHours: selectedMonthHours } = getWorkedStats(allOrders, selectedDate);
+
+  const chartData = [
+    { name: 'Pagas', value: calculateTotal('paid', filteredOrders), color: '#10b981' },
+    { name: 'Pendente', value: calculateTotal('pending-payment', filteredOrders), color: '#a855f7' },
+    { name: 'Orçamento', value: calculateTotal('budget', filteredOrders), color: '#3b82f6' },
+    { name: 'Em Aberto', value: calculateTotal('in-progress', filteredOrders), color: '#f97316' },
+    { name: 'Fechadas', value: calculateTotal('closed', filteredOrders), color: '#22c55e' },
+    { name: 'Horas Trab.', value: selectedMonthHours, color: '#6366f1' },
+    { name: 'Total Mês', value: calculateTotal(undefined, filteredOrders), color: '#f59e0b' },
+  ];
 
   const stats = [
     { 
@@ -130,6 +187,12 @@ export default function Dashboard() {
       value: `R$ ${calculateTotal('closed').toFixed(2)}`, 
       icon: CheckCircle2, 
       color: 'bg-green-500/10 text-green-600' 
+    },
+    { 
+      title: 'Trabalho (Mês)', 
+      value: `${workedDays}d / ${workedHours}h`, 
+      icon: Calendar, 
+      color: 'bg-indigo-500/10 text-indigo-600' 
     },
     { 
       title: 'Faturamento Total', 
@@ -171,7 +234,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -201,6 +264,69 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-primary" />
+                Desempenho Mensal
+              </CardTitle>
+              <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
+                <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8">
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-bold min-w-32 text-center uppercase">
+                  {format(selectedDate, 'MMMM yyyy', { locale: ptBR })}
+                </span>
+                <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fontWeight: 600 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      hide
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                      contentStyle={{ 
+                        borderRadius: '12px', 
+                        border: 'none', 
+                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' 
+                      }}
+                      formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Valor']}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      radius={[6, 6, 0, 0]}
+                      barSize={40}
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                      <LabelList 
+                        dataKey="value" 
+                        position="top" 
+                        formatter={(val: number) => val > 0 ? val.toFixed(0) : ''}
+                        style={{ fontSize: '10px', fontWeight: 'bold' }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
           {followUpOrders.length > 0 && (
             <Card className="border-none shadow-md bg-blue-600 text-white overflow-hidden">
               <CardHeader className="pb-2">

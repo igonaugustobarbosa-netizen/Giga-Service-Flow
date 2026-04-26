@@ -6,7 +6,8 @@ export const generateContractPDF = (
   order: ServiceOrder,
   customer?: any | null,
   supplier?: any | null,
-  settings?: Settings | null
+  settings?: Settings | null,
+  customClauses?: string
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -145,7 +146,8 @@ export const generateContractPDF = (
   y += splitDeadline.length * 5 + 15;
 
   // Customized Clauses
-  if (settings?.contractClauses) {
+  const finalClauses = customClauses || settings?.contractClauses;
+  if (finalClauses) {
     checkNewPage(20);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -154,7 +156,7 @@ export const generateContractPDF = (
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    const splitClauses = doc.splitTextToSize(settings.contractClauses, contentWidth);
+    const splitClauses = doc.splitTextToSize(finalClauses, contentWidth);
     
     // Split clauses if they are too long for one page
     for (let i = 0; i < splitClauses.length; i++) {

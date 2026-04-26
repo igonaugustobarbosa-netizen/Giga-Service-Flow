@@ -32,6 +32,7 @@ export default function Contracts() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editableClauses, setEditableClauses] = useState<string>('');
 
   useEffect(() => {
     if (!userData) return;
@@ -51,7 +52,11 @@ export default function Contracts() {
     // Load settings
     const unsubscribeSettings = onSnapshot(doc(db, 'settings', userData.tenantId), (snapshot) => {
       if (snapshot.exists()) {
-        setSettings(snapshot.data() as Settings);
+        const settingsData = snapshot.data() as Settings;
+        setSettings(settingsData);
+        if (settingsData.contractClauses) {
+          setEditableClauses(settingsData.contractClauses);
+        }
       }
     });
 
@@ -114,7 +119,7 @@ export default function Contracts() {
     }
 
     try {
-      generateContractPDF(selectedOrder, customer, supplier, settings);
+      generateContractPDF(selectedOrder, customer, supplier, settings, editableClauses);
       toast.success('Contrato gerado com sucesso!');
     } catch (error) {
       console.error('Error generating contract:', error);
@@ -267,23 +272,31 @@ export default function Contracts() {
                     </div>
 
                     <div className="p-6 rounded-xl bg-muted/50 border space-y-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileSignature className="w-5 h-5 text-primary" />
-                        <h3 className="font-bold uppercase text-xs tracking-widest">Cláusulas Vigentes</h3>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <FileSignature className="w-5 h-5 text-primary" />
+                          <h3 className="font-bold uppercase text-xs tracking-widest">Cláusulas Vigentes</h3>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground bg-white px-2 py-0.5 rounded border">Editável para esta impressão</span>
                       </div>
-                      {settings?.contractClauses ? (
-                        <div className="text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-white p-4 rounded-lg border border-primary/10 max-h-[300px] overflow-y-auto">
-                          {settings.contractClauses}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 p-4 rounded-lg bg-orange-50 border border-orange-200 text-orange-800">
-                          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                          <p className="text-sm">
-                            Nenhuma cláusula padrão configurada. <br />
-                            Acesse as <strong>Configurações</strong> para definir o texto do seu contrato.
-                          </p>
-                        </div>
-                      )}
+                      
+                      <div className="space-y-4">
+                        <textarea
+                          value={editableClauses}
+                          onChange={(e) => setEditableClauses(e.target.value)}
+                          placeholder="Digite as cláusulas do contrato aqui..."
+                          className="w-full min-h-[300px] p-4 text-sm font-mono bg-white rounded-lg border border-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none custom-scrollbar"
+                        />
+                        
+                        {!settings?.contractClauses && (
+                          <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-800">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <p className="text-[11px]">
+                              Nenhuma cláusula padrão configurada nas <strong>Configurações</strong>.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">
