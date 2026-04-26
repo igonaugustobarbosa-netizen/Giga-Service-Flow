@@ -11,6 +11,7 @@ import OrderForm from './pages/OrderForm';
 import OrderDetails from './pages/OrderDetails';
 import SettingsPage from './pages/SettingsPage';
 import Reports from './pages/Reports';
+import Contracts from './pages/Contracts';
 import UserManagement from './pages/UserManagement';
 import ScrollToTop from './components/ui/ScrollToTop';
 
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/orders/new" element={<OrderForm />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="/orders/:id/edit" element={<OrderForm />} />
+            <Route path="/contracts" element={<Contracts />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/users" element={<UserManagement />} />

@@ -85,12 +85,23 @@ export interface ServiceOrder {
   createdAt: string;
   updatedAt: string;
   tenantId: string;
+  // Snapshots for contract generation
+  companyNameSnapshot?: string;
+  companyTaxIdSnapshot?: string;
+  companyAddressSnapshot?: string;
+  customerNameSnapshot?: string;
+  customerTaxIdSnapshot?: string;
+  customerAddressSnapshot?: string;
 }
 
 export interface Settings {
   kmValue?: number;
   laborHourValue?: number;
   lastOrderNumber: number;
+  companyName?: string;
+  companyTaxId?: string;
+  companyAddress?: string;
+  contractClauses?: string;
 }
 
 export interface Activity {

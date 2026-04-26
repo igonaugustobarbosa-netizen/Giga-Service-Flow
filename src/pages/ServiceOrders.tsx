@@ -194,7 +194,7 @@ export default function ServiceOrders() {
   const filteredOrders = orders.filter(order => {
     const customer = customers.find(c => c.id === order.customerId);
     const customerName = customer?.name.toLowerCase() || '';
-    const description = order.description.toLowerCase();
+    const description = (order.description || '').toLowerCase();
     const search = searchTerm.toLowerCase();
     
     const matchesSearch = customerName.includes(search) || description.includes(search);

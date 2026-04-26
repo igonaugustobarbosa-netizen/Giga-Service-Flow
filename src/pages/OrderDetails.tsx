@@ -21,18 +21,21 @@ import {
   CreditCard,
   CheckCircle2,
   Trash2,
-  DollarSign
+  DollarSign,
+  FileSignature
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
+import { generateContractPDF } from '../services/contractService';
 import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
+import { Settings } from '../types';
 import { MessageSquare, Bell } from 'lucide-react';
 import { logActivity } from '../services/activityService';
 import { toast } from 'sonner';
@@ -45,6 +48,7 @@ export default function OrderDetails() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [closeOrderDialog, setCloseOrderDialog] = useState(false);
 
@@ -145,6 +149,18 @@ export default function OrderDetails() {
               console.error('Erro ao carregar técnicos:', err);
             }
 
+            // Load settings
+            try {
+              if (userData?.tenantId) {
+                const settingsSnap = await getDoc(doc(db, 'settings', userData.tenantId));
+                if (settingsSnap.exists()) {
+                  setSettings(settingsSnap.data() as Settings);
+                }
+              }
+            } catch (err) {
+              console.error('Erro ao carregar configurações:', err);
+            }
+
             // Load supplier
             try {
               if (orderData.supplierId) {
@@ -182,11 +198,22 @@ export default function OrderDetails() {
 
   const handleGeneratePDF = () => {
     if (order) {
-      if (customer) {
-        generateServicePDF(order, customer, technicians, supplier || undefined);
-      } else {
-        toast.error('Não é possível gerar o PDF pois o cliente original foi excluído. Por favor, edite a ordem e selecione um novo cliente.');
-      }
+      generateServicePDF(order, customer || undefined, technicians, supplier || undefined);
+    }
+  };
+
+  const handleGenerateContract = () => {
+    if (!order) {
+      toast.error('Informações da ordem incompletas.');
+      return;
+    }
+
+    try {
+      generateContractPDF(order, customer, supplier, settings);
+      toast.success('Contrato gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating contract:', error);
+      toast.error('Erro ao gerar o PDF do contrato.');
     }
   };
 
@@ -277,8 +304,10 @@ export default function OrderDetails() {
   );
 
   // Even if customer is deleted, we should show the order information
-  // We'll show "Cliente excluído" if customer is null
-  const displayCustomerName = customer?.name || 'Cliente não encontrado (ou excluído)';
+  // We'll show snapshotted name if customer is null
+  const displayCustomerName = customer?.name || order.customerNameSnapshot || 'Cliente não encontrado';
+  const displayCustomerTaxId = customer?.taxId || order.customerTaxIdSnapshot || '';
+  const displayCustomerAddress = customer?.address || order.customerAddressSnapshot || '';
 
   const partsTotal = (order.parts || []).reduce((acc, p) => acc + (Number(p.quantity || 0) * Number(p.price || 0)), 0);
   const kmTotal = (Number(order.kmDriven) || 0) * (Number(order.kmValue) || 0);
@@ -317,6 +346,10 @@ export default function OrderDetails() {
           <Button variant="outline" size="sm" className="gap-2" onClick={handleGeneratePDF}>
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">PDF</span>
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary hover:bg-primary/5" onClick={handleGenerateContract}>
+            <FileSignature className="w-4 h-4" />
+            <span className="hidden sm:inline">Contrato</span>
           </Button>
           <Link to={`/orders/${order.id}/edit`}>
             <Button size="sm" className="gap-2">
@@ -548,8 +581,14 @@ export default function OrderDetails() {
             <CardContent className="space-y-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Nome</p>
-                <p className="font-bold">{customer?.name || 'Cliente excluído'}</p>
+                <p className="font-bold">{displayCustomerName}</p>
               </div>
+              {displayCustomerTaxId && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">CNPJ/CPF</p>
+                  <p className="font-bold">{displayCustomerTaxId}</p>
+                </div>
+              )}
               {customer?.phone && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Telefone</p>
@@ -568,12 +607,12 @@ export default function OrderDetails() {
                   </div>
                 </div>
               )}
-              {customer?.address && (
+              {displayCustomerAddress && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Endereço</p>
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-primary mt-1" />
-                    <p className="font-bold text-sm">{customer.address}</p>
+                    <p className="font-bold text-sm">{displayCustomerAddress}</p>
                   </div>
                 </div>
               )}

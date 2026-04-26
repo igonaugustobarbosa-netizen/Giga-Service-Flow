@@ -162,9 +162,9 @@ export default function Suppliers() {
   };
 
   const filteredSuppliers = suppliers.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.phone.includes(searchTerm) ||
-    s.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.phone || '').includes(searchTerm) ||
+    (s.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

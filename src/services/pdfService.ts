@@ -4,8 +4,8 @@ import { ServiceOrder, Customer, Technician, Supplier, Part } from '../types';
 
 export const generateServicePDF = (
   order: ServiceOrder,
-  customer: Customer,
-  technicians: Technician[],
+  customer?: Customer,
+  technicians: Technician[] = [],
   supplier?: Supplier
 ) => {
   const doc = new jsPDF();
@@ -14,12 +14,6 @@ export const generateServicePDF = (
   const contentWidth = pageWidth - (margin * 2);
   const pageHeight = doc.internal.pageSize.getHeight();
   let y = 20;
-
-  const drawFooter = () => {
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - Desenvolvedor Giga Elétrica Fone 43 996118806`, margin, pageHeight - 10);
-  };
 
   // Helper for drawing section boxes
   const drawSectionBox = (startY: number, height: number, title: string) => {
@@ -33,6 +27,17 @@ export const generateServicePDF = (
     doc.text(title, margin + 3, startY + 6);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
+  };
+
+  // Use snapshots or fallbacks
+  const customerName = order.customerNameSnapshot || customer.name;
+  const customerAddress = order.customerAddressSnapshot || customer.address;
+  const companyName = order.companyNameSnapshot || 'ServiceFlow';
+
+  const drawFooter = () => {
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName}`, margin, pageHeight - 10);
   };
 
   // Header
@@ -58,11 +63,11 @@ export const generateServicePDF = (
   const customerBoxHeight = 32;
   drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
   doc.setFontSize(10);
-  doc.text(`Nome: ${customer.name}`, margin + 5, y + 14);
-  doc.text(`Telefone: ${customer.phone}`, margin + 5, y + 21);
-  if (customer.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 21);
-  if (customer.address) {
-    const splitAddr = doc.splitTextToSize(`Endereço: ${customer.address}`, contentWidth - 10);
+  doc.text(`Nome: ${customerName}`, margin + 5, y + 14);
+  doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 21);
+  if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 21);
+  if (customerAddress) {
+    const splitAddr = doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10);
     doc.text(splitAddr, margin + 5, y + 28);
   }
   
@@ -321,5 +326,5 @@ export const generateServicePDF = (
   addPhotoSection('FOTOS: ANTES', order.beforePhotos);
   addPhotoSection('FOTOS: DEPOIS', order.afterPhotos);
 
-  doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customer.name.replace(/\s+/g, '_')}.pdf`);
+  doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customerName.replace(/\s+/g, '_')}.pdf`);
 };

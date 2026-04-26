@@ -12,10 +12,13 @@ import {
   Truck, 
   Clock, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  FileSignature
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
+import { Textarea } from '../components/ui/Textarea';
 import { cn } from '../lib/utils';
 import { logActivity } from '../services/activityService';
 
@@ -91,7 +94,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="lastOrderNumber" className="flex items-center gap-2">
-                    <SettingsIcon className="w-4 h-4" /> Próximo Número de OS
+                    <Clock className="w-4 h-4" /> Próximo Número de OS
                   </Label>
                   <Input 
                     id="lastOrderNumber" 
@@ -101,6 +104,33 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">O próximo número gerado será este valor + 1.</p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-purple-50/20 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSignature className="w-5 h-5 text-primary" />
+                Cláusulas do Contrato
+              </CardTitle>
+              <CardDescription>
+                Defina as cláusulas padrão para o Contrato de Prestação de Serviço.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="contractClauses">Texto das Cláusulas</Label>
+                <Textarea 
+                  id="contractClauses" 
+                  className="min-h-[300px] font-mono text-xs"
+                  value={settings.contractClauses || ''} 
+                  onChange={e => setSettings({...settings, contractClauses: e.target.value})} 
+                  placeholder="1. OBJETO DO CONTRATO...&#10;2. VALOR E PAGAMENTO..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dica: Use parágrafos claros. Estas cláusulas serão anexadas ao final do documento do contrato.
+                </p>
               </div>
 
               {message && (

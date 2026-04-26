@@ -19,7 +19,8 @@ import {
   Clock,
   Truck,
   Wrench,
-  Calendar
+  Calendar,
+  Building2
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCurrentLocation } from '../services/locationService';
@@ -62,7 +63,11 @@ export default function OrderForm() {
     discountValue: 0,
     executionDate: new Date().toISOString(),
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    // Snapshot fields
+    companyNameSnapshot: '',
+    companyTaxIdSnapshot: '',
+    companyAddressSnapshot: ''
   });
 
   useEffect(() => {
@@ -102,6 +107,16 @@ export default function OrderForm() {
       if (doc.exists()) {
         const data = doc.data() as Settings;
         setSettings(data);
+        
+        // If it's a new order, pre-fill snapshots from settings
+        if (!id) {
+          setFormData(prev => ({
+            ...prev,
+            companyNameSnapshot: prev.companyNameSnapshot || data.companyName || '',
+            companyTaxIdSnapshot: prev.companyTaxIdSnapshot || data.companyTaxId || '',
+            companyAddressSnapshot: prev.companyAddressSnapshot || data.companyAddress || ''
+          }));
+        }
       }
     }, (error) => {
       console.error('Erro ao carregar configurações:', error);
@@ -233,6 +248,9 @@ export default function OrderForm() {
     if (!userData) return;
 
     try {
+      // Get the selected customer
+      const selectedCustomer = customers.find(c => c.id === formData.customerId);
+
       // Clean up empty arrays and ensure numeric fields are numbers
       const dataToSave = {
         ...formData,
@@ -249,7 +267,14 @@ export default function OrderForm() {
         beforePhotos: formData.beforePhotos || [],
         afterPhotos: formData.afterPhotos || [],
         executionDate: formData.executionDate || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        // Snapshots for contract generation
+        companyNameSnapshot: formData.companyNameSnapshot || settings.companyName || '',
+        companyTaxIdSnapshot: formData.companyTaxIdSnapshot || settings.companyTaxId || '',
+        companyAddressSnapshot: formData.companyAddressSnapshot || settings.companyAddress || '',
+        customerNameSnapshot: selectedCustomer?.name || '',
+        customerTaxIdSnapshot: selectedCustomer?.taxId || '',
+        customerAddressSnapshot: selectedCustomer?.address || ''
       };
 
       if (id) {
@@ -556,6 +581,50 @@ export default function OrderForm() {
               {(formData.parts?.length || 0) === 0 && (
                 <p className="text-center py-8 text-muted-foreground italic">Nenhuma peça adicionada.</p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Company Data for Contract */}
+          <Card className="border-none shadow-sm bg-blue-50/20 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                Dados da Empresa para o Contrato
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Nome da Empresa</Label>
+                  <Input 
+                    id="companyName" 
+                    value={formData.companyNameSnapshot || ''} 
+                    onChange={e => setFormData({...formData, companyNameSnapshot: e.target.value})} 
+                    placeholder="Ex: Giga Elétrica"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="companyTaxId">CNPJ / CPF</Label>
+                  <Input 
+                    id="companyTaxId" 
+                    value={formData.companyTaxIdSnapshot || ''} 
+                    onChange={e => setFormData({...formData, companyTaxIdSnapshot: e.target.value})} 
+                    placeholder="00.000.000/0001-00"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyAddress">Endereço da Empresa</Label>
+                <Input 
+                  id="companyAddress" 
+                  value={formData.companyAddressSnapshot || ''} 
+                  onChange={e => setFormData({...formData, companyAddressSnapshot: e.target.value})} 
+                  placeholder="Rua, Número, Bairro, Cidade - UF"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                * Estes dados são salvos nesta Ordem de Serviço e serão usados na geração do contrato.
+              </p>
             </CardContent>
           </Card>
 
