@@ -47,6 +47,7 @@ export default function OrderForm() {
     orderNumber: '',
     customerId: '',
     technicianIds: [],
+    technicianDetails: [],
     status: 'budget',
     description: '',
     hoursWorked: 0,
@@ -128,17 +129,18 @@ export default function OrderForm() {
         try {
           const docRef = doc(db, 'serviceOrders', id);
           const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data() as ServiceOrder;
-            setFormData({
-              ...data,
-              executionDate: data.executionDate || data.createdAt,
-              beforePhotos: data.beforePhotos || [],
-              afterPhotos: data.afterPhotos || [],
-              servicePhotos: data.servicePhotos || [],
-              parts: data.parts || []
-            });
-          }
+              if (docSnap.exists()) {
+                const data = docSnap.data() as ServiceOrder;
+                setFormData({
+                  ...data,
+                  executionDate: data.executionDate || data.createdAt,
+                  beforePhotos: data.beforePhotos || [],
+                  afterPhotos: data.afterPhotos || [],
+                  servicePhotos: data.servicePhotos || [],
+                  parts: data.parts || [],
+                  technicianDetails: data.technicianDetails || []
+                });
+              }
         } catch (error) {
           console.error('Erro ao carregar ordem:', error);
         } finally {
@@ -159,19 +161,35 @@ export default function OrderForm() {
   // Calculate total value whenever relevant fields change
   useEffect(() => {
     const partsTotal = (formData.parts || []).reduce((acc, p) => acc + (Number(p.quantity) * Number(p.price)), 0);
-    const laborTotal = Number(formData.laborCost) || 0;
-    const kmTotal = (Number(formData.kmDriven) || 0) * (Number(formData.kmValue) || 0);
+    
+    // Calculate technician costs
+    const techLaborTotal = (formData.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
+    const techKmTotal = (formData.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+    
+    // Legacy support: if no technician details, use the aggregate fields
+    const laborTotal = (formData.technicianDetails && formData.technicianDetails.length > 0) 
+      ? techLaborTotal 
+      : (Number(formData.laborCost) || 0);
+      
+    const kmTotal = (formData.technicianDetails && formData.technicianDetails.length > 0)
+      ? techKmTotal
+      : (Number(formData.kmDriven) || 0) * (Number(formData.kmValue) || 0);
+
     const subtotal = partsTotal + laborTotal + kmTotal;
     const discountPercent = Number(formData.discountPercent) || 0;
     const discountVal = (subtotal * discountPercent) / 100;
     const total = Math.max(0, subtotal - discountVal);
     
-    setFormData(prev => ({ 
-      ...prev, 
-      totalValue: total,
-      discountValue: discountVal
-    }));
-  }, [formData.parts, formData.laborCost, formData.kmDriven, formData.kmValue, formData.discountPercent]);
+    setFormData(prev => {
+      // Avoid unnecessary updates to prevent potential loops
+      if (prev.totalValue === total && prev.discountValue === discountVal) return prev;
+      return { 
+        ...prev, 
+        totalValue: total,
+        discountValue: discountVal
+      };
+    });
+  }, [formData.parts, formData.laborCost, formData.kmDriven, formData.kmValue, formData.discountPercent, formData.technicianDetails]);
 
   const handleAddPart = () => {
     setFormData(prev => ({
@@ -252,12 +270,26 @@ export default function OrderForm() {
       const selectedCustomer = customers.find(c => c.id === formData.customerId);
 
       // Clean up empty arrays and ensure numeric fields are numbers
+      const techDetails = formData.technicianDetails || [];
+      const hasTechDetails = techDetails.length > 0;
+      
+      const techHours = hasTechDetails ? techDetails.reduce((acc, t) => acc + Number(t.hours), 0) : Number(formData.hoursWorked) || 0;
+      const techLaborCost = hasTechDetails ? techDetails.reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0) : Number(formData.laborCost) || 0;
+      const techKm = hasTechDetails ? techDetails.reduce((acc, t) => acc + Number(t.km), 0) : Number(formData.kmDriven) || 0;
+
       const dataToSave = {
         ...formData,
-        hoursWorked: Number(formData.hoursWorked) || 0,
-        laborCost: Number(formData.laborCost) || 0,
-        kmDriven: Number(formData.kmDriven) || 0,
-        kmValue: Number(formData.kmValue) || 0,
+        hoursWorked: techHours,
+        laborCost: techLaborCost,
+        kmDriven: techKm,
+        kmValue: hasTechDetails ? 0 : (Number(formData.kmValue) || 0), // When using details, kmValue aggregate is 0 as it's per technician
+        technicianDetails: techDetails.map(t => ({
+          ...t,
+          hours: Number(t.hours) || 0,
+          laborRate: Number(t.laborRate) || 0,
+          km: Number(t.km) || 0,
+          kmValue: Number(t.kmValue) || 0
+        })),
         parts: (formData.parts || []).map(p => ({
           ...p,
           quantity: Number(p.quantity) || 0,
@@ -478,25 +510,30 @@ export default function OrderForm() {
                         checked={formData.technicianIds?.includes(t.id)}
                         onChange={(e) => {
                           const ids = formData.technicianIds || [];
+                          const details = formData.technicianDetails || [];
                           let newIds = [];
+                          let newDetails = [...details];
+
                           if (e.target.checked) {
                             newIds = [...ids, t.id];
-                            // If it's the first technician selected and it's a new order, apply their defaults
-                            if (!id && newIds.length === 1) {
-                              const rate = t.defaultLaborHourValue || settings.laborHourValue || 0;
-                              setFormData(prev => ({
-                                ...prev,
-                                technicianIds: newIds,
-                                kmValue: t.defaultKmValue || prev.kmValue || 0,
-                                laborRate: rate,
-                                laborCost: (prev.hoursWorked || 0) * rate
-                              }));
-                              return;
-                            }
+                            newDetails.push({
+                              technicianId: t.id,
+                              name: t.name,
+                              hours: 0,
+                              laborRate: t.defaultLaborHourValue || settings.laborHourValue || 0,
+                              km: 0,
+                              kmValue: t.defaultKmValue || settings.kmValue || 0
+                            });
                           } else {
                             newIds = ids.filter(id => id !== t.id);
+                            newDetails = details.filter(d => d.technicianId !== t.id);
                           }
-                          setFormData({...formData, technicianIds: newIds});
+                          
+                          setFormData({
+                            ...formData, 
+                            technicianIds: newIds,
+                            technicianDetails: newDetails
+                          });
                         }}
                       />
                       <label htmlFor={`tech-${t.id}`} className="text-sm truncate">{t.name}</label>
@@ -504,6 +541,77 @@ export default function OrderForm() {
                   ))}
                 </div>
               </div>
+
+              {/* Technician Specific Costs */}
+              {(formData.technicianDetails || []).length > 0 && (
+                <div className="pt-4 space-y-4 border-t">
+                  <Label>Detalhamento por Técnico</Label>
+                  <div className="grid grid-cols-1 gap-4">
+                    {formData.technicianDetails?.map((tech, index) => (
+                      <div key={tech.technicianId} className="p-4 border rounded-xl bg-background/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-sm text-primary">{tech.name}</p>
+                          <Badge variant="outline" className="text-[10px]">R$ {((tech.hours * tech.laborRate) + (tech.km * tech.kmValue)).toFixed(2)}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Horas</Label>
+                            <Input 
+                              type="number" 
+                              className="h-8 text-xs" 
+                              value={tech.hours || ''} 
+                              onChange={e => {
+                                const newDetails = [...(formData.technicianDetails || [])];
+                                newDetails[index] = { ...newDetails[index], hours: Number(e.target.value) };
+                                setFormData({ ...formData, technicianDetails: newDetails });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Valor/Hora</Label>
+                            <Input 
+                              type="number" 
+                              className="h-8 text-xs" 
+                              value={tech.laborRate || ''} 
+                              onChange={e => {
+                                const newDetails = [...(formData.technicianDetails || [])];
+                                newDetails[index] = { ...newDetails[index], laborRate: Number(e.target.value) };
+                                setFormData({ ...formData, technicianDetails: newDetails });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">KM</Label>
+                            <Input 
+                              type="number" 
+                              className="h-8 text-xs" 
+                              value={tech.km || ''} 
+                              onChange={e => {
+                                const newDetails = [...(formData.technicianDetails || [])];
+                                newDetails[index] = { ...newDetails[index], km: Number(e.target.value) };
+                                setFormData({ ...formData, technicianDetails: newDetails });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Valor/KM</Label>
+                            <Input 
+                              type="number" 
+                              className="h-8 text-xs" 
+                              value={tech.kmValue || ''} 
+                              onChange={e => {
+                                const newDetails = [...(formData.technicianDetails || [])];
+                                newDetails[index] = { ...newDetails[index], kmValue: Number(e.target.value) };
+                                setFormData({ ...formData, technicianDetails: newDetails });
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -585,48 +693,50 @@ export default function OrderForm() {
           </Card>
 
           {/* Company Data for Contract */}
-          <Card className="border-none shadow-sm bg-blue-50/20 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-primary" />
-                Dados da Empresa para o Contrato
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Nome da Empresa</Label>
-                  <Input 
-                    id="companyName" 
-                    value={formData.companyNameSnapshot || ''} 
-                    onChange={e => setFormData({...formData, companyNameSnapshot: e.target.value})} 
-                    placeholder="Ex: Giga Elétrica"
-                  />
+          {formData.status !== 'budget' && (
+            <Card className="border-none shadow-sm bg-blue-50/20 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  Dados da Empresa para o Contrato
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Nome da Empresa</Label>
+                    <Input 
+                      id="companyName" 
+                      value={formData.companyNameSnapshot || ''} 
+                      onChange={e => setFormData({...formData, companyNameSnapshot: e.target.value})} 
+                      placeholder="Ex: Giga Elétrica"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="companyTaxId">CNPJ / CPF</Label>
+                    <Input 
+                      id="companyTaxId" 
+                      value={formData.companyTaxIdSnapshot || ''} 
+                      onChange={e => setFormData({...formData, companyTaxIdSnapshot: e.target.value})} 
+                      placeholder="00.000.000/0001-00"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="companyTaxId">CNPJ / CPF</Label>
+                  <Label htmlFor="companyAddress">Endereço da Empresa</Label>
                   <Input 
-                    id="companyTaxId" 
-                    value={formData.companyTaxIdSnapshot || ''} 
-                    onChange={e => setFormData({...formData, companyTaxIdSnapshot: e.target.value})} 
-                    placeholder="00.000.000/0001-00"
+                    id="companyAddress" 
+                    value={formData.companyAddressSnapshot || ''} 
+                    onChange={e => setFormData({...formData, companyAddressSnapshot: e.target.value})} 
+                    placeholder="Rua, Número, Bairro, Cidade - UF"
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="companyAddress">Endereço da Empresa</Label>
-                <Input 
-                  id="companyAddress" 
-                  value={formData.companyAddressSnapshot || ''} 
-                  onChange={e => setFormData({...formData, companyAddressSnapshot: e.target.value})} 
-                  placeholder="Rua, Número, Bairro, Cidade - UF"
-                />
-              </div>
-              <p className="text-[10px] text-muted-foreground italic">
-                * Estes dados são salvos nesta Ordem de Serviço e serão usados na geração do contrato.
-              </p>
-            </CardContent>
-          </Card>
+                <p className="text-[10px] text-muted-foreground italic">
+                  * Estes dados são salvos nesta Ordem de Serviço e serão usados na geração do contrato.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Photos: Before and After */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -749,8 +859,31 @@ export default function OrderForm() {
               <CardTitle>Resumo e Localização</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
+              {(formData.technicianDetails || []).length > 0 ? (
+                <div className="space-y-4">
+                  <div className="p-3 bg-background/50 rounded-lg border space-y-2">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                      <Clock className="w-3 h-3" /> Horas (Total)
+                    </p>
+                    <p className="text-xl font-bold">{(formData.technicianDetails || []).reduce((acc, t) => acc + Number(t.hours), 0)}h</p>
+                  </div>
+                  <div className="p-3 bg-background/50 rounded-lg border space-y-2">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                      <DollarSign className="w-3 h-3" /> Mão de Obra (Total)
+                    </p>
+                    <p className="text-xl font-bold">R$ {(formData.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0).toFixed(2)}</p>
+                  </div>
+                  <div className="p-3 bg-background/50 rounded-lg border space-y-2">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                      <Truck className="w-3 h-3" /> Quilometragem (Total)
+                    </p>
+                    <p className="text-xl font-bold">{(formData.technicianDetails || []).reduce((acc, t) => acc + Number(t.km), 0)} km</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic text-center">Valores calculados individualmente por técnico.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="w-4 h-4" /> Horas Trabalhadas
                   </Label>
@@ -820,8 +953,11 @@ export default function OrderForm() {
                     />
                   </div>
                 </div>
+              </div>
+              )}
 
-                <div className="space-y-2 pt-2">
+              <div className="space-y-4">
+                <div className="space-y-2 pt-2 border-t">
                   <Label className="flex items-center gap-2 text-primary">
                     <DollarSign className="w-4 h-4" /> Desconto (%)
                   </Label>
@@ -842,7 +978,6 @@ export default function OrderForm() {
                   </div>
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" /> Localização

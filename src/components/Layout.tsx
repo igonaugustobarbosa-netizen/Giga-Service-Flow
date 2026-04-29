@@ -34,6 +34,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Ordens de Serviço', path: '/orders', icon: ClipboardList },
     { name: 'Clientes', path: '/customers', icon: Users },
     { name: 'Contratos', path: '/contracts', icon: FileSignature },
+    { name: 'Relat. Técnicos', path: '/technical-reports', icon: ClipboardList },
     { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
     { name: 'Fornecedores', path: '/suppliers', icon: Building2 },

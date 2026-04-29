@@ -47,11 +47,13 @@ export const generateServicePDF = (
   doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('ORDEM DE SERVIÇO', margin, 17);
+  const title = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
+  doc.text(title, margin, 17);
   
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 80, 17);
+  const orderNumberLabel = order.status === 'budget' ? 'ORÇAM. Nº:' : 'OS Nº:';
+  doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 80, 17);
   
   const dateToDisplay = order.executionDate || order.createdAt;
   const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
@@ -111,9 +113,23 @@ export const generateServicePDF = (
   y += descHeight + 5;
 
   // Technicians
-  drawSectionBox(y, 12, 'TÉCNICOS RESPONSÁVEIS');
-  doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 11);
-  y += 18;
+  const hasTechDetails = (order.technicianDetails && order.technicianDetails.length > 0);
+  const techBoxHeight = hasTechDetails ? (order.technicianDetails.length * 7) + 12 : 12;
+  drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E VALORES');
+  
+  if (hasTechDetails) {
+    doc.setFontSize(8);
+    order.technicianDetails.forEach((tech, i) => {
+      const techTotal = (tech.hours * tech.laborRate) + (tech.km * tech.kmValue);
+      const techText = `${tech.name}: ${tech.hours}h (R$ ${tech.laborRate.toFixed(2)}/h) | ${tech.km}km (R$ ${tech.kmValue.toFixed(2)}/km) | Subtotal: R$ ${techTotal.toFixed(2)}`;
+      doc.text(techText, margin + 5, y + 13 + (i * 7));
+    });
+    doc.setFontSize(10);
+    y += techBoxHeight + 5;
+  } else {
+    doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 11);
+    y += 18;
+  }
 
   // Parts Table
   if (order.parts.length > 0) {

@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
-  FileSignature
+  FileSignature,
+  ClipboardList
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
@@ -104,6 +105,42 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">O próximo número gerado será este valor + 1.</p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-blue-50/20 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-primary" />
+                Configurações do Relatório Técnico
+              </CardTitle>
+              <CardDescription>
+                Defina os procedimentos e mensagens automáticas para o relatório técnico.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="technicalReportDefaultProcedures">Procedimentos Técnicos Padrão</Label>
+                <Textarea 
+                  id="technicalReportDefaultProcedures" 
+                  className="min-h-[150px] font-mono text-xs"
+                  value={settings.technicalReportDefaultProcedures || ''} 
+                  onChange={e => setSettings({...settings, technicalReportDefaultProcedures: e.target.value})} 
+                  placeholder="Verificação de tensão elétrica&#10;Inspeção de circuitos..."
+                />
+                <p className="text-[10px] text-muted-foreground">Listagem de verificações técnicas que aparecem no relatório.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="technicalReportDefaultMessage">Mensagem de Descrição Padrão</Label>
+                <Textarea 
+                  id="technicalReportDefaultMessage" 
+                  className="min-h-[100px] font-mono text-xs"
+                  value={settings.technicalReportDefaultMessage || ''} 
+                  onChange={e => setSettings({...settings, technicalReportDefaultMessage: e.target.value})} 
+                  placeholder="Descrever detalhadamente os serviços executados..."
+                />
+                <p className="text-[10px] text-muted-foreground">Texto de apoio que aparece na descrição técnica se nada for editado.</p>
               </div>
             </CardContent>
           </Card>

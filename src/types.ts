@@ -40,6 +40,15 @@ export interface Technician {
   tenantId: string;
 }
 
+export interface TechnicianWork {
+  technicianId: string;
+  name: string;
+  hours: number;
+  laborRate: number;
+  km: number;
+  kmValue: number;
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -64,6 +73,7 @@ export interface ServiceOrder {
   orderNumber: string;
   customerId: string;
   technicianIds: string[];
+  technicianDetails?: TechnicianWork[];
   supplierId?: string;
   status: ServiceStatus;
   description: string;
@@ -102,6 +112,8 @@ export interface Settings {
   companyTaxId?: string;
   companyAddress?: string;
   contractClauses?: string;
+  technicalReportDefaultMessage?: string;
+  technicalReportDefaultProcedures?: string;
 }
 
 export interface Activity {

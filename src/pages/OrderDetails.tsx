@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   Trash2,
   DollarSign,
-  FileSignature
+  FileSignature,
+  ClipboardList
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -30,6 +31,7 @@ import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
 import { generateContractPDF } from '../services/contractService';
+import { generateTechnicalReport } from '../services/technicalReportService';
 import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
@@ -458,6 +460,37 @@ export default function OrderDetails() {
                   </div>
                 </div>
               </div>
+
+              {/* Technician Breakdown */}
+              {(order.technicianDetails && order.technicianDetails.length > 0) && (
+                <div className="pt-6 border-t">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Detalhamento por Técnico</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {order.technicianDetails.map((tech) => (
+                      <div key={tech.technicianId} className="p-4 rounded-xl border bg-background/50 space-y-3 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-primary flex items-center gap-2">
+                            <User className="w-4 h-4" /> {tech.name}
+                          </p>
+                          <Badge variant="secondary">R$ {((tech.hours * tech.laborRate) + (tech.km * tech.kmValue)).toFixed(2)}</Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2 border rounded bg-background">
+                            <p className="text-muted-foreground">Mão de Obra</p>
+                            <p className="font-medium">{tech.hours}h x R$ {tech.laborRate.toFixed(2)}</p>
+                            <p className="font-bold text-primary">R$ {(tech.hours * tech.laborRate).toFixed(2)}</p>
+                          </div>
+                          <div className="p-2 border rounded bg-background">
+                            <p className="text-muted-foreground">Deslocamento</p>
+                            <p className="font-medium">{tech.km}km x R$ {tech.kmValue.toFixed(2)}</p>
+                            <p className="font-bold text-primary">R$ {(tech.km * tech.kmValue).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
