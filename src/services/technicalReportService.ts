@@ -46,10 +46,17 @@ export const generateTechnicalReport = (
   const companyName = order.companyNameSnapshot || settings?.companyName || 'Giga Elétrica';
   doc.text(`Empresa: ${companyName}`, margin, 20);
   
-  const mainTech = technicians[0]?.name || 'Responsável não informado';
-  doc.text(`Responsável: ${mainTech}`, margin, 26);
+  const techNames = technicians.length > 0 
+    ? technicians.map((t: any) => t.name).join(' / ') 
+    : 'Responsável não informado';
+  const splitTechNames = doc.splitTextToSize(`Responsáveis: ${techNames}`, 75);
+  doc.text(splitTechNames, margin, 26);
   
-  doc.text(`Contato: ${technicians[0]?.phone || 'N/A'}`, margin + 80, 26);
+  const techPhones = technicians.length > 0
+    ? technicians.map((t: any) => t.phone || 'N/A').join(' / ')
+    : 'N/A';
+  const splitPhones = doc.splitTextToSize(`Contatos: ${techPhones}`, 75);
+  doc.text(splitPhones, margin + 80, 26);
 
   y = 42;
   doc.setTextColor(0, 0, 0);
@@ -208,18 +215,41 @@ export const generateTechnicalReport = (
   }
 
   // Signatures
-  checkNewPage(25);
-  y += 8;
+  y += 5;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.2);
-  doc.line(margin, y, margin + 60, y);
-  doc.line(pageWidth - margin - 60, y, pageWidth - margin, y);
-  
-  y += 4;
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text('ASSINATURA TÉCNICO', margin + 30, y, { align: 'center' });
-  doc.text('ASSINATURA CLIENTE', pageWidth - margin - 30, y, { align: 'center' });
+
+  const techsToSign = technicians.length > 0 ? technicians : [{ name: 'TÉCNICO' }];
+  
+  // Calculate total signature block height to avoid splitting signatures between pages
+  const totalSignatureHeight = (techsToSign.length * 15) + 10;
+  checkNewPage(totalSignatureHeight);
+
+  techsToSign.forEach((tech: any) => {
+    y += 10;
+    
+    // Add signature image if available
+    if (tech.signature) {
+      try {
+        const sigWidth = 40;
+        const sigHeight = 15;
+        doc.addImage(tech.signature, 'PNG', margin + (70 - sigWidth) / 2, y - sigHeight, sigWidth, sigHeight);
+      } catch (e) {
+        console.error('Error adding tech signature to report:', e);
+      }
+    }
+    
+    doc.line(margin, y, margin + 70, y);
+    doc.text(`ASSINATURA: ${tech.name.toUpperCase()}`, margin + 35, y + 4, { align: 'center' });
+    y += 5;
+  });
+
+  // Place client signature next to the last tech
+  const lastTechY = y - 5;
+  doc.line(pageWidth - margin - 70, lastTechY, pageWidth - margin, lastTechY);
+  doc.text('ASSINATURA CLIENTE', pageWidth - margin - 35, lastTechY + 4, { align: 'center' });
 
   // Page numbering
   const pageCount = (doc.internal as any).pages?.length - 1 || 1;

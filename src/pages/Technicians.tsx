@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import React, { useEffect, useState, useRef } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
+import SignatureCanvas from 'react-signature-canvas';
 import { 
   Plus, 
   Search, 
@@ -14,14 +15,14 @@ import {
   Phone, 
   Mail, 
   Wrench,
-  X
+  X,
+  Eraser
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
-import { where } from 'firebase/firestore';
 import { logActivity } from '../services/activityService';
 import { toast } from 'sonner';
 
@@ -49,13 +50,15 @@ export default function Technicians() {
   });
 
   // Form state
+  const sigPadRef = useRef<SignatureCanvas>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     specialty: '',
     defaultKmValue: 0,
-    defaultLaborHourValue: 0
+    defaultLaborHourValue: 0,
+    signature: ''
   });
 
   useEffect(() => {
@@ -87,7 +90,8 @@ export default function Technicians() {
         phone: technician.phone || '',
         specialty: technician.specialty || '',
         defaultKmValue: technician.defaultKmValue || 0,
-        defaultLaborHourValue: technician.defaultLaborHourValue || 0
+        defaultLaborHourValue: technician.defaultLaborHourValue || 0,
+        signature: technician.signature || ''
       });
     } else {
       setEditingTechnician(null);
@@ -97,7 +101,8 @@ export default function Technicians() {
         phone: '', 
         specialty: '',
         defaultKmValue: 0,
-        defaultLaborHourValue: 0
+        defaultLaborHourValue: 0,
+        signature: ''
       });
     }
     setIsDialogOpen(true);
@@ -107,9 +112,18 @@ export default function Technicians() {
     e.preventDefault();
     if (!userData) return;
 
+    let finalSignature = formData.signature;
+    
+    // Capture signature if pad was used
+    if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+      finalSignature = sigPadRef.current.getTrimmedCanvas().toDataURL('image/png');
+    }
+
+    const submissionData = { ...formData, signature: finalSignature };
+
     try {
       if (editingTechnician) {
-        await updateDoc(doc(db, 'technicians', editingTechnician.id), formData);
+        await updateDoc(doc(db, 'technicians', editingTechnician.id), submissionData);
         logActivity({
           type: 'update',
           entity: 'technician',
@@ -121,7 +135,7 @@ export default function Technicians() {
         });
       } else {
         const docRef = await addDoc(collection(db, 'technicians'), {
-          ...formData,
+          ...submissionData,
           tenantId: userData.tenantId
         });
         logActivity({
@@ -137,6 +151,13 @@ export default function Technicians() {
       setIsDialogOpen(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'technicians');
+    }
+  };
+
+  const clearSignature = () => {
+    if (sigPadRef.current) {
+      sigPadRef.current.clear();
+      setFormData({ ...formData, signature: '' });
     }
   };
 
@@ -329,6 +350,48 @@ export default function Technicians() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2 pt-4 border-t">
+              <Label>Assinatura Digital</Label>
+              <div className="bg-muted rounded-lg border-2 border-dashed border-muted-foreground/20 p-1 relative">
+                {formData.signature && !sigPadRef.current?.isEmpty() ? (
+                  <div className="relative group">
+                    <img src={formData.signature} alt="Assinatura" className="max-h-32 mx-auto" />
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      size="icon" 
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setFormData({...formData, signature: ''})}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <SignatureCanvas
+                      ref={sigPadRef}
+                      penColor="black"
+                      canvasProps={{
+                        className: "w-full h-32 rounded-lg touch-none",
+                      }}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="absolute bottom-2 right-2 gap-2 text-xs"
+                      onClick={clearSignature}
+                    >
+                      <Eraser className="w-3 h-3" />
+                      Limpar
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">Assine acima para salvar uma assinatura digital que será usada nos documentos.</p>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
               <Button type="submit">Salvar</Button>

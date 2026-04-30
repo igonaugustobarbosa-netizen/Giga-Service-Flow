@@ -999,22 +999,48 @@ export default function OrderForm() {
                 )}
               </div>
 
-              <div className="pt-4 border-t space-y-2">
-                <div className="flex justify-between text-sm text-muted-foreground">
+              <div className="pt-4 border-t space-y-3">
+                <div className="flex justify-between text-sm text-muted-foreground border-b border-muted pb-1">
                   <span>Subtotal Peças:</span>
-                  <span>R$ {(formData.parts || []).reduce((acc, p) => acc + (p.quantity * p.price), 0).toFixed(2)}</span>
+                  <span className="font-medium text-foreground">R$ {(formData.parts || []).reduce((acc, p) => acc + (p.quantity * p.price), 0).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Mão de Obra:</span>
-                  <span>R$ {(formData.laborCost || 0).toFixed(2)}</span>
+                
+                <div className="space-y-1 border-b border-muted pb-1">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Mão de Obra Total:</span>
+                    <span className="font-medium text-foreground">R$ {(formData.laborCost || 0).toFixed(2)}</span>
+                  </div>
+                  {formData.technicianDetails && formData.technicianDetails.length > 0 && (
+                    <div className="pl-4 space-y-0.5 border-l-2">
+                      {formData.technicianDetails.map((tech, idx) => (
+                        <div key={idx} className="flex justify-between text-[10px] text-muted-foreground italic">
+                          <span>{tech.name} ({tech.hours}h x R${tech.laborRate.toFixed(2)}/h)</span>
+                          <span>R$ {(tech.hours * tech.laborRate).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Deslocamento:</span>
-                  <span>R$ {((formData.kmDriven || 0) * (formData.kmValue || 0)).toFixed(2)}</span>
+
+                <div className="space-y-1 border-b border-muted pb-1">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Deslocamento Total:</span>
+                    <span className="font-medium text-foreground">R$ {((formData.kmDriven || 0) * (formData.kmValue || 0)).toFixed(2)}</span>
+                  </div>
+                  {formData.technicianDetails && formData.technicianDetails.length > 0 && (
+                    <div className="pl-4 space-y-0.5 border-l-2">
+                      {formData.technicianDetails.map((tech, idx) => (
+                        <div key={idx} className="flex justify-between text-[10px] text-muted-foreground italic">
+                          <span>{tech.name} ({tech.km}km x R${tech.kmValue.toFixed(2)}/km)</span>
+                          <span>R$ {(tech.km * tech.kmValue).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {Number(formData.discountPercent) > 0 && (
-                  <div className="flex justify-between text-sm text-primary font-medium">
+                  <div className="flex justify-between text-sm text-primary font-medium border-b border-muted pb-1">
                     <span>Desconto ({formData.discountPercent}%):</span>
                     <span>- R$ {(Number(formData.discountValue) || 0).toFixed(2)}</span>
                   </div>
@@ -1023,15 +1049,15 @@ export default function OrderForm() {
                 {formData.supplierId && (
                   <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
                     <p className="text-[10px] uppercase font-bold text-primary mb-1">Chave PIX do Fornecedor</p>
-                    <p className="text-sm font-mono break-all">
+                    <p className="text-sm font-mono break-all line-clamp-1">
                       {suppliers.find(s => s.id === formData.supplierId)?.pixKey || 'Chave PIX não cadastrada'}
                     </p>
                   </div>
                 )}
 
-                <div className="flex justify-between text-xl font-bold pt-2">
+                <div className="flex justify-between text-xl font-bold pt-1">
                   <span>TOTAL:</span>
-                  <span className="text-primary">R$ {(formData.totalValue || 0).toFixed(2)}</span>
+                  <span className="text-primary text-2xl">R$ {(formData.totalValue || 0).toFixed(2)}</span>
                 </div>
               </div>
 

@@ -272,7 +272,7 @@ export default function TechnicalReports() {
                             <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Status da OS</p>
                             <div className="flex items-center gap-2 mt-1">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              <p className="font-bold uppercase text-xs">{selectedOrder.status === 'completed' ? 'Concluída' : 'Orçamento/Em Aberto'}</p>
+                              <p className="font-bold uppercase text-xs">{selectedOrder.status === 'closed' ? 'Concluída' : 'Orçamento/Em Aberto'}</p>
                             </div>
                           </div>
                         </div>

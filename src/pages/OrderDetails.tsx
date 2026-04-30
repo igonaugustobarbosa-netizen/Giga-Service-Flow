@@ -751,27 +751,58 @@ export default function OrderDetails() {
             <CardHeader>
               <CardTitle>Resumo Financeiro</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm opacity-80">
-                <span>Peças:</span>
-                <span>R$ {partsTotal.toFixed(2)}</span>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center text-sm opacity-90 border-b border-primary-foreground/10 pb-2">
+                <span>Total em Peças:</span>
+                <span className="font-bold">R$ {partsTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm opacity-80">
-                <span>Mão de Obra:</span>
-                <div className="text-right">
-                  {order.laborRate ? (
-                    <p className="text-[10px] italic">({order.hoursWorked}h x R$ {order.laborRate.toFixed(2)})</p>
-                  ) : null}
-                  <span>R$ {order.laborCost.toFixed(2)}</span>
+
+              <div className="space-y-2 border-b border-primary-foreground/10 pb-2">
+                <div className="flex justify-between items-center text-sm opacity-90">
+                  <span>Mão de Obra Total:</span>
+                  <span className="font-bold">R$ {order.laborCost.toFixed(2)}</span>
                 </div>
+                {order.technicianDetails && order.technicianDetails.length > 0 ? (
+                  <div className="space-y-1 pl-4 border-l-2 border-primary-foreground/20">
+                    {order.technicianDetails.map((tech, idx) => (
+                      <div key={idx} className="flex justify-between text-[11px] opacity-70">
+                        <span>{tech.name} ({tech.hours}h x R$ {tech.laborRate.toFixed(2)})</span>
+                        <span>R$ {(tech.hours * tech.laborRate).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : order.laborRate ? (
+                  <div className="flex justify-between text-[11px] opacity-70 pl-4 border-l-2 border-primary-foreground/20">
+                    <span>{order.hoursWorked}h x R$ {order.laborRate.toFixed(2)}</span>
+                    <span>R$ {(order.hoursWorked * order.laborRate!).toFixed(2)}</span>
+                  </div>
+                ) : null}
               </div>
-              <div className="flex justify-between text-sm opacity-80">
-                <span>Deslocamento:</span>
-                <span>R$ {kmTotal.toFixed(2)}</span>
+
+              <div className="space-y-2 border-b border-primary-foreground/10 pb-2">
+                <div className="flex justify-between items-center text-sm opacity-90">
+                  <span>Deslocamento Total:</span>
+                  <span className="font-bold">R$ {kmTotal.toFixed(2)}</span>
+                </div>
+                {order.technicianDetails && order.technicianDetails.length > 0 ? (
+                  <div className="space-y-1 pl-4 border-l-2 border-primary-foreground/20">
+                    {order.technicianDetails.map((tech, idx) => (
+                      <div key={idx} className="flex justify-between text-[11px] opacity-70">
+                        <span>{tech.name} ({tech.km}km x R$ {tech.kmValue.toFixed(2)})</span>
+                        <span>R$ {(tech.km * tech.kmValue).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-[11px] opacity-70 pl-4 border-l-2 border-primary-foreground/20">
+                    <span>{order.kmDriven}km x R$ {order.kmValue.toFixed(2)}</span>
+                    <span>R$ {kmTotal.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
 
               {(order.discountPercent || 0) > 0 && (
-                <div className="flex justify-between text-sm text-white font-medium">
+                <div className="flex justify-between text-sm text-white font-medium border-b border-primary-foreground/10 pb-2">
                   <span>Desconto ({order.discountPercent}%):</span>
                   <span>- R$ {(order.discountValue || 0).toFixed(2)}</span>
                 </div>
@@ -786,7 +817,7 @@ export default function OrderDetails() {
                 </div>
               )}
 
-              <div className="pt-3 border-t border-primary-foreground/20 flex justify-between text-2xl font-bold">
+              <div className="pt-2 flex justify-between items-baseline text-2xl font-bold">
                 <span>TOTAL:</span>
                 <span>R$ {order.totalValue.toFixed(2)}</span>
               </div>

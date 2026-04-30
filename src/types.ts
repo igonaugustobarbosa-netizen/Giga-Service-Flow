@@ -37,6 +37,7 @@ export interface Technician {
   specialty?: string;
   defaultKmValue?: number;
   defaultLaborHourValue?: number;
+  signature?: string;
   tenantId: string;
 }
 

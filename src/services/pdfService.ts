@@ -19,12 +19,12 @@ export const generateServicePDF = (
   const drawSectionBox = (startY: number, height: number, title: string) => {
     doc.setDrawColor(200, 200, 200);
     doc.setFillColor(245, 245, 245);
-    doc.rect(margin, startY, contentWidth, 8, 'F');
+    doc.rect(margin, startY, contentWidth, 7, 'F');
     doc.rect(margin, startY, contentWidth, height);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
-    doc.text(title, margin + 3, startY + 6);
+    doc.text(title, margin + 3, startY + 5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
   };
@@ -42,56 +42,57 @@ export const generateServicePDF = (
 
   // Header
   doc.setFillColor(41, 128, 185); // Primary blue
-  doc.rect(0, 0, pageWidth, 25, 'F');
+  doc.rect(0, 0, pageWidth, 20, 'F');
   
-  doc.setFontSize(18);
+  doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   const title = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
-  doc.text(title, margin, 17);
+  doc.text(title, margin, 13);
   
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   const orderNumberLabel = order.status === 'budget' ? 'ORÇAM. Nº:' : 'OS Nº:';
-  doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 80, 17);
+  doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 70, 13);
   
   const dateToDisplay = order.executionDate || order.createdAt;
   const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
-  doc.text(`Data: ${dateStr}`, pageWidth - margin, 17, { align: 'right' });
+  doc.text(`Data: ${dateStr}`, pageWidth - margin, 13, { align: 'right' });
   
-  y = 35;
+  y = 28;
 
   // Customer Section
-  const customerBoxHeight = 32;
+  const customerBoxHeight = 28;
   drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
-  doc.setFontSize(10);
-  doc.text(`Nome: ${customerName}`, margin + 5, y + 14);
-  doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 21);
-  if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 21);
+  doc.setFontSize(9);
+  doc.text(`Nome: ${customerName}`, margin + 5, y + 12);
+  doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 18);
+  if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 18);
   if (customerAddress) {
     const splitAddr = doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10);
-    doc.text(splitAddr, margin + 5, y + 28);
+    doc.text(splitAddr, margin + 5, y + 24);
   }
   
-  y += customerBoxHeight + 5;
+  y += customerBoxHeight + 3;
 
   // Supplier Section (if exists)
   if (supplier) {
-    let supplierBoxHeight = 25;
-    if (supplier.address) supplierBoxHeight += 12;
-    if (supplier.pixKey) supplierBoxHeight += 7;
-    if (supplier.paymentDetails && !supplier.pixKey) supplierBoxHeight += 7;
+    let supplierBoxHeight = 22;
+    if (supplier.address) supplierBoxHeight += 8;
+    if (supplier.pixKey) supplierBoxHeight += 6;
+    if (supplier.paymentDetails && !supplier.pixKey) supplierBoxHeight += 6;
 
     drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
-    doc.text(`Nome: ${supplier.name}`, margin + 5, y + 14);
-    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 21);
-    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 21);
+    doc.setFontSize(9);
+    doc.text(`Nome: ${supplier.name}`, margin + 5, y + 12);
+    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 18);
+    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 18);
     
-    let currentSupplierY = y + 28;
+    let currentSupplierY = y + 24;
     if (supplier.address) {
       const splitAddr = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
       doc.text(splitAddr, margin + 5, currentSupplierY);
-      currentSupplierY += 8;
+      currentSupplierY += (splitAddr.length * 4);
     }
     
     if (supplier.pixKey) {
@@ -102,73 +103,90 @@ export const generateServicePDF = (
       doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, currentSupplierY);
     }
     
-    y += supplierBoxHeight + 5;
+    y += supplierBoxHeight + 3;
   }
 
   // Service Description
   const splitDescription = doc.splitTextToSize(order.description, contentWidth - 10);
-  const descHeight = (splitDescription.length * 6) + 12;
+  const descHeight = (splitDescription.length * 5) + 10;
+  
+  const descPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
+  if (y + descHeight > descPageLimit) {
+    drawFooter();
+    doc.addPage();
+    y = 20;
+  }
+
   drawSectionBox(y, descHeight, 'DESCRIÇÃO DO SERVIÇO');
-  doc.text(splitDescription, margin + 5, y + 13);
-  y += descHeight + 5;
+  doc.text(splitDescription, margin + 5, y + 11);
+  y += descHeight + 3;
 
   // Technicians
   const hasTechDetails = (order.technicianDetails && order.technicianDetails.length > 0);
-  const techBoxHeight = hasTechDetails ? (order.technicianDetails.length * 7) + 12 : 12;
+  const techBoxHeight = hasTechDetails ? (order.technicianDetails.length * 6) + 10 : 10;
+  
+  const techPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
+  if (y + techBoxHeight > techPageLimit) {
+    drawFooter();
+    doc.addPage();
+    y = 20;
+  }
+
   drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E VALORES');
   
   if (hasTechDetails) {
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     order.technicianDetails.forEach((tech, i) => {
       const techTotal = (tech.hours * tech.laborRate) + (tech.km * tech.kmValue);
       const techText = `${tech.name}: ${tech.hours}h (R$ ${tech.laborRate.toFixed(2)}/h) | ${tech.km}km (R$ ${tech.kmValue.toFixed(2)}/km) | Subtotal: R$ ${techTotal.toFixed(2)}`;
-      doc.text(techText, margin + 5, y + 13 + (i * 7));
+      doc.text(techText, margin + 5, y + 11 + (i * 6));
     });
-    doc.setFontSize(10);
-    y += techBoxHeight + 5;
+    doc.setFontSize(9);
+    y += techBoxHeight + 3;
   } else {
-    doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 11);
-    y += 18;
+    doc.text(technicians.map(t => t.name).join(', '), margin + 5, y + 10);
+    y += techBoxHeight + 3;
   }
 
   // Parts Table
   if (order.parts.length > 0) {
     const tableHeaderY = y;
     doc.setFillColor(240, 240, 240);
-    doc.rect(margin, tableHeaderY, contentWidth, 8, 'F');
+    doc.rect(margin, tableHeaderY, contentWidth, 7, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.text('PEÇAS E MATERIAIS', margin + 3, tableHeaderY + 6);
-    
-    y += 15;
     doc.setFontSize(9);
+    doc.text('PEÇAS E MATERIAIS', margin + 3, tableHeaderY + 5);
+    
+    y += 11;
+    doc.setFontSize(8);
     doc.text('Descrição', margin + 5, y);
-    doc.text('Qtd', margin + 100, y);
-    doc.text('V. Unitário', margin + 130, y);
+    doc.text('Qtd', margin + 110, y);
+    doc.text('V. Unitário', margin + 135, y);
     doc.text('Subtotal', margin + 165, y);
     
-    y += 3;
+    y += 2;
     doc.line(margin, y, pageWidth - margin, y);
-    y += 7;
+    y += 5;
     
     doc.setFont('helvetica', 'normal');
     order.parts.forEach((part: Part) => {
-      const pageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 245 : 270;
+      const pageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
       if (y > pageLimit) { 
         drawFooter();
         doc.addPage(); 
         y = 20; 
       }
       doc.text(part.name, margin + 5, y);
-      doc.text(part.quantity.toString(), margin + 100, y);
-      doc.text(`R$ ${part.price.toFixed(2)}`, margin + 130, y);
+      doc.text(part.quantity.toString(), margin + 110, y);
+      doc.text(`R$ ${part.price.toFixed(2)}`, margin + 135, y);
       doc.text(`R$ ${(part.quantity * part.price).toFixed(2)}`, margin + 165, y);
-      y += 7;
+      y += 5;
     });
-    y += 5;
+    y += 3;
   }
 
   // Financial Summary
-  const summaryPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 205 : 230;
+  const summaryPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 210 : 255;
   if (y > summaryPageLimit) { 
     drawFooter();
     doc.addPage(); 
@@ -176,18 +194,21 @@ export const generateServicePDF = (
   }
   
   const summaryY = y;
-  let summaryHeight = 45;
+  let summaryHeight = 40;
   
-  // Increase summary height if PIX key, payment details or discount are shown
+  // Increase summary height if multiple technicians, PIX key, payment details or discount are shown
   const showPix = !!supplier?.pixKey;
   const showDetails = supplier?.paymentDetails;
   const showDiscount = (order.discountPercent || 0) > 0;
   
+  if (hasTechDetails) {
+    summaryHeight += (order.technicianDetails!.length * 6) + 4; // Extra space for tech breakdown
+  }
   if (showPix || showDetails) {
-    summaryHeight += 8;
+    summaryHeight += 6;
   }
   if (showDiscount) {
-    summaryHeight += 7;
+    summaryHeight += 6;
   }
   
   drawSectionBox(summaryY, summaryHeight, 'RESUMO FINANCEIRO');
@@ -195,26 +216,64 @@ export const generateServicePDF = (
   const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
   const kmTotal = order.kmDriven * order.kmValue;
   
-  doc.setFontSize(10);
-  doc.text('Total em Peças:', margin + 5, summaryY + 15);
-  doc.text(`R$ ${partsTotal.toFixed(2)}`, pageWidth - margin - 5, summaryY + 15, { align: 'right' });
+  doc.setFontSize(9);
+  doc.text('Total em Peças:', margin + 5, summaryY + 13);
+  doc.text(`R$ ${partsTotal.toFixed(2)}`, pageWidth - margin - 5, summaryY + 13, { align: 'right' });
   
-  const laborLabel = order.laborRate 
-    ? `Mão de Obra (${order.hoursWorked}h x R$ ${order.laborRate.toFixed(2)}):`
-    : `Mão de Obra (${order.hoursWorked}h):`;
-  doc.text(laborLabel, margin + 5, summaryY + 22);
-  doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 5, summaryY + 22, { align: 'right' });
-  
-  doc.text(`Deslocamento (${order.kmDriven}km):`, margin + 5, summaryY + 29);
-  doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 5, summaryY + 29, { align: 'right' });
+  let currentSummaryY = summaryY + 19;
 
-  let financialYOffset = 36;
+  // New Labor section with details
+  doc.text('Mão de Obra Total:', margin + 5, currentSummaryY);
+  doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
+  currentSummaryY += 4;
+  
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 100, 100);
+  if (hasTechDetails) {
+    order.technicianDetails!.forEach(tech => {
+      doc.text(`${tech.name} (${tech.hours}h x R$ ${tech.laborRate.toFixed(2)}/h)`, margin + 10, currentSummaryY);
+      doc.text(`R$ ${(tech.hours * tech.laborRate).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+      currentSummaryY += 3.5;
+    });
+  } else if (order.laborRate) {
+    doc.text(`${order.hoursWorked}h x R$ ${order.laborRate.toFixed(2)}/h`, margin + 10, currentSummaryY);
+    doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+    currentSummaryY += 3.5;
+  }
+  
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  currentSummaryY += 2;
+
+  // New Displacement section with details
+  doc.text('Deslocamento Total:', margin + 5, currentSummaryY);
+  doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
+  currentSummaryY += 4;
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 100, 100);
+  if (hasTechDetails) {
+    order.technicianDetails!.forEach(tech => {
+      doc.text(`${tech.name} (${tech.km}km x R$ ${tech.kmValue.toFixed(2)}/km)`, margin + 10, currentSummaryY);
+      doc.text(`R$ ${(tech.km * tech.kmValue).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+      currentSummaryY += 3.5;
+    });
+  } else {
+    doc.text(`${order.kmDriven}km x R$ ${order.kmValue.toFixed(2)}/km`, margin + 10, currentSummaryY);
+    doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+    currentSummaryY += 3.5;
+  }
+
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  currentSummaryY += 4;
+
   if (showDiscount) {
     doc.setTextColor(41, 128, 185); // Blue for discount
-    doc.text(`Desconto Aplicado (${order.discountPercent}%):`, margin + 5, summaryY + financialYOffset);
-    doc.text(`- R$ ${(order.discountValue || 0).toFixed(2)}`, pageWidth - margin - 5, summaryY + financialYOffset, { align: 'right' });
+    doc.text(`Desconto Aplicado (${order.discountPercent}%):`, margin + 5, currentSummaryY);
+    doc.text(`- R$ ${(order.discountValue || 0).toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
     doc.setTextColor(0, 0, 0);
-    financialYOffset += 7;
+    currentSummaryY += 6;
   }
   
   const getPaymentMethodLabel = (method?: string) => {
@@ -228,18 +287,18 @@ export const generateServicePDF = (
   };
   
   doc.setFont('helvetica', 'bold');
-  doc.text('Forma de Pagamento:', margin + 5, summaryY + financialYOffset);
-  doc.text(getPaymentMethodLabel(order.paymentMethod), margin + 45, summaryY + financialYOffset);
+  doc.text('Forma de Pagamento:', margin + 5, currentSummaryY);
+  doc.text(getPaymentMethodLabel(order.paymentMethod), margin + 40, currentSummaryY);
   
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   if (showPix) {
-    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, summaryY + financialYOffset + 7);
+    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, currentSummaryY + 6);
   } else if (showDetails) {
-    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, summaryY + financialYOffset + 7);
+    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, currentSummaryY + 6);
   }
   
-  y += summaryHeight + 5;
+  y = summaryY + summaryHeight + 4;
 
   // Total Highlight
   doc.setFillColor(41, 128, 185);
@@ -248,30 +307,49 @@ export const generateServicePDF = (
   doc.setTextColor(255, 255, 255);
   doc.text('VALOR TOTAL DA ORDEM:', margin + 5, y + 8);
   doc.text(`R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y + 8, { align: 'right' });
+  
+  y += 25;
 
-  // Validity Message - ALWAYS ON PAGE 1 AT THE BOTTOM
-  const drawValidityOnPage1 = () => {
-    const currentPage = doc.getCurrentPageInfo().pageNumber;
-    doc.setPage(1);
-    
-    const validityY = pageHeight - 35; // Position above footer
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(50, 50, 50);
-    doc.text('Validade da Proposta:', margin, validityY);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
-    const splitValidity = doc.splitTextToSize(validityText, contentWidth);
-    doc.text(splitValidity, margin, validityY + 5);
-    
-    doc.setPage(currentPage);
-  };
+  // Signatures Section
+  const techsToSign = technicians.length > 0 ? technicians : [{ name: 'TÉCNICO' }] as any[];
+  const sigPageLimit = 260;
+  
+  if (y + (techsToSign.length * 15) > sigPageLimit) {
+    drawFooter();
+    doc.addPage();
+    y = 30;
+  }
 
-  drawValidityOnPage1();
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(200, 200, 200);
+  
+  techsToSign.forEach((tech: any, i: number) => {
+    const sigX = margin;
+    const sigWidth = 70;
+    
+    if (tech.signature) {
+      try {
+        const imgWidth = 40;
+        const imgHeight = 12;
+        doc.addImage(tech.signature, 'PNG', sigX + (sigWidth - imgWidth)/2, y - 13, imgWidth, imgHeight);
+      } catch (e) {
+        console.error('Error adding signature to OS:', e);
+      }
+    }
+    
+    doc.line(sigX, y, sigX + sigWidth, y);
+    doc.text(`ASSINATURA: ${tech.name.toUpperCase()}`, sigX + sigWidth/2, y + 4, { align: 'center' });
+    
+    if (i === techsToSign.length - 1) {
+      const clientSigX = pageWidth - margin - 70;
+      doc.line(clientSigX, y, clientSigX + 70, y);
+      doc.text('ASSINATURA CLIENTE', clientSigX + 35, y + 4, { align: 'center' });
+    }
+    
+    y += 18;
+  });
+
   drawFooter();
 
   // Photos Section
@@ -341,6 +419,28 @@ export const generateServicePDF = (
 
   addPhotoSection('FOTOS: ANTES', order.beforePhotos);
   addPhotoSection('FOTOS: DEPOIS', order.afterPhotos);
+
+  // Validity Message - ALWAYS ON THE LAST PAGE AT THE BOTTOM
+  const totalPages = doc.getNumberOfPages();
+  doc.setPage(totalPages);
+  
+  const validityY = pageHeight - 35; // Position above footer
+  
+  // Clear space with white background
+  doc.setFillColor(255, 255, 255);
+  doc.rect(margin, validityY - 2, contentWidth, 22, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  doc.text('Validade da Proposta:', margin, validityY);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
+  const validityText = 'Esta proposta tem validade de 30 (trinta) dias a partir da data de emissão. Após este período, os valores e condições poderão sofrer alterações sem aviso prévio.';
+  const splitValidity = doc.splitTextToSize(validityText, contentWidth);
+  doc.text(splitValidity, margin, validityY + 5);
 
   doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customerName.replace(/\s+/g, '_')}.pdf`);
 };
