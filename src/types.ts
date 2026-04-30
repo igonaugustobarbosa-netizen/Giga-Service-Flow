@@ -59,6 +59,7 @@ export interface Supplier {
   taxId?: string;
   pixKey?: string;
   paymentDetails?: string;
+  signature?: string;
   tenantId: string;
 }
 

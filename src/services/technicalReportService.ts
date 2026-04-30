@@ -168,7 +168,58 @@ export const generateTechnicalReport = (
     y += 5;
   }
 
-  // Photos (Very compact grid)
+  // Footnote message
+  if (settings?.technicalReportDefaultMessage) {
+    checkNewPage(12);
+    y += 2;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    const splitMsg = doc.splitTextToSize(settings.technicalReportDefaultMessage, pageWidth - (margin * 2));
+    doc.text(splitMsg, margin, y);
+    y += (splitMsg.length * 3.5) + 4;
+  }
+
+  // Signatures
+  y += 5;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.2);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+
+  const techsToSign = technicians.length > 0 ? technicians : [{ name: 'TÉCNICO' }];
+  
+  // Calculate total signature block height to avoid splitting signatures between pages
+  const totalSignatureHeight = (techsToSign.length * 25) + 10;
+  checkNewPage(totalSignatureHeight);
+
+  techsToSign.forEach((tech: any) => {
+    y += 18;
+    
+    // Add signature image if available
+    if (tech.signature) {
+      try {
+        const sigWidth = 40;
+        const sigHeight = 15;
+        doc.addImage(tech.signature, 'PNG', margin + (70 - sigWidth) / 2, y - 16, sigWidth, sigHeight);
+      } catch (e) {
+        console.error('Error adding tech signature to report:', e);
+      }
+    }
+    
+    doc.line(margin, y, margin + 70, y);
+    doc.text(`ASSINATURA: ${tech.name.toUpperCase()}`, margin + 35, y + 4, { align: 'center' });
+    y += 5;
+  });
+
+  // Place client signature next to the last tech
+  const lastTechY = y - 5;
+  doc.line(pageWidth - margin - 70, lastTechY, pageWidth - margin, lastTechY);
+  doc.text('ASSINATURA CLIENTE', pageWidth - margin - 35, lastTechY + 4, { align: 'center' });
+
+  y += 10;
+
+  // Photos (Very compact grid) after signatures
   const handlePhotosOnOnePage = (photos: string[], title: string) => {
     if (photos.length > 0) {
       if (checkNewPage(45)) y += 4;
@@ -202,62 +253,16 @@ export const generateTechnicalReport = (
   handlePhotosOnOnePage(order.beforePhotos || [], 'REGISTRO FOTOGRÁFICO: INÍCIO');
   handlePhotosOnOnePage(order.afterPhotos || [], 'REGISTRO FOTOGRÁFICO: CONCLUSÃO');
 
-  // Footnote message
-  if (settings?.technicalReportDefaultMessage) {
-    checkNewPage(12);
-    y += 2;
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7);
-    doc.setTextColor(100, 100, 100);
-    const splitMsg = doc.splitTextToSize(settings.technicalReportDefaultMessage, contentWidth);
-    doc.text(splitMsg, margin, y);
-    y += (splitMsg.length * 3.5) + 4;
-  }
-
-  // Signatures
-  y += 5;
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.2);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-
-  const techsToSign = technicians.length > 0 ? technicians : [{ name: 'TÉCNICO' }];
-  
-  // Calculate total signature block height to avoid splitting signatures between pages
-  const totalSignatureHeight = (techsToSign.length * 15) + 10;
-  checkNewPage(totalSignatureHeight);
-
-  techsToSign.forEach((tech: any) => {
-    y += 10;
-    
-    // Add signature image if available
-    if (tech.signature) {
-      try {
-        const sigWidth = 40;
-        const sigHeight = 15;
-        doc.addImage(tech.signature, 'PNG', margin + (70 - sigWidth) / 2, y - sigHeight, sigWidth, sigHeight);
-      } catch (e) {
-        console.error('Error adding tech signature to report:', e);
-      }
-    }
-    
-    doc.line(margin, y, margin + 70, y);
-    doc.text(`ASSINATURA: ${tech.name.toUpperCase()}`, margin + 35, y + 4, { align: 'center' });
-    y += 5;
-  });
-
-  // Place client signature next to the last tech
-  const lastTechY = y - 5;
-  doc.line(pageWidth - margin - 70, lastTechY, pageWidth - margin, lastTechY);
-  doc.text('ASSINATURA CLIENTE', pageWidth - margin - 35, lastTechY + 4, { align: 'center' });
 
   // Page numbering
   const pageCount = (doc.internal as any).pages?.length - 1 || 1;
+  const developerInfo = "Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR";
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(`Página ${i} de ${pageCount} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 290, { align: 'center' });
+    const footerText = `Página ${i} de ${pageCount} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} | ${developerInfo}`;
+    doc.text(footerText, pageWidth / 2, 290, { align: 'center' });
   }
 
   const fileName = `RELATORIO_TECNICO_${order.orderNumber || order.id.substring(0, 8)}.pdf`;

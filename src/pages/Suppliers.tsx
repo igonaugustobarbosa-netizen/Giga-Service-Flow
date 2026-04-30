@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import React, { useEffect, useState, useRef } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
+import SignatureCanvas from 'react-signature-canvas';
 import { 
   Plus, 
   Search, 
@@ -17,14 +18,14 @@ import {
   Building2,
   X,
   CreditCard,
-  QrCode
+  QrCode,
+  Eraser
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
-import { where } from 'firebase/firestore';
 import { logActivity } from '../services/activityService';
 
 export default function Suppliers() {
@@ -51,6 +52,7 @@ export default function Suppliers() {
   });
 
   // Form state
+  const sigPadRef = useRef<SignatureCanvas>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -58,7 +60,8 @@ export default function Suppliers() {
     address: '',
     taxId: '',
     pixKey: '',
-    paymentDetails: ''
+    paymentDetails: '',
+    signature: ''
   });
 
   useEffect(() => {
@@ -87,11 +90,12 @@ export default function Suppliers() {
         address: supplier.address || '',
         taxId: supplier.taxId || '',
         pixKey: supplier.pixKey || '',
-        paymentDetails: supplier.paymentDetails || ''
+        paymentDetails: supplier.paymentDetails || '',
+        signature: supplier.signature || ''
       });
     } else {
       setEditingSupplier(null);
-      setFormData({ name: '', email: '', phone: '', address: '', taxId: '', pixKey: '', paymentDetails: '' });
+      setFormData({ name: '', email: '', phone: '', address: '', taxId: '', pixKey: '', paymentDetails: '', signature: '' });
     }
     setIsDialogOpen(true);
   };
@@ -100,9 +104,18 @@ export default function Suppliers() {
     e.preventDefault();
     if (!userData) return;
 
+    let finalSignature = formData.signature;
+    
+    // Capture signature if pad was used
+    if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+      finalSignature = sigPadRef.current.getTrimmedCanvas().toDataURL('image/png');
+    }
+
+    const submissionData = { ...formData, signature: finalSignature };
+
     try {
       if (editingSupplier) {
-        await updateDoc(doc(db, 'suppliers', editingSupplier.id), formData);
+        await updateDoc(doc(db, 'suppliers', editingSupplier.id), submissionData);
         logActivity({
           type: 'update',
           entity: 'supplier',
@@ -114,7 +127,7 @@ export default function Suppliers() {
         });
       } else {
         const docRef = await addDoc(collection(db, 'suppliers'), {
-          ...formData,
+          ...submissionData,
           tenantId: userData.tenantId
         });
         logActivity({
@@ -130,6 +143,13 @@ export default function Suppliers() {
       setIsDialogOpen(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'suppliers');
+    }
+  };
+
+  const clearSignature = () => {
+    if (sigPadRef.current) {
+      sigPadRef.current.clear();
+      setFormData({ ...formData, signature: '' });
     }
   };
 
@@ -256,6 +276,12 @@ export default function Suppliers() {
                         <span className="truncate">{supplier.paymentDetails}</span>
                       </div>
                     )}
+                    {supplier.signature && (
+                      <div className="pt-2 border-t mt-2">
+                        <p className="text-[10px] text-muted-foreground mb-1 uppercase font-bold tracking-wider">Assinatura Digital</p>
+                        <img src={supplier.signature} alt="Assinatura" className="h-10 opacity-70 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -335,6 +361,48 @@ export default function Suppliers() {
                 />
               </div>
             </div>
+
+            <div className="space-y-2 pt-4 border-t">
+              <Label>Assinatura Digital</Label>
+              <div className="bg-muted rounded-lg border-2 border-dashed border-muted-foreground/20 p-1 relative">
+                {formData.signature && !sigPadRef.current?.isEmpty() ? (
+                  <div className="relative group">
+                    <img src={formData.signature} alt="Assinatura" className="max-h-32 mx-auto" />
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      size="icon" 
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setFormData({...formData, signature: ''})}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <SignatureCanvas
+                      ref={sigPadRef}
+                      penColor="black"
+                      canvasProps={{
+                        className: "w-full h-32 rounded-lg touch-none",
+                      }}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="absolute bottom-2 right-2 gap-2 text-xs"
+                      onClick={clearSignature}
+                    >
+                      <Eraser className="w-3 h-3" />
+                      Limpar
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">Assine acima para salvar uma assinatura digital que será usada nos contratos.</p>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
               <Button type="submit">Salvar</Button>

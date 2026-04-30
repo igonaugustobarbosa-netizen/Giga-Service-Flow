@@ -28,12 +28,13 @@ export const generateContractPDF = (
 
   const drawFooter = () => {
     const pageCount = (doc as any).internal.getNumberOfPages();
+    const developerInfo = "Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR";
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text(
-        `Página ${i} de ${pageCount} - Contrato de Prestação de Serviços - ${contractorName}`,
+        `Página ${i} de ${pageCount} - Contrato - ${contractorName} | ${developerInfo}`,
         pageWidth / 2,
         pageHeight - 10,
         { align: 'center' }
@@ -188,6 +189,15 @@ export const generateContractPDF = (
   const sigSpacing = (contentWidth - (sigWidth * 2)) / 2;
   
   // Contractor Signature
+  if (supplier?.signature) {
+    try {
+      const imgWidth = 40;
+      const imgHeight = 15;
+      doc.addImage(supplier.signature, 'PNG', margin + 5 + (sigWidth - imgWidth) / 2, y - 16, imgWidth, imgHeight);
+    } catch (e) {
+      console.error('Error adding supplier signature to contract:', e);
+    }
+  }
   doc.line(margin + 5, y, margin + 5 + sigWidth, y);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);

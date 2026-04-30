@@ -37,7 +37,8 @@ export const generateServicePDF = (
   const drawFooter = () => {
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(`Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName}`, margin, pageHeight - 10);
+    const footerText = `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
+    doc.text(footerText, margin, pageHeight - 10);
   };
 
   // Header
@@ -331,8 +332,8 @@ export const generateServicePDF = (
     if (tech.signature) {
       try {
         const imgWidth = 40;
-        const imgHeight = 12;
-        doc.addImage(tech.signature, 'PNG', sigX + (sigWidth - imgWidth)/2, y - 13, imgWidth, imgHeight);
+        const imgHeight = 15;
+        doc.addImage(tech.signature, 'PNG', sigX + (sigWidth - imgWidth)/2, y - 16, imgWidth, imgHeight);
       } catch (e) {
         console.error('Error adding signature to OS:', e);
       }
@@ -347,30 +348,24 @@ export const generateServicePDF = (
       doc.text('ASSINATURA CLIENTE', clientSigX + 35, y + 4, { align: 'center' });
     }
     
-    y += 18;
+    y += 22;
   });
 
   drawFooter();
 
   // Photos Section
-  let photoY = 20;
-  let firstPhotoPage = true;
+  let photoY = y + 5;
 
   const addPhotoSection = (title: string, photos: string[]) => {
     if (!photos || photos.length === 0) return;
     
-    if (firstPhotoPage) {
+    // Check if we need a new page for the title
+    if (photoY + 25 > 270) {
+      drawFooter();
       doc.addPage();
-      firstPhotoPage = false;
+      photoY = 20;
     } else {
-      // Check if we need a new page for the title
-      if (photoY + 25 > 270) {
-        drawFooter();
-        doc.addPage();
-        photoY = 20;
-      } else {
-        photoY += 5; // Add some spacing between sections
-      }
+      photoY += 5; // Add some spacing between sections
     }
     
     // Title for photo section
