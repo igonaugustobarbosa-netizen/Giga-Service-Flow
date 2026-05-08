@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Settings, Technician } from '../types';
+import { ServiceOrder, Customer, Settings, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Label } from '../components/ui/Label';
@@ -29,6 +29,7 @@ export default function TechnicalReports() {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +100,16 @@ export default function TechnicalReports() {
           } else {
             setTechnicians([]);
           }
+
+          // Fetch Supplier
+          if (order.supplierId) {
+            const supplierSnap = await getDoc(doc(db, 'suppliers', order.supplierId));
+            if (supplierSnap.exists()) {
+              setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
+            }
+          } else {
+            setSupplier(null);
+          }
         } catch (error) {
           console.error('Error fetching details:', error);
           toast.error('Erro ao carregar dados complementares da OS.');
@@ -125,7 +136,7 @@ export default function TechnicalReports() {
         description: technicalDescription,
         procedures: procedures,
         nonConformities: nonConformities
-      });
+      }, supplier);
       toast.success('Relatório técnico gerado com sucesso!');
     } catch (error) {
       console.error('Error generating technical report:', error);

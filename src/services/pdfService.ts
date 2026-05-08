@@ -39,6 +39,7 @@ export const generateServicePDF = (
     doc.setTextColor(150, 150, 150);
     const footerText = `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
     doc.text(footerText, margin, pageHeight - 10);
+    doc.setTextColor(0, 0, 0);
   };
 
   // Header
@@ -62,30 +63,20 @@ export const generateServicePDF = (
   
   y = 28;
 
-  // Customer Section
-  const customerBoxHeight = 28;
-  drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
-  doc.setFontSize(9);
-  doc.text(`Nome: ${customerName}`, margin + 5, y + 12);
-  doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 18);
-  if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 18);
-  if (customerAddress) {
-    const splitAddr = doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10);
-    doc.text(splitAddr, margin + 5, y + 24);
-  }
-  
-  y += customerBoxHeight + 3;
-
-  // Supplier Section (if exists)
+  // Supplier Section (if exists) - MOVED TO TOP as requested
   if (supplier) {
     let supplierBoxHeight = 22;
     if (supplier.address) supplierBoxHeight += 8;
     if (supplier.pixKey) supplierBoxHeight += 6;
     if (supplier.paymentDetails && !supplier.pixKey) supplierBoxHeight += 6;
 
-    drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR');
+    drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR / PRESTADOR');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(supplier.name, margin + 5, y + 12);
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(`Nome: ${supplier.name}`, margin + 5, y + 12);
+    
     doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 18);
     if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 18);
     
@@ -106,6 +97,20 @@ export const generateServicePDF = (
     
     y += supplierBoxHeight + 3;
   }
+
+  // Customer Section
+  const customerBoxHeight = 28;
+  drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
+  doc.setFontSize(9);
+  doc.text(`Nome: ${customerName}`, margin + 5, y + 12);
+  doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 18);
+  if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 18);
+  if (customerAddress) {
+    const splitAddr = doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10);
+    doc.text(splitAddr, margin + 5, y + 24);
+  }
+  
+  y += customerBoxHeight + 3;
 
   // Service Description
   const splitDescription = doc.splitTextToSize(order.description, contentWidth - 10);

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
-import { ServiceOrder, Settings } from '../types';
+import { ServiceOrder, Settings, Supplier } from '../types';
 
 export interface TechnicalReportData {
   description: string;
@@ -13,7 +13,8 @@ export const generateTechnicalReport = (
   customer?: any | null,
   technicians: any[] = [],
   settings?: Settings | null,
-  reportData?: TechnicalReportData
+  reportData?: TechnicalReportData,
+  supplier?: Supplier | null
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -43,20 +44,23 @@ export const generateTechnicalReport = (
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  const companyName = order.companyNameSnapshot || settings?.companyName || 'Giga Elétrica';
-  doc.text(`Empresa: ${companyName}`, margin, 20);
+  const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'Giga Elétrica';
+  doc.text(`Empresa: ${companyName}`, margin, 18);
   
+  if (supplier?.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, 18);
+  if (supplier?.phone) doc.text(`Fone: ${supplier.phone}`, margin + 140, 18);
+  if (supplier?.address) {
+    const splitAddrHeader = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
+    doc.text(splitAddrHeader, margin, 23);
+  }
+  
+  const headerContentY = supplier?.address ? 30 : 25;
+
   const techNames = technicians.length > 0 
     ? technicians.map((t: any) => t.name).join(' / ') 
     : 'Responsável não informado';
-  const splitTechNames = doc.splitTextToSize(`Responsáveis: ${techNames}`, 75);
-  doc.text(splitTechNames, margin, 26);
-  
-  const techPhones = technicians.length > 0
-    ? technicians.map((t: any) => t.phone || 'N/A').join(' / ')
-    : 'N/A';
-  const splitPhones = doc.splitTextToSize(`Contatos: ${techPhones}`, 75);
-  doc.text(splitPhones, margin + 80, 26);
+  const splitTechNames = doc.splitTextToSize(`Técnicos: ${techNames}`, contentWidth - 85);
+  doc.text(splitTechNames, margin, headerContentY);
 
   y = 42;
   doc.setTextColor(0, 0, 0);
@@ -177,6 +181,7 @@ export const generateTechnicalReport = (
     doc.setTextColor(100, 100, 100);
     const splitMsg = doc.splitTextToSize(settings.technicalReportDefaultMessage, pageWidth - (margin * 2));
     doc.text(splitMsg, margin, y);
+    doc.setTextColor(0, 0, 0);
     y += (splitMsg.length * 3.5) + 4;
   }
 
