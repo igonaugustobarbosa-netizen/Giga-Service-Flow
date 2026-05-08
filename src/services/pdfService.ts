@@ -35,110 +35,154 @@ export const generateServicePDF = (
   const companyName = order.companyNameSnapshot || 'ServiceFlow';
 
   const drawFooter = () => {
+    const pageNum = doc.getCurrentPageInfo().pageNumber;
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    const footerText = `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
+    const footerText = `Página ${pageNum} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
     doc.text(footerText, margin, pageHeight - 10);
     doc.setTextColor(0, 0, 0);
   };
 
+  const drawHeader = () => {
+    doc.setFillColor(41, 128, 185); // Primary blue
+    doc.rect(0, 0, pageWidth, 20, 'F');
+    
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    const mainTitle = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
+    doc.text(mainTitle, margin, 13);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    const orderNumberLabel = order.status === 'budget' ? 'ORÇAM. Nº:' : 'OS Nº:';
+    doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 70, 13);
+    
+    const dateToDisplay = order.executionDate || order.createdAt;
+    const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
+    doc.text(`Data: ${dateStr}`, pageWidth - margin, 13, { align: 'right' });
+  };
+
   // Header
-  doc.setFillColor(41, 128, 185); // Primary blue
-  doc.rect(0, 0, pageWidth, 20, 'F');
-  
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  const title = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
-  doc.text(title, margin, 13);
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const orderNumberLabel = order.status === 'budget' ? 'ORÇAM. Nº:' : 'OS Nº:';
-  doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 70, 13);
-  
-  const dateToDisplay = order.executionDate || order.createdAt;
-  const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
-  doc.text(`Data: ${dateStr}`, pageWidth - margin, 13, { align: 'right' });
+  drawHeader();
   
   y = 28;
 
-  // Supplier Section (if exists) - MOVED TO TOP as requested
-  if (supplier) {
-    let supplierBoxHeight = 22;
-    if (supplier.address) supplierBoxHeight += 8;
-    if (supplier.pixKey) supplierBoxHeight += 6;
-    if (supplier.paymentDetails && !supplier.pixKey) supplierBoxHeight += 6;
+  // Provider Section (Using supplier object or snapshots)
+  const providerName = supplier?.name || order.companyNameSnapshot || 'ServiceFlow';
+  const providerTaxId = supplier?.taxId || order.companyTaxIdSnapshot;
+  const providerAddress = supplier?.address || order.companyAddressSnapshot;
+  const providerPhone = supplier?.phone;
+  
+  const splitProviderAddr = providerAddress ? doc.splitTextToSize(`Endereço: ${providerAddress}`, contentWidth - 10) : [];
+  
+  let providerBoxHeight = 16;
+  if (splitProviderAddr.length > 0) providerBoxHeight += (splitProviderAddr.length * 4) + 2;
+  if (supplier?.pixKey || supplier?.paymentDetails) providerBoxHeight += 8;
 
-    drawSectionBox(y, supplierBoxHeight, 'FORNECEDOR / PRESTADOR');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(supplier.name, margin + 5, y + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    
-    doc.text(`Telefone: ${supplier.phone}`, margin + 5, y + 18);
-    if (supplier.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, y + 18);
-    
-    let currentSupplierY = y + 24;
-    if (supplier.address) {
-      const splitAddr = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
-      doc.text(splitAddr, margin + 5, currentSupplierY);
-      currentSupplierY += (splitAddr.length * 4);
-    }
-    
-    if (supplier.pixKey) {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, currentSupplierY);
-      doc.setFont('helvetica', 'normal');
-    } else if (supplier.paymentDetails) {
-      doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, currentSupplierY);
-    }
-    
-    y += supplierBoxHeight + 3;
+  drawSectionBox(y, providerBoxHeight, 'DADOS DO PRESTADOR / FORNECEDOR');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(providerName, margin + 5, y + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  
+  if (providerPhone) {
+    doc.text(`Telefone: ${providerPhone}`, margin + 5, y + 18);
+    if (providerTaxId) doc.text(`CNPJ/CPF: ${providerTaxId}`, margin + 80, y + 18);
+  } else if (providerTaxId) {
+    doc.text(`CNPJ/CPF: ${providerTaxId}`, margin + 5, y + 18);
   }
+  
+  let currentProviderY = y + 24;
+  if (splitProviderAddr.length > 0) {
+    doc.text(splitProviderAddr, margin + 5, currentProviderY);
+    currentProviderY += (splitProviderAddr.length * 4) + 2;
+  }
+  
+  if (supplier?.pixKey) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Chave PIX: ${supplier.pixKey}`, margin + 5, currentProviderY);
+    doc.setFont('helvetica', 'normal');
+  } else if (supplier?.paymentDetails) {
+    doc.text(`Info. Pagamento: ${supplier.paymentDetails}`, margin + 5, currentProviderY);
+  }
+  
+  y += providerBoxHeight + 3;
 
   // Customer Section
-  const customerBoxHeight = 28;
+  const splitAddress = customerAddress ? doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10) : [];
+  const customerBoxHeight = Math.max(28, (splitAddress.length > 0 ? 22 + (splitAddress.length * 5) : 28));
+  
   drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
   doc.setFontSize(9);
   doc.text(`Nome: ${customerName}`, margin + 5, y + 12);
   doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 18);
   if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 18);
   if (customerAddress) {
-    const splitAddr = doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10);
-    doc.text(splitAddr, margin + 5, y + 24);
+    doc.text(splitAddress, margin + 5, y + 24);
   }
   
-  y += customerBoxHeight + 3;
+  y += customerBoxHeight + 4;
 
   // Service Description
-  const splitDescription = doc.splitTextToSize(order.description, contentWidth - 10);
-  const descHeight = (splitDescription.length * 5) + 10;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const descriptionText = order.description || 'Nenhum serviço descrito.';
+  const splitDescription = doc.splitTextToSize(descriptionText, contentWidth - 12);
+  const descLineHeight = 5;
   
-  const descPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
-  if (y + descHeight > descPageLimit) {
+  // Calculate if we need to split the box across pages
+  const availableSpaceOnFirstPage = 270 - y - 15;
+  const linesOnFirstPage = Math.floor(availableSpaceOnFirstPage / descLineHeight);
+  
+  if (splitDescription.length > linesOnFirstPage && linesOnFirstPage < 5) {
+    // If very little space, just start on new page
     drawFooter();
     doc.addPage();
-    y = 20;
+    drawHeader();
+    y = 28;
   }
 
-  drawSectionBox(y, descHeight, 'DESCRIÇÃO DO SERVIÇO');
-  doc.text(splitDescription, margin + 5, y + 11);
-  y += descHeight + 3;
+  const firstBatch = splitDescription.slice(0, linesOnFirstPage);
+  const remainingLines = splitDescription.slice(linesOnFirstPage);
+  
+  if (remainingLines.length === 0) {
+    // Fits on one page
+    const descHeight = (splitDescription.length * descLineHeight) + 12;
+    drawSectionBox(y, descHeight, 'DESCRIÇÃO DO SERVIÇO');
+    doc.text(splitDescription, margin + 5, y + 11);
+    y += descHeight + 5;
+  } else {
+    // Split across pages
+    const firstDescHeight = (firstBatch.length * descLineHeight) + 12;
+    drawSectionBox(y, firstDescHeight, 'DESCRIÇÃO DO SERVIÇO (CONT.)');
+    doc.text(firstBatch, margin + 5, y + 11);
+    
+    drawFooter();
+    doc.addPage();
+    drawHeader();
+    y = 28;
+    
+    // Draw remaining in a new box
+    const secondDescHeight = (remainingLines.length * descLineHeight) + 8;
+    drawSectionBox(y, secondDescHeight, 'DESCRIÇÃO DO SERVIÇO (CONT.)');
+    doc.text(remainingLines, margin + 5, y + 11);
+    y += secondDescHeight + 5;
+  }
 
   // Technicians
   const hasTechDetails = (order.technicianDetails && order.technicianDetails.length > 0);
   const techBoxHeight = hasTechDetails ? (order.technicianDetails.length * 6) + 10 : 10;
   
-  const techPageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
-  if (y + techBoxHeight > techPageLimit) {
-    drawFooter();
-    doc.addPage();
-    y = 20;
-  }
+    if (y + techBoxHeight > 270) {
+      drawFooter();
+      doc.addPage();
+      drawHeader();
+      y = 28;
+    }
 
-  drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E VALORES');
+    drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E VALORES');
   
   if (hasTechDetails) {
     doc.setFontSize(7.5);
@@ -176,17 +220,21 @@ export const generateServicePDF = (
     
     doc.setFont('helvetica', 'normal');
     order.parts.forEach((part: Part) => {
-      const pageLimit = doc.getCurrentPageInfo().pageNumber === 1 ? 230 : 275;
-      if (y > pageLimit) { 
+      const partsPageLimit = 270;
+      const splitPartName = doc.splitTextToSize(part.name, 100);
+      const rowHeight = splitPartName.length * 5;
+
+      if (y + rowHeight > partsPageLimit) { 
         drawFooter();
         doc.addPage(); 
-        y = 20; 
+        drawHeader();
+        y = 28; 
       }
-      doc.text(part.name, margin + 5, y);
+      doc.text(splitPartName, margin + 5, y);
       doc.text(part.quantity.toString(), margin + 110, y);
       doc.text(`R$ ${part.price.toFixed(2)}`, margin + 135, y);
       doc.text(`R$ ${(part.quantity * part.price).toFixed(2)}`, margin + 165, y);
-      y += 5;
+      y += Math.max(5, rowHeight);
     });
     y += 3;
   }

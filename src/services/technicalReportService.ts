@@ -45,24 +45,30 @@ export const generateTechnicalReport = (
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'Giga Elétrica';
+  const companyTaxId = supplier?.taxId || order.companyTaxIdSnapshot || settings?.companyTaxId;
+  const companyPhone = supplier?.phone;
+  const companyAddress = supplier?.address || order.companyAddressSnapshot || settings?.companyAddress;
+  
   doc.text(`Empresa: ${companyName}`, margin, 18);
   
-  if (supplier?.taxId) doc.text(`CNPJ: ${supplier.taxId}`, margin + 80, 18);
-  if (supplier?.phone) doc.text(`Fone: ${supplier.phone}`, margin + 140, 18);
-  if (supplier?.address) {
-    const splitAddrHeader = doc.splitTextToSize(`Endereço: ${supplier.address}`, contentWidth - 10);
-    doc.text(splitAddrHeader, margin, 23);
+  if (companyTaxId) doc.text(`CNPJ/CPF: ${companyTaxId}`, margin + 80, 18);
+  if (companyPhone) doc.text(`Fone: ${companyPhone}`, margin + 140, 18);
+  
+  let headerY = 23;
+  if (companyAddress) {
+    const splitAddrHeader = doc.splitTextToSize(`Endereço: ${companyAddress}`, contentWidth - 10);
+    doc.text(splitAddrHeader, margin, headerY);
+    headerY += (splitAddrHeader.length * 4) + 1;
   }
   
-  const headerContentY = supplier?.address ? 30 : 25;
-
   const techNames = technicians.length > 0 
     ? technicians.map((t: any) => t.name).join(' / ') 
     : 'Responsável não informado';
   const splitTechNames = doc.splitTextToSize(`Técnicos: ${techNames}`, contentWidth - 85);
-  doc.text(splitTechNames, margin, headerContentY);
+  doc.text(splitTechNames, margin, headerY);
+  headerY += (splitTechNames.length * 4) + 5;
 
-  y = 42;
+  y = headerY > 42 ? headerY : 42;
   doc.setTextColor(0, 0, 0);
 
   // Column Layout for Dados do Cliente e Info do Serviço
@@ -164,10 +170,12 @@ export const generateTechnicalReport = (
     
     doc.setFont('helvetica', 'normal');
     order.parts.forEach(p => {
-      checkNewPage(5);
+      const splitPartName = doc.splitTextToSize(p.name, contentWidth - 25);
+      const rowHeight = splitPartName.length * 4;
+      checkNewPage(rowHeight);
       doc.text(p.quantity.toString(), margin + 2, y);
-      doc.text(p.name, margin + 20, y);
-      y += 4;
+      doc.text(splitPartName, margin + 20, y);
+      y += Math.max(4, rowHeight);
     });
     y += 5;
   }

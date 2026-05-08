@@ -411,7 +411,28 @@ export default function OrderForm() {
                   <Select 
                     id="supplier" 
                     value={formData.supplierId || ''} 
-                    onChange={e => setFormData({...formData, supplierId: e.target.value})}
+                    onChange={e => {
+                      const supplierId = e.target.value;
+                      const selectedSupplier = suppliers.find(s => s.id === supplierId);
+                      
+                      if (selectedSupplier) {
+                        setFormData({
+                          ...formData, 
+                          supplierId,
+                          companyNameSnapshot: selectedSupplier.name,
+                          companyTaxIdSnapshot: selectedSupplier.taxId || '',
+                          companyAddressSnapshot: selectedSupplier.address || ''
+                        });
+                      } else {
+                        setFormData({
+                          ...formData, 
+                          supplierId: '',
+                          companyNameSnapshot: settings.companyName || '',
+                          companyTaxIdSnapshot: settings.companyTaxId || '',
+                          companyAddressSnapshot: settings.companyAddress || ''
+                        });
+                      }
+                    }}
                   >
                     <option value="">Nenhum fornecedor</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

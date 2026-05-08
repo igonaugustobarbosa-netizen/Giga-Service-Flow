@@ -16,10 +16,10 @@ export const generateContractPDF = (
   const pageHeight = doc.internal.pageSize.getHeight();
   let y = 20;
 
-  // Contractor info (CONTRATADA) - Priority to Supplier, fallback to Settings
-  const contractorName = supplier?.name || order.supplierId || settings?.companyName || '________________';
-  const contractorTaxId = supplier?.taxId || '________________';
-  const contractorAddress = supplier?.address || settings?.companyAddress || '________________________________';
+  // Contractor info (CONTRATADA) - Priority to Supplier object, fallback to Snapshots, then Settings
+  const contractorName = supplier?.name || order.companyNameSnapshot || settings?.companyName || '________________';
+  const contractorTaxId = supplier?.taxId || order.companyTaxIdSnapshot || settings?.companyTaxId || '________________';
+  const contractorAddress = supplier?.address || order.companyAddressSnapshot || settings?.companyAddress || '________________________________';
   
   // Client info (CONTRATANTE) - Priority to Customer
   const customerName = order.customerNameSnapshot || customer?.name || '________________';
