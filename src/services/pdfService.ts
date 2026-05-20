@@ -188,7 +188,7 @@ export const generateServicePDF = (
     doc.setFontSize(7.5);
     order.technicianDetails.forEach((tech, i) => {
       const techTotal = (tech.hours * tech.laborRate) + (tech.km * tech.kmValue);
-      const techText = `${tech.name}: ${tech.hours}h (R$ ${tech.laborRate.toFixed(2)}/h) | ${tech.km}km (R$ ${tech.kmValue.toFixed(2)}/km) | Subtotal: R$ ${techTotal.toFixed(2)}`;
+      const techText = `${tech.name}: R$ ${techTotal.toFixed(2)}`;
       doc.text(techText, margin + 5, y + 11 + (i * 6));
     });
     doc.setFontSize(9);
@@ -285,14 +285,12 @@ export const generateServicePDF = (
   doc.setTextColor(100, 100, 100);
   if (hasTechDetails) {
     order.technicianDetails!.forEach(tech => {
-      doc.text(`${tech.name} (${tech.hours}h x R$ ${tech.laborRate.toFixed(2)}/h)`, margin + 10, currentSummaryY);
+      doc.text(tech.name, margin + 10, currentSummaryY);
       doc.text(`R$ ${(tech.hours * tech.laborRate).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
       currentSummaryY += 3.5;
     });
-  } else if (order.laborRate) {
-    doc.text(`${order.hoursWorked}h x R$ ${order.laborRate.toFixed(2)}/h`, margin + 10, currentSummaryY);
-    doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
-    currentSummaryY += 3.5;
+  } else {
+    currentSummaryY += 1;
   }
   
   doc.setFontSize(9);
@@ -308,14 +306,12 @@ export const generateServicePDF = (
   doc.setTextColor(100, 100, 100);
   if (hasTechDetails) {
     order.technicianDetails!.forEach(tech => {
-      doc.text(`${tech.name} (${tech.km}km x R$ ${tech.kmValue.toFixed(2)}/km)`, margin + 10, currentSummaryY);
+      doc.text(tech.name, margin + 10, currentSummaryY);
       doc.text(`R$ ${(tech.km * tech.kmValue).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
       currentSummaryY += 3.5;
     });
   } else {
-    doc.text(`${order.kmDriven}km x R$ ${order.kmValue.toFixed(2)}/km`, margin + 10, currentSummaryY);
-    doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
-    currentSummaryY += 3.5;
+    currentSummaryY += 1;
   }
 
   doc.setFontSize(9);
