@@ -142,10 +142,18 @@ export const generateTechnicalReport = (
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
     
-    const splitText = doc.splitTextToSize(content || 'N/A', contentWidth);
-    checkNewPage(splitText.length * 4 + 4);
-    doc.text(splitText, margin, y);
-    y += (splitText.length * 4) + 6;
+    const lines = (content || 'N/A').split('\n');
+    lines.forEach(line => {
+      if (line.trim() === '') {
+        y += 2;
+        return;
+      }
+      const splitText = doc.splitTextToSize(line, contentWidth);
+      checkNewPage(splitText.length * 4 + 2);
+      doc.text(splitText, margin, y);
+      y += (splitText.length * 4) + 1;
+    });
+    y += 4;
   };
 
   // Sections

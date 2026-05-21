@@ -7,6 +7,7 @@ import {
   Building2,
   ClipboardList, 
   FileText,
+  FileBadge,
   FileSignature,
   Settings as SettingsIcon,
   LogOut,
@@ -31,6 +32,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Propostas', path: '/proposals', icon: FileBadge },
     { name: 'Ordens de Serviço', path: '/orders', icon: ClipboardList },
     { name: 'Clientes', path: '/customers', icon: Users },
     { name: 'Contratos', path: '/contracts', icon: FileSignature },

@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Trash2,
   DollarSign,
+  FileBadge,
   FileSignature,
   ClipboardList
 } from 'lucide-react';
@@ -30,9 +31,10 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
+import { generateCommercialProposalPDF } from '../services/pdfProposalService';
 import { generateContractPDF } from '../services/contractService';
 import { generateTechnicalReport } from '../services/technicalReportService';
-import { generateServiceWord } from '../services/wordService';
+import { generateServiceWord, generateCommercialProposalWord } from '../services/wordService';
 import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
@@ -57,7 +59,7 @@ export default function OrderDetails() {
   const [closeOrderDialog, setCloseOrderDialog] = useState(false);
   const [formatDialog, setFormatDialog] = useState<{
     isOpen: boolean;
-    type: 'service' | 'contract' | 'report';
+    type: 'service' | 'contract' | 'report' | 'proposal';
   }>({
     isOpen: false,
     type: 'service'
@@ -211,6 +213,10 @@ export default function OrderDetails() {
     setFormatDialog({ isOpen: true, type: 'service' });
   };
 
+  const handleGenerateProposal = () => {
+    setFormatDialog({ isOpen: true, type: 'proposal' });
+  };
+
   const handleGenerateContract = () => {
     setFormatDialog({ isOpen: true, type: 'contract' });
   };
@@ -230,6 +236,12 @@ export default function OrderDetails() {
       } else {
         // In the future we can add Contract Word as well, for now let's use the UI request
         toast.info('Formato Word para contratos em desenvolvimento.');
+      }
+    } else if (formatDialog.type === 'proposal') {
+      if (format === 'pdf') {
+        generateCommercialProposalPDF(order, customer || undefined, technicians, supplier || undefined, settings);
+      } else {
+        generateCommercialProposalWord(order, customer || undefined, technicians, supplier || undefined, settings);
       }
     }
 
@@ -370,6 +382,19 @@ export default function OrderDetails() {
             <FileSignature className="w-4 h-4" />
             <span className="hidden sm:inline">Contrato</span>
           </Button>
+
+          {order.status === 'budget' && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2 border-primary/20 text-primary hover:bg-primary/5" 
+              onClick={handleGenerateProposal}
+            >
+              <FileBadge className="w-4 h-4" />
+              <span className="hidden sm:inline">Proposta</span>
+            </Button>
+          )}
+
           <Link to={`/orders/${order.id}/edit`}>
             <Button size="sm" className="gap-2">
               <Edit2 className="w-4 h-4" />

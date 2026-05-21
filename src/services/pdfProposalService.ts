@@ -1,0 +1,194 @@
+import { jsPDF } from 'jspdf';
+import { format } from 'date-fns';
+import { ServiceOrder, Customer, Technician, Supplier, Part, Settings } from '../types';
+
+export const generateCommercialProposalPDF = (
+  order: ServiceOrder,
+  customer?: Customer,
+  technicians: Technician[] = [],
+  supplier?: Supplier,
+  settings?: Settings | null
+) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 20;
+  const contentWidth = pageWidth - (margin * 2);
+  let y = 0;
+
+  const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
+  const customerName = order.customerNameSnapshot || customer?.name || 'Cliente';
+  const orderNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
+  const dateStr = format(new Date(), 'dd/MM/yyyy');
+
+  // Branding and Title
+  doc.setFillColor(41, 128, 185);
+  doc.rect(0, 0, pageWidth, 40, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text('PROPOSTA COMERCIAL', margin, 25);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Ref: Orçamento Nº ${orderNumber}`, margin, 32);
+
+  // Info Section (Side by Side)
+  doc.setTextColor(50, 50, 50);
+  y = 55;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PREPARADO PARA:', margin, y);
+  doc.text('APRESENTADO POR:', pageWidth / 2 + 10, y);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.text(customerName, margin, y + 5);
+  if (customer?.contactName) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Contato: ${customer.contactName}`, margin, y + 10);
+    doc.setFont('helvetica', 'normal');
+    if (customer?.email) doc.text(customer.email, margin, y + 15);
+    if (customer?.phone) doc.text(customer.phone, margin, y + 20);
+    y += 5; // Adjustment for extra line
+  } else {
+    if (customer?.email) doc.text(customer.email, margin, y + 10);
+    if (customer?.phone) doc.text(customer.phone, margin, y + 15);
+  }
+
+  doc.text(companyName, pageWidth / 2 + 10, y + 5);
+  if (supplier?.email) doc.text(supplier.email, pageWidth / 2 + 10, y + 10);
+  if (supplier?.phone) doc.text(supplier.phone, pageWidth / 2 + 10, y + 15);
+
+  y = 80;
+  doc.setDrawColor(230, 230, 230);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 10;
+
+  // 1. Escopo
+  doc.setTextColor(41, 128, 185);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. ESCOPO DO SERVIÇO', margin, y);
+  
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  y += 7;
+  
+  const description = order.description || 'Descrição não informada.';
+  const lines = description.split('\n');
+  
+  lines.forEach(line => {
+    if (line.trim() === '') {
+      y += 3;
+      return;
+    }
+    const splitDesc = doc.splitTextToSize(line, contentWidth);
+    doc.text(splitDesc, margin, y);
+    y += (splitDesc.length * 4) + 1;
+  });
+  y += 5;
+
+  // 2. Materiais (if any)
+  if (order.parts.length > 0) {
+    doc.setTextColor(41, 128, 185);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('2. MATERIAIS E EQUIPAMENTOS', margin, y);
+    y += 6;
+
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, y, contentWidth, 7, 'F');
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(8);
+    doc.text('Item', margin + 5, y + 5);
+    doc.text('Qtd', margin + 110, y + 5);
+    doc.text('Subtotal', margin + 140, y + 5);
+    y += 10;
+
+    doc.setFont('helvetica', 'normal');
+    order.parts.forEach(p => {
+      if (y > 275) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(p.name, margin + 5, y);
+      doc.text(p.quantity.toString(), margin + 110, y);
+      doc.text(`R$ ${(p.quantity * p.price).toFixed(2)}`, margin + 140, y);
+      y += 5;
+    });
+    y += 5;
+  }
+
+  // 3. Investimento
+  doc.setTextColor(41, 128, 185);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('3. INVESTIMENTO', margin, y);
+  y += 7;
+
+  const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
+  const laborTotal = order.laborCost || 0;
+  const kmTotal = (order.kmDriven || 0) * (order.kmValue || 0);
+
+  const drawRow = (label: string, value: string, isTotal = false) => {
+    if (isTotal) {
+      doc.setFillColor(41, 128, 185);
+      doc.rect(margin, y - 4, contentWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+    } else {
+      doc.setTextColor(50, 50, 50);
+      doc.setFont('helvetica', 'normal');
+    }
+    doc.text(label, margin + 5, y + 1);
+    doc.text(value, pageWidth - margin - 5, y + 1, { align: 'right' });
+    y += 8;
+  };
+
+  drawRow('Mão de Obra e Serviços:', `R$ ${laborTotal.toFixed(2)}`);
+  drawRow('Materiais e Equipamentos:', `R$ ${partsTotal.toFixed(2)}`);
+  if (kmTotal > 0) drawRow('Deslocamento e Logística:', `R$ ${kmTotal.toFixed(2)}`);
+  
+  if ((order.discountValue || 0) > 0) {
+    doc.setTextColor(41, 128, 185);
+    drawRow(`Desconto Aplicado (${order.discountPercent}%):`, `- R$ ${order.discountValue?.toFixed(2)}`);
+  }
+
+  drawRow('VALOR TOTAL DA PROPOSTA:', `R$ ${order.totalValue.toFixed(2)}`, true);
+
+  y += 10;
+  doc.setTextColor(41, 128, 185);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('4. CONDIÇÕES GERAIS', margin, y);
+  y += 6;
+
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const conditions = [
+    `• Forma de Pagamento: ${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod || 'A combinar'}`,
+    '• Validade: 30 dias para esta proposta.',
+    '• Garantia: 90 dias para serviços e conforme fabricante para materiais.',
+    '• Nota: Prazo de execução a combinar conforme disponibilidade técnica.'
+  ];
+  
+  conditions.forEach(c => {
+    doc.text(c, margin + 5, y);
+    y += 5;
+  });
+
+  // Footer for internal identification
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`${companyName} | Proposta Comercial Ref: ${orderNumber} | Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+  }
+
+  doc.save(`Proposta_${orderNumber}_${customerName.replace(/\s+/g, '_')}.pdf`);
+};

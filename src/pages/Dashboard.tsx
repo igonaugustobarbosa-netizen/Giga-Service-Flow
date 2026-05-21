@@ -174,7 +174,8 @@ export default function Dashboard() {
       title: 'Orçamentos', 
       value: `R$ ${calculateTotal('budget').toFixed(2)}`, 
       icon: ClipboardList, 
-      color: 'bg-blue-500/10 text-blue-600' 
+      color: 'bg-blue-500/10 text-blue-600',
+      link: '/proposals'
     },
     { 
       title: 'Em Andamento', 
@@ -237,6 +238,22 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
+          const content = (
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-colors">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <div className={cn("p-1.5 rounded-md", stat.color)}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-bold truncate">{stat.value}</div>
+              </CardContent>
+            </Card>
+          );
+
           return (
             <motion.div
               key={stat.title}
@@ -244,19 +261,11 @@ export default function Dashboard() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-colors">
-                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                  <CardTitle className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
-                    {stat.title}
-                  </CardTitle>
-                  <div className={cn("p-1.5 rounded-md", stat.color)}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg font-bold truncate">{stat.value}</div>
-                </CardContent>
-              </Card>
+              {stat.link ? (
+                <Link to={stat.link}>
+                  {content}
+                </Link>
+              ) : content}
             </motion.div>
           );
         })}

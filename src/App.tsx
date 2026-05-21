@@ -7,6 +7,7 @@ import Customers from './pages/Customers';
 import Technicians from './pages/Technicians';
 import Suppliers from './pages/Suppliers';
 import ServiceOrders from './pages/ServiceOrders';
+import Proposals from './pages/Proposals';
 import OrderForm from './pages/OrderForm';
 import OrderDetails from './pages/OrderDetails';
 import SettingsPage from './pages/SettingsPage';
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/technicians" element={<Technicians />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/orders" element={<ServiceOrders />} />
+            <Route path="/proposals" element={<Proposals />} />
             <Route path="/orders/new" element={<OrderForm />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="/orders/:id/edit" element={<OrderForm />} />

@@ -85,7 +85,10 @@ export const generateContractPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text('CONTRATANTE (CLIENTE):', margin, y);
   doc.setFont('helvetica', 'normal');
-  const clientText = `${customerName}, inscrito no CNPJ/CPF sob o nº ${customerTaxId}, residente ou com sede em ${customerAddress}.`;
+  let clientText = `${customerName}, inscrito no CNPJ/CPF sob o nº ${customerTaxId}, residente ou com sede em ${customerAddress}.`;
+  if (customer?.contactName) {
+    clientText = `${customerName}, aos cuidados de ${customer.contactName}, inscrito no CNPJ/CPF sob o nº ${customerTaxId}, residente ou com sede em ${customerAddress}.`;
+  }
   const splitClient = doc.splitTextToSize(clientText, contentWidth - 5);
   doc.text(splitClient, margin, y + 5);
   y += (splitClient.length * 5) + 12;
