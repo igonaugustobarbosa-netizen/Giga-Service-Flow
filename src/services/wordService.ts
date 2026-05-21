@@ -151,8 +151,8 @@ export const generateServiceWord = async (
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
-            new TextRun({ text: "Deslocamento: ", bold: true }),
-            new TextRun({ text: `R$ ${(Number(order.kmDriven) * Number(order.kmValue)).toFixed(2)}` }),
+            new TextRun({ text: `Deslocamento (${order.kmDriven || 0} KM): `, bold: true }),
+            new TextRun({ text: `R$ ${(Number(order.kmDriven || 0) * Number(order.kmValue || 0)).toFixed(2)}` }),
           ],
         }),
         new Paragraph({
@@ -415,14 +415,12 @@ export const generateCommercialProposalWord = async (
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
               ],
             }),
-            ...( ( (order.kmDriven || 0) * (order.kmValue || 0) ) > 0 ? [
-              new TableRow({
-                children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Deslocamento e Logística", size: 18 })] })] }),
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${((order.kmDriven || 0) * (order.kmValue || 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
-                ],
-              })
-            ] : []),
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Deslocamento e Logística (${order.kmDriven || 0} KM)`, size: 18 })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${((order.kmDriven || 0) * (order.kmValue || 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
+              ],
+            }),
             new TableRow({
               children: [
                 new TableCell({ 

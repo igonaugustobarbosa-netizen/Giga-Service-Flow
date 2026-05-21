@@ -150,7 +150,7 @@ export const generateCommercialProposalPDF = (
 
   drawRow('Mão de Obra e Serviços:', `R$ ${laborTotal.toFixed(2)}`);
   drawRow('Materiais e Equipamentos:', `R$ ${partsTotal.toFixed(2)}`);
-  if (kmTotal > 0) drawRow('Deslocamento e Logística:', `R$ ${kmTotal.toFixed(2)}`);
+  drawRow(`Deslocamento e Logística (${order.kmDriven || 0} KM):`, `R$ ${kmTotal.toFixed(2)}`);
   
   if ((order.discountValue || 0) > 0) {
     doc.setTextColor(41, 128, 185);

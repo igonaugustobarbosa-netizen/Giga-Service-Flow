@@ -325,8 +325,8 @@ export const generateServicePDF = (
   currentSummaryY += 2;
 
   // New Displacement section with details
-  doc.text('Deslocamento Total:', margin + 5, currentSummaryY);
-  doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
+  doc.text(`Deslocamento Total (${order.kmDriven || 0} KM):`, margin + 5, currentSummaryY);
+  doc.text(`R$ ${(kmTotal || 0).toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
   currentSummaryY += 4;
 
   doc.setFontSize(7.5);
