@@ -20,17 +20,19 @@ import {
   Truck,
   Wrench,
   Calendar,
-  Building2
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { getCurrentLocation } from '../services/locationService';
+import { getCurrentLocation, getCoordinatesFromAddress, calculateDistance } from '../services/locationService';
 import { Badge } from '../components/ui/Badge';
 import { cn, handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
 import { compressImage } from '../lib/imageUtils';
 import { logActivity } from '../services/activityService';
-import { calculateDistance } from '../services/locationService';
+import { toast } from 'sonner';
+import { ServiceLocation } from '../types';
 
 export default function OrderForm() {
   const { id } = useParams();
@@ -38,6 +40,7 @@ export default function OrderForm() {
   const { userData, isAdmin } = useAuth();
   const [loading, setLoading] = useState(!!id);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isCalculatingKm, setIsCalculatingKm] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -259,6 +262,65 @@ export default function OrderForm() {
       alert('Erro ao processar a imagem. Tente uma foto menor ou outro formato.');
     } finally {
       setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleCalculateKm = async () => {
+    if (!formData.customerId) {
+      toast.error('Selecione um cliente primeiro');
+      return;
+    }
+
+    const customer = customers.find(c => c.id === formData.customerId);
+    if (!customer?.address) {
+      toast.error('Cliente não possui endereço cadastrado');
+      return;
+    }
+
+    setIsCalculatingKm(true);
+    try {
+      let originCoords: ServiceLocation | null = null;
+      
+      try {
+        originCoords = await getCurrentLocation();
+      } catch (err) {
+        console.warn('Could not get browser location, trying company address...');
+        if (settings.companyAddress) {
+          try {
+            originCoords = await getCoordinatesFromAddress(settings.companyAddress);
+          } catch (e) {
+            console.error('Error geocoding company address:', e);
+          }
+        }
+      }
+
+      if (!originCoords) {
+        throw new Error('Não foi possível determinar o ponto de partida (ative o GPS ou preencha o endereço da empresa nas configurações)');
+      }
+
+      let destCoords: ServiceLocation | null = customer.location || null;
+      if (!destCoords && customer.address) {
+        destCoords = await getCoordinatesFromAddress(customer.address);
+      }
+
+      if (!destCoords) {
+        throw new Error('Não foi possível determinar a localização do cliente pelo endereço cadastrado');
+      }
+
+      const distance = calculateDistance(originCoords, destCoords);
+      const roundTrip = Math.round(distance * 2);
+
+      setFormData(prev => ({
+        ...prev,
+        kmDriven: roundTrip
+      }));
+
+      toast.success(`Distância calculada: ${roundTrip} km (ida e volta)`);
+    } catch (error: any) {
+      console.error('Erro ao calcular KM:', error);
+      toast.error(error.message || 'Erro ao calcular distância');
+    } finally {
+      setIsCalculatingKm(false);
     }
   };
 
@@ -984,9 +1046,22 @@ export default function OrderForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Truck className="w-4 h-4" /> Deslocamento (KM)
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">
+                      <Truck className="w-4 h-4" /> Deslocamento (KM)
+                    </Label>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 text-[10px] gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={handleCalculateKm}
+                      disabled={isCalculatingKm}
+                    >
+                      <RefreshCw className={cn("w-3 h-3", isCalculatingKm && "animate-spin")} />
+                      {isCalculatingKm ? 'Calculando...' : 'Calcular KM'}
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Input 
                       type="number" 

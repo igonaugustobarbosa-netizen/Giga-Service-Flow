@@ -39,6 +39,25 @@ export const getCurrentLocation = (): Promise<ServiceLocation> => {
   });
 };
 
+export const getCoordinatesFromAddress = async (address: string): Promise<ServiceLocation> => {
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon),
+        address: data[0].display_name
+      };
+    }
+    throw new Error('Endereço não encontrado');
+  } catch (error) {
+    console.error('Erro ao geocodificar endereço:', error);
+    throw error;
+  }
+};
+
 export const calculateDistance = (loc1: ServiceLocation, loc2: ServiceLocation): number => {
   const R = 6371; // Radius of the earth in km
   const dLat = (loc2.latitude - loc1.latitude) * Math.PI / 180;
