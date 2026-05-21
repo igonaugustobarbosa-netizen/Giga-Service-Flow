@@ -20,6 +20,7 @@ import { useAuth } from '../components/AuthGuard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { generateContractPDF } from '../services/contractService';
+import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
 import { toast } from 'sonner';
 
 export default function Contracts() {
@@ -33,6 +34,7 @@ export default function Contracts() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [editableClauses, setEditableClauses] = useState<string>('');
+  const [formatDialogOpen, setFormatDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!userData) return;
@@ -117,14 +119,24 @@ export default function Contracts() {
       toast.error('Selecione uma ordem de serviço válida.');
       return;
     }
+    setFormatDialogOpen(true);
+  };
 
-    try {
-      generateContractPDF(selectedOrder, customer, supplier, settings, editableClauses);
-      toast.success('Contrato gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating contract:', error);
-      toast.error('Erro ao gerar o PDF do contrato.');
+  const processGeneration = (format: 'pdf' | 'word') => {
+    if (!selectedOrder) return;
+
+    if (format === 'pdf') {
+      try {
+        generateContractPDF(selectedOrder, customer, supplier, settings, editableClauses);
+        toast.success('Contrato PDF gerado com sucesso!');
+      } catch (error) {
+        console.error('Error generating contract:', error);
+        toast.error('Erro ao gerar o PDF do contrato.');
+      }
+    } else {
+      toast.info('Formato Word para contratos em desenvolvimento.');
     }
+    setFormatDialogOpen(false);
   };
 
   if (loading) return (
@@ -326,6 +338,12 @@ export default function Contracts() {
           </AnimatePresence>
         </div>
       </div>
+
+      <DocumentFormatDialog 
+        isOpen={formatDialogOpen}
+        onOpenChange={setFormatDialogOpen}
+        onSelect={processGeneration}
+      />
     </div>
   );
 }

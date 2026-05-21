@@ -32,8 +32,10 @@ import { Badge } from '../components/ui/Badge';
 import { generateServicePDF } from '../services/pdfService';
 import { generateContractPDF } from '../services/contractService';
 import { generateTechnicalReport } from '../services/technicalReportService';
+import { generateServiceWord } from '../services/wordService';
 import { cn, handleFirestoreError, OperationType, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { useAuth } from '../components/AuthGuard';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
@@ -53,6 +55,13 @@ export default function OrderDetails() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [closeOrderDialog, setCloseOrderDialog] = useState(false);
+  const [formatDialog, setFormatDialog] = useState<{
+    isOpen: boolean;
+    type: 'service' | 'contract' | 'report';
+  }>({
+    isOpen: false,
+    type: 'service'
+  });
 
   const handleDeletePhoto = async (type: 'before' | 'after', index: number) => {
     if (!order || !id) return;
@@ -199,24 +208,32 @@ export default function OrderDetails() {
   }, [id, userData, isAdmin, navigate]);
 
   const handleGeneratePDF = () => {
-    if (order) {
-      generateServicePDF(order, customer || undefined, technicians, supplier || undefined);
-    }
+    setFormatDialog({ isOpen: true, type: 'service' });
   };
 
   const handleGenerateContract = () => {
-    if (!order) {
-      toast.error('Informações da ordem incompletas.');
-      return;
+    setFormatDialog({ isOpen: true, type: 'contract' });
+  };
+
+  const processGeneration = (format: 'pdf' | 'word') => {
+    if (!order) return;
+
+    if (formatDialog.type === 'service') {
+      if (format === 'pdf') {
+        generateServicePDF(order, customer || undefined, technicians, supplier || undefined);
+      } else {
+        generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined);
+      }
+    } else if (formatDialog.type === 'contract') {
+      if (format === 'pdf') {
+        generateContractPDF(order, customer, supplier, settings);
+      } else {
+        // In the future we can add Contract Word as well, for now let's use the UI request
+        toast.info('Formato Word para contratos em desenvolvimento.');
+      }
     }
 
-    try {
-      generateContractPDF(order, customer, supplier, settings);
-      toast.success('Contrato gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating contract:', error);
-      toast.error('Erro ao gerar o PDF do contrato.');
-    }
+    setFormatDialog(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleCloseOrder = () => {
@@ -833,6 +850,12 @@ export default function OrderDetails() {
         title={confirmDialog.title}
         description={confirmDialog.description}
         variant={confirmDialog.variant}
+      />
+      
+      <DocumentFormatDialog 
+        isOpen={formatDialog.isOpen}
+        onOpenChange={(open) => setFormatDialog(prev => ({ ...prev, isOpen: open }))}
+        onSelect={processGeneration}
       />
 
       <Dialog open={closeOrderDialog} onOpenChange={setCloseOrderDialog}>

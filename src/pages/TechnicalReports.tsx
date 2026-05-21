@@ -20,6 +20,8 @@ import { useAuth } from '../components/AuthGuard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { generateTechnicalReport } from '../services/technicalReportService';
+import { generateTechnicalReportWord } from '../services/wordService';
+import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
 import { toast } from 'sonner';
 
 export default function TechnicalReports() {
@@ -36,6 +38,7 @@ export default function TechnicalReports() {
   const [technicalDescription, setTechnicalDescription] = useState('');
   const [procedures, setProcedures] = useState('');
   const [nonConformities, setNonConformities] = useState('');
+  const [formatDialogOpen, setFormatDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!userData) return;
@@ -130,18 +133,32 @@ export default function TechnicalReports() {
       toast.error('Selecione uma ordem de serviço válida.');
       return;
     }
+    setFormatDialogOpen(true);
+  };
+
+  const processGeneration = (format: 'pdf' | 'word') => {
+    if (!selectedOrder) return;
 
     try {
-      generateTechnicalReport(selectedOrder, customer, technicians, settings, {
-        description: technicalDescription,
-        procedures: procedures,
-        nonConformities: nonConformities
-      }, supplier);
-      toast.success('Relatório técnico gerado com sucesso!');
+      if (format === 'pdf') {
+        generateTechnicalReport(selectedOrder, customer, technicians, settings, {
+          description: technicalDescription,
+          procedures: procedures,
+          nonConformities: nonConformities
+        }, supplier);
+      } else {
+        generateTechnicalReportWord(selectedOrder, customer, technicians, settings, {
+          description: technicalDescription,
+          procedures: procedures,
+          nonConformities: nonConformities
+        }, supplier);
+      }
+      toast.success(`Relatório técnico (${format.toUpperCase()}) gerado com sucesso!`);
     } catch (error) {
       console.error('Error generating technical report:', error);
-      toast.error('Erro ao gerar o PDF do relatório técnico.');
+      toast.error(`Erro ao gerar o relatório técnico em ${format.toUpperCase()}.`);
     }
+    setFormatDialogOpen(false);
   };
 
   if (loading) return (
@@ -375,6 +392,12 @@ export default function TechnicalReports() {
           </AnimatePresence>
         </div>
       </div>
+      
+      <DocumentFormatDialog 
+        isOpen={formatDialogOpen}
+        onOpenChange={setFormatDialogOpen}
+        onSelect={processGeneration}
+      />
     </div>
   );
 }
