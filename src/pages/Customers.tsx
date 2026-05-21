@@ -57,6 +57,8 @@ export default function Customers() {
     phone: '',
     address: '',
     taxId: '',
+    contactName: '',
+    contactPhone: '',
     location: null as ServiceLocation | null
   });
 
@@ -85,11 +87,22 @@ export default function Customers() {
         phone: customer.phone,
         address: customer.address || '',
         taxId: customer.taxId || '',
+        contactName: customer.contactName || '',
+        contactPhone: customer.contactPhone || '',
         location: customer.location || null
       });
     } else {
       setEditingCustomer(null);
-      setFormData({ name: '', email: '', phone: '', address: '', taxId: '', location: null });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone: '', 
+        address: '', 
+        taxId: '', 
+        contactName: '', 
+        contactPhone: '', 
+        location: null 
+      });
     }
     setIsDialogOpen(true);
   };
@@ -244,6 +257,23 @@ export default function Customers() {
                         <span className="truncate">{customer.email}</span>
                       </div>
                     )}
+                    {(customer.contactName || customer.contactPhone) && (
+                      <div className="pt-1 mt-1 border-t border-primary/5">
+                        <p className="text-[10px] uppercase font-bold text-primary/60 mb-1">Contato</p>
+                        {customer.contactName && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <User className="w-4 h-4 text-primary/40" />
+                            <span>{customer.contactName}</span>
+                          </div>
+                        )}
+                        {customer.contactPhone && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Phone className="w-4 h-4 text-primary/40" />
+                            <span>{customer.contactPhone}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {customer.address && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="w-4 h-4" />
@@ -320,6 +350,29 @@ export default function Customers() {
                 onChange={e => setFormData({...formData, email: e.target.value})} 
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+              <div className="space-y-2 col-span-2">
+                <p className="text-xs font-bold text-primary uppercase tracking-wider">Dados de Contato</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactName">Nome Contato</Label>
+                <Input 
+                  id="contactName" 
+                  value={formData.contactName} 
+                  onChange={e => setFormData({...formData, contactName: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactPhone">Fone Contato</Label>
+                <Input 
+                  id="contactPhone" 
+                  value={formData.contactPhone} 
+                  onChange={e => setFormData({...formData, contactPhone: e.target.value})} 
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="address">Endereço</Label>
               <div className="flex gap-2">

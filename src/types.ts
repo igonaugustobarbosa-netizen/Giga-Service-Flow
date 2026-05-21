@@ -25,6 +25,8 @@ export interface Customer {
   phone: string;
   address?: string;
   taxId?: string;
+  contactName?: string;
+  contactPhone?: string;
   location?: ServiceLocation;
   tenantId: string;
 }
@@ -37,6 +39,7 @@ export interface Technician {
   specialty?: string;
   defaultKmValue?: number;
   defaultLaborHourValue?: number;
+  location?: ServiceLocation;
   signature?: string;
   tenantId: string;
 }

@@ -75,6 +75,14 @@ export const generateServiceWord = async (
         new Paragraph({ children: [new TextRun({ text: `CNPJ/CPF: ${customer?.taxId || order.customerTaxIdSnapshot || 'N/A'}` })] }),
         new Paragraph({ children: [new TextRun({ text: `Endereço: ${customer?.address || order.customerAddressSnapshot || 'N/A'}` })] }),
         new Paragraph({ children: [new TextRun({ text: `Telefone: ${customer?.phone || 'N/A'}` })] }),
+        ...(customer?.contactName || customer?.contactPhone ? [
+          new Paragraph({ 
+            children: [
+              new TextRun({ text: "Contato: ", bold: true }),
+              new TextRun({ text: `${customer.contactName || ''}${customer.contactName && customer.contactPhone ? ' | ' : ''}${customer.contactPhone || ''}` })
+            ] 
+          })
+        ] : []),
 
         new Paragraph({ text: "", spacing: { after: 200 } }),
 

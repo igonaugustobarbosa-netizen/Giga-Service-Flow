@@ -16,7 +16,10 @@ import {
   Mail, 
   Wrench,
   X,
-  Eraser
+  Eraser,
+  MapPin,
+  MapPinOff,
+  Locate
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,7 +27,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { logActivity } from '../services/activityService';
+import { getCurrentLocation } from '../services/locationService';
 import { toast } from 'sonner';
+import { ServiceLocation } from '../types';
 
 export default function Technicians() {
   const { userData, isAdmin } = useAuth();
@@ -58,7 +63,8 @@ export default function Technicians() {
     specialty: '',
     defaultKmValue: 0,
     defaultLaborHourValue: 0,
-    signature: ''
+    signature: '',
+    location: null as ServiceLocation | null
   });
 
   useEffect(() => {
@@ -91,7 +97,8 @@ export default function Technicians() {
         specialty: technician.specialty || '',
         defaultKmValue: technician.defaultKmValue || 0,
         defaultLaborHourValue: technician.defaultLaborHourValue || 0,
-        signature: technician.signature || ''
+        signature: technician.signature || '',
+        location: technician.location || null
       });
     } else {
       setEditingTechnician(null);
@@ -102,7 +109,8 @@ export default function Technicians() {
         specialty: '',
         defaultKmValue: 0,
         defaultLaborHourValue: 0,
-        signature: ''
+        signature: '',
+        location: null
       });
     }
     setIsDialogOpen(true);
@@ -151,6 +159,16 @@ export default function Technicians() {
       setIsDialogOpen(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'technicians');
+    }
+  };
+
+  const handleGetLocation = async () => {
+    try {
+      const location = await getCurrentLocation();
+      setFormData({ ...formData, location });
+      toast.success('Localização capturada com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao obter localização.');
     }
   };
 
@@ -269,6 +287,12 @@ export default function Technicians() {
                         <span className="truncate">{technician.email}</span>
                       </div>
                     )}
+                    {technician.location?.address && (
+                      <div className="flex items-center gap-2 text-muted-foreground mt-1 text-[10px]">
+                        <MapPin className="w-3 h-3" />
+                        <span className="truncate">{technician.location.address}</span>
+                      </div>
+                    )}
                     <div className="flex gap-4 pt-2 border-t mt-2">
                       <div className="text-[10px] text-muted-foreground">
                         <p>KM: <span className="font-bold text-primary">R$ {technician.defaultKmValue?.toFixed(2) || '0.00'}</span></p>
@@ -348,6 +372,41 @@ export default function Technicians() {
                   value={formData.defaultLaborHourValue === 0 ? '' : formData.defaultLaborHourValue} 
                   onChange={e => setFormData({...formData, defaultLaborHourValue: e.target.value === '' ? 0 : Number(e.target.value)})} 
                 />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Localização / Base</Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input 
+                    id="address" 
+                    placeholder="Localização do técnico" 
+                    readOnly 
+                    value={formData.location?.address || ''} 
+                    className={formData.location ? "pl-10" : ""}
+                  />
+                  {formData.location && <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />}
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="gap-2" 
+                  onClick={handleGetLocation}
+                >
+                  <Locate className="w-4 h-4" />
+                  Obter
+                </Button>
+                {formData.location && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="text-destructive" 
+                    onClick={() => setFormData({...formData, location: null})}
+                  >
+                    <MapPinOff className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </div>
 

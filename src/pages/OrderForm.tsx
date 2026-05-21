@@ -30,6 +30,7 @@ import { useAuth } from '../components/AuthGuard';
 import { where } from 'firebase/firestore';
 import { compressImage } from '../lib/imageUtils';
 import { logActivity } from '../services/activityService';
+import { calculateDistance } from '../services/locationService';
 
 export default function OrderForm() {
   const { id } = useParams();
@@ -400,7 +401,26 @@ export default function OrderForm() {
                     id="customer" 
                     required 
                     value={formData.customerId} 
-                    onChange={e => setFormData({...formData, customerId: e.target.value})}
+                    onChange={e => {
+                      const customerId = e.target.value;
+                      const selectedCustomer = customers.find(c => c.id === customerId);
+                      
+                      // Recalculate KM for all selected technicians when customer changes
+                      const updatedDetails = (formData.technicianDetails || []).map(detail => {
+                        const tech = technicians.find(t => t.id === detail.technicianId);
+                        if (tech && tech.location && selectedCustomer?.location) {
+                          const dist = calculateDistance(tech.location, selectedCustomer.location);
+                          return { ...detail, km: Math.round(dist * 2) }; // ida e volta
+                        }
+                        return detail;
+                      });
+
+                      setFormData({
+                        ...formData, 
+                        customerId,
+                        technicianDetails: updatedDetails
+                      });
+                    }}
                   >
                     <option value="">Selecione um cliente</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -537,12 +557,21 @@ export default function OrderForm() {
 
                           if (e.target.checked) {
                             newIds = [...ids, t.id];
+                            
+                            // Calculate automatic KM if locations are available
+                            let autoKm = 0;
+                            const customer = customers.find(c => c.id === formData.customerId);
+                            if (t.location && customer?.location) {
+                              const dist = calculateDistance(t.location, customer.location);
+                              autoKm = Math.round(dist * 2); // default to round trip
+                            }
+
                             newDetails.push({
                               technicianId: t.id,
                               name: t.name,
                               hours: 0,
                               laborRate: t.defaultLaborHourValue || settings.laborHourValue || 0,
-                              km: 0,
+                              km: autoKm,
                               kmValue: t.defaultKmValue || settings.kmValue || 0
                             });
                           } else {

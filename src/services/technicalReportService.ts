@@ -89,6 +89,13 @@ export const generateTechnicalReport = (
   doc.setTextColor(0, 0, 0);
   doc.text(`Cliente: ${customer?.name || order.customerNameSnapshot || 'N/A'}`, margin, y);
   y += 4;
+  if (customer?.contactName || customer?.contactPhone) {
+    const contactText = `${customer?.contactName || ''}${customer?.contactName && customer?.contactPhone ? ' - ' : ''}${customer?.contactPhone || ''}`;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Contato: ${contactText}`, margin, y);
+    doc.setFont('helvetica', 'normal');
+    y += 4;
+  }
   const splitAddr = doc.splitTextToSize(`Endereço: ${customer?.address || order.customerAddressSnapshot || 'N/A'}`, colWidth);
   doc.text(splitAddr, margin, y);
   y += (splitAddr.length * 4);

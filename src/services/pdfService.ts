@@ -112,15 +112,30 @@ export const generateServicePDF = (
 
   // Customer Section
   const splitAddress = customerAddress ? doc.splitTextToSize(`Endereço: ${customerAddress}`, contentWidth - 10) : [];
-  const customerBoxHeight = Math.max(28, (splitAddress.length > 0 ? 22 + (splitAddress.length * 5) : 28));
+  
+  // Add space for contact info if present
+  const hasContact = !!(customer?.contactName || customer?.contactPhone);
+  const customerBoxHeight = Math.max(28, (splitAddress.length > 0 ? 22 + (splitAddress.length * 5) : 28)) + (hasContact ? 6 : 0);
   
   drawSectionBox(y, customerBoxHeight, 'DADOS DO CLIENTE');
   doc.setFontSize(9);
   doc.text(`Nome: ${customerName}`, margin + 5, y + 12);
   doc.text(`Telefone: ${customer?.phone || ''}`, margin + 5, y + 18);
   if (customer?.email) doc.text(`Email: ${customer.email}`, margin + 80, y + 18);
+  
+  let currentCustomerY = y + 24;
+  if (hasContact) {
+    const contactParts = [];
+    if (customer?.contactName) contactParts.push(`Contato: ${customer.contactName}`);
+    if (customer?.contactPhone) contactParts.push(`Fone: ${customer.contactPhone}`);
+    doc.setFont('helvetica', 'bold');
+    doc.text(contactParts.join(' | '), margin + 5, currentCustomerY);
+    doc.setFont('helvetica', 'normal');
+    currentCustomerY += 6;
+  }
+
   if (customerAddress) {
-    doc.text(splitAddress, margin + 5, y + 24);
+    doc.text(splitAddress, margin + 5, currentCustomerY);
   }
   
   y += customerBoxHeight + 4;
