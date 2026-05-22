@@ -221,14 +221,14 @@ export default function OrderDetails() {
     setFormatDialog({ isOpen: true, type: 'contract' });
   };
 
-  const processGeneration = (format: 'pdf' | 'word') => {
+  const processGeneration = (format: 'pdf' | 'word', detailed?: boolean) => {
     if (!order) return;
 
     if (formatDialog.type === 'service') {
       if (format === 'pdf') {
-        generateServicePDF(order, customer || undefined, technicians, supplier || undefined);
+        generateServicePDF(order, customer || undefined, technicians, supplier || undefined, detailed);
       } else {
-        generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined);
+        generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailed);
       }
     } else if (formatDialog.type === 'contract') {
       if (format === 'pdf') {
@@ -239,9 +239,9 @@ export default function OrderDetails() {
       }
     } else if (formatDialog.type === 'proposal') {
       if (format === 'pdf') {
-        generateCommercialProposalPDF(order, customer || undefined, technicians, supplier || undefined, settings);
+        generateCommercialProposalPDF(order, customer || undefined, technicians, supplier || undefined, settings, detailed);
       } else {
-        generateCommercialProposalWord(order, customer || undefined, technicians, supplier || undefined, settings);
+        generateCommercialProposalWord(order, customer || undefined, technicians, supplier || undefined, settings, detailed);
       }
     }
 

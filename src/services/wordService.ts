@@ -8,7 +8,8 @@ export const generateServiceWord = async (
   customer?: Customer,
   technicians: Technician[] = [],
   supplier?: Supplier,
-  settings?: Settings
+  settings?: Settings,
+  detailed?: boolean
 ) => {
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
   const orderTitle = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
@@ -148,6 +149,15 @@ export const generateServiceWord = async (
             new TextRun({ text: `R$ ${(order.laborCost || 0).toFixed(2)}` }),
           ],
         }),
+        ...(detailed && order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [
+              new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
+              new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" }),
+            ],
+          })
+        ) : []),
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
@@ -155,6 +165,15 @@ export const generateServiceWord = async (
             new TextRun({ text: `R$ ${(Number(order.kmDriven || 0) * Number(order.kmValue || 0)).toFixed(2)}` }),
           ],
         }),
+        ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+          new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [
+              new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
+              new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" }),
+            ],
+          })
+        ) : []),
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
@@ -280,7 +299,8 @@ export const generateCommercialProposalWord = async (
   customer?: Customer,
   technicians: Technician[] = [],
   supplier?: Supplier,
-  settings?: Settings | null
+  settings?: Settings | null,
+  detailed?: boolean
 ) => {
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
   const customerName = order.customerNameSnapshot || customer?.name || 'Cliente';
@@ -409,6 +429,14 @@ export const generateCommercialProposalWord = async (
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(order.laborCost || 0).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
               ],
             }),
+            ...(detailed && order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                ],
+              })
+            ) : []),
             new TableRow({
               children: [
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Materiais e Equipamentos", size: 18 })] })] }),
@@ -421,6 +449,14 @@ export const generateCommercialProposalWord = async (
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${((order.kmDriven || 0) * (order.kmValue || 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
               ],
             }),
+            ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                ],
+              })
+            ) : []),
             new TableRow({
               children: [
                 new TableCell({ 

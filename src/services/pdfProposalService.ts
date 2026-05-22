@@ -7,7 +7,8 @@ export const generateCommercialProposalPDF = (
   customer?: Customer,
   technicians: Technician[] = [],
   supplier?: Supplier,
-  settings?: Settings | null
+  settings?: Settings | null,
+  detailed?: boolean
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -21,7 +22,7 @@ export const generateCommercialProposalPDF = (
   const orderNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
   const dateStr = format(new Date(), 'dd/MM/yyyy');
 
-  // Branding and Title
+  // ... (branding code remains same)
   doc.setFillColor(41, 128, 185);
   doc.rect(0, 0, pageWidth, 40, 'F');
 
@@ -149,8 +150,31 @@ export const generateCommercialProposalPDF = (
   };
 
   drawRow('Mão de Obra e Serviços:', `R$ ${laborTotal.toFixed(2)}`);
+  
+  if (detailed && order.technicianDetails && order.technicianDetails.length > 0) {
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    order.technicianDetails.forEach(tech => {
+      doc.text(`   ${tech.name}: R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, margin + 5, y - 2);
+      y += 4;
+    });
+    doc.setFontSize(9);
+    y += 2;
+  }
+
   drawRow('Materiais e Equipamentos:', `R$ ${partsTotal.toFixed(2)}`);
   drawRow(`Deslocamento e Logística (${order.kmDriven || 0} KM):`, `R$ ${kmTotal.toFixed(2)}`);
+  
+  if (order.technicianDetails && order.technicianDetails.length > 0) {
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    order.technicianDetails.forEach(tech => {
+      doc.text(`   ${tech.name}: R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, margin + 5, y - 2);
+      y += 4;
+    });
+    doc.setFontSize(9);
+    y += 2;
+  }
   
   if ((order.discountValue || 0) > 0) {
     doc.setTextColor(41, 128, 185);

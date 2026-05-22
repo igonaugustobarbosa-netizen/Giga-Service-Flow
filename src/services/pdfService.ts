@@ -6,7 +6,8 @@ export const generateServicePDF = (
   order: ServiceOrder,
   customer?: Customer,
   technicians: Technician[] = [],
-  supplier?: Supplier
+  supplier?: Supplier,
+  detailed?: boolean
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -200,7 +201,7 @@ export const generateServicePDF = (
 
   // Technicians
   const hasTechDetails = (order.technicianDetails && order.technicianDetails.length > 0);
-  const techBoxHeight = hasTechDetails ? (order.technicianDetails.length * 6) + 10 : 10;
+  const techBoxHeight = hasTechDetails ? (order.technicianDetails!.length * 6) + 10 : 10;
   
     if (y + techBoxHeight > 270) {
       drawFooter();
@@ -209,13 +210,20 @@ export const generateServicePDF = (
       y = 28;
     }
 
-    drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E VALORES');
+    drawSectionBox(y, techBoxHeight, 'TÉCNICOS RESPONSÁVEIS E DETALHAMENTO');
   
   if (hasTechDetails) {
     doc.setFontSize(7.5);
-    order.technicianDetails.forEach((tech, i) => {
-      const techTotal = (tech.hours * tech.laborRate) + (tech.km * tech.kmValue);
-      const techText = `${tech.name}: R$ ${techTotal.toFixed(2)}`;
+    order.technicianDetails!.forEach((tech, i) => {
+      let techText = `${tech.name}: `;
+      const kmPart = `KM: ${tech.km} (R$ ${(tech.km * tech.kmValue).toFixed(2)})`;
+      const hourPart = ` | Horas: ${tech.hours}h (R$ ${(tech.hours * tech.laborRate).toFixed(2)})`;
+      
+      techText += kmPart;
+      if (detailed) {
+        techText += hourPart;
+      }
+      
       doc.text(techText, margin + 5, y + 11 + (i * 6));
     });
     doc.setFontSize(9);
