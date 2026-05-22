@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, onSnapshot, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Supplier } from '../types';
+import { ServiceOrder, Customer, Supplier, Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { 
   ClipboardList, 
@@ -15,9 +15,11 @@ import {
   Plus,
   BarChart3,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -45,10 +47,12 @@ export default function Dashboard() {
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([]);
   const [allOrders, setAllOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
   
   const handlePrevMonth = () => setSelectedDate(subMonths(selectedDate, 1));
   const handleNextMonth = () => setSelectedDate(addMonths(selectedDate, 1));
@@ -107,11 +111,23 @@ export default function Dashboard() {
       console.error('Erro ao carregar fornecedores:', error);
     });
 
+    const techniciansRef = collection(db, 'technicians');
+    const qTechnicians = isAdmin
+      ? query(techniciansRef)
+      : query(techniciansRef, where('tenantId', '==', userData.tenantId));
+
+    const unsubscribeTechnicians = onSnapshot(qTechnicians, (snapshot) => {
+      setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
+    }, (error) => {
+      console.error('Erro ao carregar técnicos:', error);
+    });
+
     return () => {
       unsubscribeRecent();
       unsubscribeAll();
       unsubscribeCustomers();
       unsubscribeSuppliers();
+      unsubscribeTechnicians();
     };
   }, [userData, isAdmin]);
 
@@ -136,68 +152,75 @@ export default function Dashboard() {
     return { workedDays, workedHours, monthOrders };
   };
 
-  const { workedDays, workedHours } = getWorkedStats(allOrders, new Date());
+  const monthStart = startOfMonth(selectedDate);
+  const monthEnd = endOfMonth(selectedDate);
 
-  // Chart Logic
   const filteredOrders = allOrders.filter(o => {
     const orderDate = parseDateSafely(o.executionDate || o.createdAt);
-    return orderDate.getMonth() === selectedDate.getMonth() && 
-           orderDate.getFullYear() === selectedDate.getFullYear();
+    const dateMatch = isWithinInterval(orderDate, { start: monthStart, end: monthEnd });
+    
+    if (!dateMatch) return false;
+    
+    if (selectedTechnicianId !== 'all') {
+      return o.technicianIds?.includes(selectedTechnicianId);
+    }
+    
+    return true;
   });
 
-  const { workedHours: selectedMonthHours } = getWorkedStats(allOrders, selectedDate);
+  const { workedDays: selectedMonthDays, workedHours: selectedMonthHours } = getWorkedStats(filteredOrders, selectedDate);
 
   const chartData = [
-    { name: 'Pagas', value: calculateTotal('paid', filteredOrders), color: '#10b981' },
-    { name: 'Pendente', value: calculateTotal('pending-payment', filteredOrders), color: '#a855f7' },
-    { name: 'Orçamento', value: calculateTotal('budget', filteredOrders), color: '#3b82f6' },
-    { name: 'Em Aberto', value: calculateTotal('in-progress', filteredOrders), color: '#f97316' },
-    { name: 'Fechadas', value: calculateTotal('closed', filteredOrders), color: '#22c55e' },
-    { name: 'Horas Trab.', value: selectedMonthHours, color: '#6366f1' },
-    { name: 'Total Mês', value: calculateTotal(undefined, filteredOrders), color: '#f59e0b' },
+    { name: 'Pagas', value: calculateTotal('paid', filteredOrders), color: '#10b981', isMoney: true },
+    { name: 'Pendente', value: calculateTotal('pending-payment', filteredOrders), color: '#a855f7', isMoney: true },
+    { name: 'Orçamento', value: calculateTotal('budget', filteredOrders), color: '#3b82f6', isMoney: true },
+    { name: 'Em Aberto', value: calculateTotal('in-progress', filteredOrders), color: '#f97316', isMoney: true },
+    { name: 'Fechadas', value: calculateTotal('closed', filteredOrders), color: '#22c55e', isMoney: true },
+    { name: 'Horas Trab.', value: selectedMonthHours, color: '#6366f1', isMoney: false },
+    { name: 'Faturado', value: calculateTotal(undefined, filteredOrders.filter(o => o.status !== 'budget')), color: '#f59e0b', isMoney: true },
   ];
 
   const stats = [
     { 
       title: 'Faturadas Pagas', 
-      value: `R$ ${calculateTotal('paid').toFixed(2)}`, 
+      value: `R$ ${calculateTotal('paid', filteredOrders).toFixed(2)}`, 
       icon: CheckCircle2, 
       color: 'bg-emerald-500/10 text-emerald-600' 
     },
     { 
       title: 'Aguardando Pagamento', 
-      value: `R$ ${calculateTotal('pending-payment').toFixed(2)}`, 
+      value: `R$ ${calculateTotal('pending-payment', filteredOrders).toFixed(2)}`, 
       icon: Clock, 
       color: 'bg-purple-500/10 text-purple-600' 
     },
     { 
       title: 'Orçamentos', 
-      value: `R$ ${calculateTotal('budget').toFixed(2)}`, 
+      value: `R$ ${calculateTotal('budget', filteredOrders).toFixed(2)}`, 
       icon: ClipboardList, 
       color: 'bg-blue-500/10 text-blue-600',
       link: '/proposals'
     },
     { 
       title: 'Em Andamento', 
-      value: `R$ ${calculateTotal('in-progress').toFixed(2)}`, 
+      value: `R$ ${calculateTotal('in-progress', filteredOrders).toFixed(2)}`, 
       icon: AlertCircle, 
       color: 'bg-orange-500/10 text-orange-600' 
     },
     { 
       title: 'Fechadas', 
-      value: `R$ ${calculateTotal('closed').toFixed(2)}`, 
+      value: `R$ ${calculateTotal('closed', filteredOrders).toFixed(2)}`, 
       icon: CheckCircle2, 
       color: 'bg-green-500/10 text-green-600' 
     },
     { 
       title: 'Trabalho (Mês)', 
-      value: `${workedDays}d / ${workedHours}h`, 
+      value: `${selectedMonthDays}d / ${selectedMonthHours}h`, 
       icon: Calendar, 
       color: 'bg-indigo-500/10 text-indigo-600' 
     },
     { 
-      title: 'Faturamento Total', 
-      value: `R$ ${calculateTotal().toFixed(2)}`, 
+      title: 'Faturamento Mês', 
+      value: `R$ ${calculateTotal(undefined, filteredOrders.filter(o => o.status !== 'budget')).toFixed(2)}`, 
       icon: TrendingUp, 
       color: 'bg-primary/10 text-primary' 
     },
@@ -274,21 +297,41 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-primary" />
                 Desempenho Mensal
               </CardTitle>
-              <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
-                <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-bold min-w-32 text-center uppercase">
-                  {format(selectedDate, 'MMMM yyyy', { locale: ptBR })}
-                </span>
-                <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
+                  <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm font-bold min-w-32 text-center uppercase">
+                    {format(selectedDate, 'MMMM yyyy', { locale: ptBR })}
+                  </span>
+                  <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Select
+                      value={selectedTechnicianId}
+                      onChange={(e) => setSelectedTechnicianId(e.target.value)}
+                      className="pl-8 h-10 w-[180px]"
+                    >
+                      <option value="all">Todos os Técnicos</option>
+                      {technicians.map((tech) => (
+                        <option key={tech.id} value={tech.id}>
+                          {tech.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -326,8 +369,8 @@ export default function Dashboard() {
                       <LabelList 
                         dataKey="value" 
                         position="top" 
-                        formatter={(val: number) => val > 0 ? val.toFixed(0) : ''}
-                        style={{ fontSize: '10px', fontWeight: 'bold' }}
+                        formatter={(val: number) => val > 0 ? val.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : ''}
+                        style={{ fontSize: '9px', fontWeight: 'bold' }}
                       />
                     </Bar>
                   </BarChart>
