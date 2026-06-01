@@ -82,18 +82,51 @@ export const generateCommercialProposalPDF = (
   const lines = description.split('\n');
   
   lines.forEach(line => {
-    if (line.trim() === '') {
-      y += 3;
-      return;
-    }
-    const splitDesc = doc.splitTextToSize(line, contentWidth);
-    doc.text(splitDesc, margin, y);
-    y += (splitDesc.length * 4) + 1;
+    const splitDesc = doc.splitTextToSize(line.trim() === '' ? ' ' : line, contentWidth);
+    
+    splitDesc.forEach((descLine: string) => {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+        doc.setTextColor(41, 128, 185);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('1. ESCOPO DO SERVIÇO (CONTINUAÇÃO)', margin, y);
+        y += 10;
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+      }
+      doc.text(descLine, margin, y);
+      y += 5;
+    });
+    
+    if (line.trim() === '') y += 3; // Slightly more space for empty lines
   });
   y += 5;
 
+  // Function to ensure we have space for a new section box or multiline row
+  const checkSpace = (needed: number, title?: string) => {
+    if (y + needed > 280) {
+      doc.addPage();
+      y = 20;
+      if (title) {
+        doc.setTextColor(41, 128, 185);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${title} (CONTINUAÇÃO)`, margin, y);
+        y += 10;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+      }
+      return true;
+    }
+    return false;
+  };
+
   // 2. Materiais (if any)
   if (order.parts.length > 0) {
+    checkSpace(20, '2. MATERIAIS E EQUIPAMENTOS');
     doc.setTextColor(41, 128, 185);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
@@ -111,10 +144,7 @@ export const generateCommercialProposalPDF = (
 
     doc.setFont('helvetica', 'normal');
     order.parts.forEach(p => {
-      if (y > 275) {
-        doc.addPage();
-        y = 20;
-      }
+      checkSpace(8);
       doc.text(p.name, margin + 5, y);
       doc.text(p.quantity.toString(), margin + 110, y);
       doc.text(`R$ ${(p.quantity * p.price).toFixed(2)}`, margin + 140, y);
@@ -124,6 +154,7 @@ export const generateCommercialProposalPDF = (
   }
 
   // 3. Investimento
+  checkSpace(30, '3. INVESTIMENTO');
   doc.setTextColor(41, 128, 185);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
@@ -135,6 +166,7 @@ export const generateCommercialProposalPDF = (
   const kmTotal = (order.kmDriven || 0) * (order.kmValue || 0);
 
   const drawRow = (label: string, value: string, isTotal = false) => {
+    checkSpace(10);
     if (isTotal) {
       doc.setFillColor(41, 128, 185);
       doc.rect(margin, y - 4, contentWidth, 8, 'F');
@@ -155,6 +187,7 @@ export const generateCommercialProposalPDF = (
     doc.setFontSize(7.5);
     doc.setTextColor(100, 100, 100);
     order.technicianDetails.forEach(tech => {
+      checkSpace(6);
       doc.text(`   ${tech.name}: R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, margin + 5, y - 2);
       y += 4;
     });
@@ -169,6 +202,7 @@ export const generateCommercialProposalPDF = (
     doc.setFontSize(7.5);
     doc.setTextColor(100, 100, 100);
     order.technicianDetails.forEach(tech => {
+      checkSpace(6);
       doc.text(`   ${tech.name}: R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, margin + 5, y - 2);
       y += 4;
     });
@@ -182,28 +216,6 @@ export const generateCommercialProposalPDF = (
   }
 
   drawRow('VALOR TOTAL DA PROPOSTA:', `R$ ${order.totalValue.toFixed(2)}`, true);
-
-  y += 10;
-  doc.setTextColor(41, 128, 185);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('4. CONDIÇÕES GERAIS', margin, y);
-  y += 6;
-
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const conditions = [
-    `• Forma de Pagamento: ${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod || 'A combinar'}`,
-    '• Validade: 30 dias para esta proposta.',
-    '• Garantia: 90 dias para serviços e conforme fabricante para materiais.',
-    '• Nota: Prazo de execução a combinar conforme disponibilidade técnica.'
-  ];
-  
-  conditions.forEach(c => {
-    doc.text(c, margin + 5, y);
-    y += 5;
-  });
 
   // Footer for internal identification
   const totalPages = doc.getNumberOfPages();

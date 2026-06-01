@@ -226,7 +226,7 @@ export default function OrderDetails() {
 
     if (formatDialog.type === 'service') {
       if (format === 'pdf') {
-        generateServicePDF(order, customer || undefined, technicians, supplier || undefined, detailed);
+        generateServicePDF(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailed);
       } else {
         generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailed);
       }

@@ -1,12 +1,13 @@
 import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
-import { ServiceOrder, Customer, Technician, Supplier, Part } from '../types';
+import { ServiceOrder, Customer, Technician, Supplier, Part, Settings } from '../types';
 
 export const generateServicePDF = (
   order: ServiceOrder,
   customer?: Customer,
   technicians: Technician[] = [],
   supplier?: Supplier,
+  settings?: Settings | null,
   detailed?: boolean
 ) => {
   const doc = new jsPDF();
@@ -31,8 +32,8 @@ export const generateServicePDF = (
   };
 
   // Use snapshots or fallbacks
-  const customerName = order.customerNameSnapshot || customer.name;
-  const customerAddress = order.customerAddressSnapshot || customer.address;
+  const customerName = order.customerNameSnapshot || customer?.name || 'Cliente';
+  const customerAddress = order.customerAddressSnapshot || customer?.address;
   const companyName = order.companyNameSnapshot || 'ServiceFlow';
 
   const drawFooter = () => {
@@ -148,59 +149,91 @@ export const generateServicePDF = (
   const descParagraphs = descriptionText.split('\n');
   const descLineHeight = 5;
   
-  // Calculate total height needed for description box
-  let totalDescHeight = 12; // Base padding
-  const processedParagraphs: string[][] = [];
-  
-  descParagraphs.forEach(para => {
-    if (para.trim() === '') {
-      totalDescHeight += 3;
-      processedParagraphs.push(['']);
-    } else {
-      const splitLines = doc.splitTextToSize(para, contentWidth - 12);
-      totalDescHeight += (splitLines.length * descLineHeight) + 2;
-      processedParagraphs.push(splitLines);
-    }
-  });
-
-  // Calculate if we need to split across pages
-  if (y + totalDescHeight > 270) {
-    // If it's too big, we should either split or just start on a new page if it's really big
-    if (y > 100) { // If we're already past middle, start fresh
-      drawFooter();
-      doc.addPage();
-      drawHeader();
-      y = 28;
-    }
+  // Header box
+  if (y > 270) {
+    drawFooter();
+    doc.addPage();
+    drawHeader();
+    y = 28;
   }
 
-  drawSectionBox(y, totalDescHeight, 'DESCRIÇÃO DO SERVIÇO');
-  let currentParaY = y + 11;
+  doc.setDrawColor(200, 200, 200);
+  doc.setFillColor(245, 245, 245);
+  doc.rect(margin, y, contentWidth, 7, 'F');
+  doc.rect(margin, y, contentWidth, 7);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DESCRIÇÃO DO SERVIÇO', margin + 3, y + 5);
+  doc.setFont('helvetica', 'normal');
   
-  processedParagraphs.forEach(lines => {
-    if (currentParaY > 270) {
+  y += 12;
+  const initialY = y;
+  
+  descParagraphs.forEach(para => {
+    const splitLines = doc.splitTextToSize(para.trim() === '' ? ' ' : para, contentWidth - 10);
+    
+    splitLines.forEach((line: string) => {
+      if (y > 280) {
+        // Draw vertical side lines for the previous page if we wanted a box, but 
+        // to keep it simple and reliable, we just add a page.
+        drawFooter();
+        doc.addPage();
+        drawHeader();
+        y = 28;
+        
+        doc.setFillColor(245, 245, 245);
+        doc.rect(margin, y, contentWidth, 7, 'F');
+        doc.rect(margin, y, contentWidth, 7);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DESCRIÇÃO DO SERVIÇO (CONTINUAÇÃO)', margin + 3, y + 5);
+        doc.setFont('helvetica', 'normal');
+        y += 12;
+      }
+      doc.text(line, margin + 5, y);
+      y += descLineHeight;
+    });
+    if (para.trim() === '') y += 2;
+  });
+
+  y += 5;
+
+  // Add notes from settings if available
+  if (settings?.technicalReportDefaultMessage) {
+    const msgHeight = (doc.splitTextToSize(settings.technicalReportDefaultMessage, contentWidth - 10).length * 4) + 12;
+    if (y + msgHeight > 275) {
       drawFooter();
       doc.addPage();
       drawHeader();
       y = 28;
-      // Note: This logic is simplified for the description box which usually fits in one or two pages
-      // but the drawSectionBox was already drawn above. For a truly robust split, we'd need more complex logic.
-      // Given the previous implementation also had a simplified split, we'll keep it manageable.
-      currentParaY = 35;
     }
     
-    if (lines[0] === '') {
-      currentParaY += 3;
-    } else {
-      doc.text(lines, margin + 5, currentParaY);
-      currentParaY += (lines.length * descLineHeight) + 2;
-    }
-  });
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, y, contentWidth, 7, 'F');
+    doc.rect(margin, y, contentWidth, 7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OBSERVAÇÕES / NOTAS ADICIONAIS', margin + 3, y + 5);
+    doc.setFont('helvetica', 'normal');
+    y += 12;
 
-  y += totalDescHeight + 5;
+    const msgLines = settings.technicalReportDefaultMessage.split('\n');
+    msgLines.forEach(line => {
+      const splitMsg = doc.splitTextToSize(line, contentWidth - 10);
+      splitMsg.forEach((mline: string) => {
+        if (y > 280) {
+          drawFooter();
+          doc.addPage();
+          drawHeader();
+          y = 28;
+        }
+        doc.text(mline, margin + 5, y);
+        y += 4;
+      });
+      if (line.trim() === '') y += 2;
+    });
+    y += 5;
+  }
 
   // Technicians
-  const hasTechDetails = (order.technicianDetails && order.technicianDetails.length > 0);
+  const hasTechDetails = !!(order.technicianDetails && order.technicianDetails.length > 0);
   const techBoxHeight = hasTechDetails ? (order.technicianDetails!.length * 6) + 10 : 10;
   
     if (y + techBoxHeight > 270) {
