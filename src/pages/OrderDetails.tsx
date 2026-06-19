@@ -221,14 +221,14 @@ export default function OrderDetails() {
     setFormatDialog({ isOpen: true, type: 'contract' });
   };
 
-  const processGeneration = (format: 'pdf' | 'word', detailed?: boolean) => {
+  const processGeneration = (format: 'pdf' | 'word', detailedLabor?: boolean, detailedKM?: boolean) => {
     if (!order) return;
 
     if (formatDialog.type === 'service') {
       if (format === 'pdf') {
-        generateServicePDF(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailed);
+        generateServicePDF(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailedLabor, detailedKM);
       } else {
-        generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailed);
+        generateServiceWord(order, customer || undefined, technicians, supplier || undefined, settings || undefined, detailedLabor, detailedKM);
       }
     } else if (formatDialog.type === 'contract') {
       if (format === 'pdf') {
@@ -239,9 +239,9 @@ export default function OrderDetails() {
       }
     } else if (formatDialog.type === 'proposal') {
       if (format === 'pdf') {
-        generateCommercialProposalPDF(order, customer || undefined, technicians, supplier || undefined, settings, detailed);
+        generateCommercialProposalPDF(order, customer || undefined, technicians, supplier || undefined, settings, detailedLabor, detailedKM);
       } else {
-        generateCommercialProposalWord(order, customer || undefined, technicians, supplier || undefined, settings, detailed);
+        generateCommercialProposalWord(order, customer || undefined, technicians, supplier || undefined, settings, detailedLabor, detailedKM);
       }
     }
 

@@ -9,12 +9,24 @@ export const generateServiceWord = async (
   technicians: Technician[] = [],
   supplier?: Supplier,
   settings?: Settings,
-  detailed?: boolean
+  detailed?: boolean,
+  detailedKM?: boolean
 ) => {
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
   const orderTitle = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
   const orderNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
   const dateStr = order.executionDate ? format(new Date(order.executionDate.replace('Z', '')), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm');
+
+  // Calculation logic for totals (consistent with OrderForm)
+  const techLaborTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
+  const laborTotal = (order.technicianDetails && order.technicianDetails.length > 0) 
+    ? techLaborTotal 
+    : (Number(order.laborCost) || 0);
+
+  const techKmTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+  const kmTotal = (order.technicianDetails && order.technicianDetails.length > 0)
+    ? techKmTotal
+    : (Number(order.kmDriven || 0) * Number(order.kmValue || 0));
 
   const doc = new Document({
     sections: [{
@@ -139,41 +151,45 @@ export const generateServiceWord = async (
           alignment: AlignmentType.RIGHT,
           children: [
             new TextRun({ text: "Peças: ", bold: true }),
-            new TextRun({ text: `R$ ${(order.parts || []).reduce((acc, p) => acc + (p.quantity * p.price), 0).toFixed(2)}` }),
+            new TextRun({ text: `R$ ${(order.parts || []).reduce((acc, p) => acc + (p.quantity * Number(p.price)), 0).toFixed(2)}` }),
           ],
         }),
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          children: [
-            new TextRun({ text: "Mão de Obra: ", bold: true }),
-            new TextRun({ text: `R$ ${(order.laborCost || 0).toFixed(2)}` }),
-          ],
-        }),
-        ...(detailed && order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+        ...(detailed ? [
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
-              new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" }),
+              new TextRun({ text: "Mão de Obra Total: ", bold: true }),
+              new TextRun({ text: `R$ ${laborTotal.toFixed(2)}` }),
             ],
-          })
-        ) : []),
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          children: [
-            new TextRun({ text: `Deslocamento (${order.kmDriven || 0} KM): `, bold: true }),
-            new TextRun({ text: `R$ ${(Number(order.kmDriven || 0) * Number(order.kmValue || 0)).toFixed(2)}` }),
-          ],
-        }),
-        ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+          }),
+          ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
+                new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" }),
+              ],
+            })
+          ) : []),
+        ] : []),
+        ...(detailedKM ? [
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
-              new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" }),
+              new TextRun({ text: `Deslocamento Total (${(order.kmDriven || 0) || (order.technicianDetails?.reduce((acc, t) => acc + (t.km || 0), 0) || 0)} KM): `, bold: true }),
+              new TextRun({ text: `R$ ${kmTotal.toFixed(2)}` }),
             ],
-          })
-        ) : []),
+          }),
+          ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: `${tech.name}: `, size: 16, color: "666666" }),
+                new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" }),
+              ],
+            })
+          ) : []),
+        ] : []),
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
@@ -300,12 +316,24 @@ export const generateCommercialProposalWord = async (
   technicians: Technician[] = [],
   supplier?: Supplier,
   settings?: Settings | null,
-  detailed?: boolean
+  detailed?: boolean,
+  detailedKM?: boolean
 ) => {
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
   const customerName = order.customerNameSnapshot || customer?.name || 'Cliente';
   const orderNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
   const dateStr = format(new Date(), 'dd/MM/yyyy');
+
+  // Calculation logic for totals (consistent with OrderForm)
+  const techLaborTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
+  const laborTotal = (order.technicianDetails && order.technicianDetails.length > 0) 
+    ? techLaborTotal 
+    : (Number(order.laborCost) || 0);
+
+  const techKmTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+  const kmTotal = (order.technicianDetails && order.technicianDetails.length > 0)
+    ? techKmTotal
+    : (Number(order.kmDriven || 0) * Number(order.kmValue || 0));
 
   const doc = new Document({
     sections: [{
@@ -423,40 +451,44 @@ export const generateCommercialProposalWord = async (
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mão de Obra e Serviços", size: 18 })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(order.laborCost || 0).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
-              ],
-            }),
-            ...(detailed && order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+            ...(detailed ? [
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Mão de Obra e Serviços (Total)", size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${laborTotal.toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
                 ],
-              })
-            ) : []),
+              }),
+              ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                  ],
+                })
+              ) : []),
+            ] : []),
             new TableRow({
               children: [
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Materiais e Equipamentos", size: 18 })] })] }),
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
               ],
             }),
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Deslocamento e Logística (${order.kmDriven || 0} KM)`, size: 18 })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${((order.kmDriven || 0) * (order.kmValue || 0)).toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
-              ],
-            }),
-            ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+            ...(detailedKM ? [
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Deslocamento e Logística Total (${(order.kmDriven || 0) || (order.technicianDetails?.reduce((acc, t) => acc + (t.km || 0), 0) || 0)} KM)`, size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${kmTotal.toFixed(2)}`, size: 18 })], alignment: AlignmentType.RIGHT })] }),
                 ],
-              })
-            ) : []),
+              }),
+              ...(order.technicianDetails && order.technicianDetails.length > 0 ? order.technicianDetails.map(tech => 
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${tech.name}`, size: 16, color: "666666" })] })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, size: 16, color: "666666" })], alignment: AlignmentType.RIGHT })] }),
+                  ],
+                })
+              ) : []),
+            ] : []),
             new TableRow({
               children: [
                 new TableCell({ 
@@ -472,20 +504,9 @@ export const generateCommercialProposalWord = async (
           ],
         }),
 
-        // 4. Condições
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [new TextRun({ text: "4. CONDIÇÕES GERAIS", bold: true, color: "2980b9", size: 24 })],
-          spacing: { before: 400, after: 200 }
-        }),
-        new Paragraph({ children: [new TextRun({ text: `• Forma de Pagamento: ${order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod || 'A combinar'}`, size: 18 })] }),
-        new Paragraph({ children: [new TextRun({ text: '• Validade: 30 dias para esta proposta.', size: 18 })] }),
-        new Paragraph({ children: [new TextRun({ text: '• Garantia: 90 dias para serviços e materiais (conforme fabricante).', size: 18 })] }),
-        new Paragraph({ children: [new TextRun({ text: '• Nota: Prazo de execução conforme disponibilidade técnica.', size: 18 })] }),
       ],
     }],
   });
-
   const blob = await Packer.toBlob(doc);
   const fileName = `Proposta_${orderNumber}_${customerName.replace(/\s+/g, '_')}.docx`;
   saveAs(blob, fileName);

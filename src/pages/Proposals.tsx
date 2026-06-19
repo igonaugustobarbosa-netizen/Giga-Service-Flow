@@ -126,7 +126,7 @@ export default function Proposals() {
     );
   };
 
-  const processGeneration = async (formatType: 'pdf' | 'word', detailed?: boolean) => {
+  const processGeneration = async (formatType: 'pdf' | 'word', detailed?: boolean, detailedKM?: boolean) => {
     const ordersToProcess = proposals.filter(p => selectedIds.includes(p.id));
     
     if (ordersToProcess.length === 0) {
@@ -143,9 +143,9 @@ export default function Proposals() {
 
       try {
         if (formatType === 'pdf') {
-          generateCommercialProposalPDF(proposal, customer, selectedTechs, undefined, settings, detailed);
+          generateCommercialProposalPDF(proposal, customer, selectedTechs, undefined, settings, detailed, detailedKM);
         } else {
-          await generateCommercialProposalWord(proposal, customer, selectedTechs, undefined, settings, detailed);
+          await generateCommercialProposalWord(proposal, customer, selectedTechs, undefined, settings, detailed, detailedKM);
         }
       } catch (error) {
         console.error('Error generating proposal:', error);

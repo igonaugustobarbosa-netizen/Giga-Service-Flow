@@ -8,7 +8,8 @@ export const generateCommercialProposalPDF = (
   technicians: Technician[] = [],
   supplier?: Supplier,
   settings?: Settings | null,
-  detailed?: boolean
+  detailed?: boolean,
+  detailedKM?: boolean
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -162,8 +163,17 @@ export const generateCommercialProposalPDF = (
   y += 7;
 
   const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
-  const laborTotal = order.laborCost || 0;
-  const kmTotal = (order.kmDriven || 0) * (order.kmValue || 0);
+  
+  // Recalculate totals dynamically to be robust
+  const techLaborTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
+  const laborTotal = (order.technicianDetails && order.technicianDetails.length > 0) 
+    ? techLaborTotal 
+    : (Number(order.laborCost) || 0);
+
+  const techKmTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+  const kmTotal = (order.technicianDetails && order.technicianDetails.length > 0)
+    ? techKmTotal
+    : (Number(order.kmDriven || 0) * Number(order.kmValue || 0));
 
   const drawRow = (label: string, value: string, isTotal = false) => {
     checkSpace(10);
@@ -181,33 +191,38 @@ export const generateCommercialProposalPDF = (
     y += 8;
   };
 
-  drawRow('Mão de Obra e Serviços:', `R$ ${laborTotal.toFixed(2)}`);
-  
-  if (detailed && order.technicianDetails && order.technicianDetails.length > 0) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 100, 100);
-    order.technicianDetails.forEach(tech => {
-      checkSpace(6);
-      doc.text(`   ${tech.name}: R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, margin + 5, y - 2);
-      y += 4;
-    });
-    doc.setFontSize(9);
-    y += 2;
+  if (detailed) {
+    drawRow('Mão de Obra e Serviços:', `R$ ${laborTotal.toFixed(2)}`);
+    
+    if (order.technicianDetails && order.technicianDetails.length > 0) {
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      order.technicianDetails.forEach(tech => {
+        checkSpace(6);
+        doc.text(`   ${tech.name}: R$ ${(tech.hours * tech.laborRate).toFixed(2)} (${tech.hours}h)`, margin + 5, y - 2);
+        y += 4;
+      });
+      doc.setFontSize(9);
+      y += 2;
+    }
   }
 
   drawRow('Materiais e Equipamentos:', `R$ ${partsTotal.toFixed(2)}`);
-  drawRow(`Deslocamento e Logística (${order.kmDriven || 0} KM):`, `R$ ${kmTotal.toFixed(2)}`);
-  
-  if (order.technicianDetails && order.technicianDetails.length > 0) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 100, 100);
-    order.technicianDetails.forEach(tech => {
-      checkSpace(6);
-      doc.text(`   ${tech.name}: R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, margin + 5, y - 2);
-      y += 4;
-    });
-    doc.setFontSize(9);
-    y += 2;
+
+  if (detailedKM) {
+    drawRow(`Deslocamento e Logística (${(order.kmDriven || 0) || (order.technicianDetails?.reduce((acc, t) => acc + (t.km || 0), 0) || 0)} KM):`, `R$ ${kmTotal.toFixed(2)}`);
+    
+    if (order.technicianDetails && order.technicianDetails.length > 0) {
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      order.technicianDetails.forEach(tech => {
+        checkSpace(6);
+        doc.text(`   ${tech.name}: R$ ${(tech.km * tech.kmValue).toFixed(2)} (${tech.km} KM)`, margin + 5, y - 2);
+        y += 4;
+      });
+      doc.setFontSize(9);
+      y += 2;
+    }
   }
   
   if ((order.discountValue || 0) > 0) {

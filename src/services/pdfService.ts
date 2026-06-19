@@ -8,7 +8,8 @@ export const generateServicePDF = (
   technicians: Technician[] = [],
   supplier?: Supplier,
   settings?: Settings | null,
-  detailed?: boolean
+  detailed?: boolean,
+  detailedKM?: boolean
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -249,12 +250,18 @@ export const generateServicePDF = (
     doc.setFontSize(7.5);
     order.technicianDetails!.forEach((tech, i) => {
       let techText = `${tech.name}: `;
-      const kmPart = `KM: ${tech.km} (R$ ${(tech.km * tech.kmValue).toFixed(2)})`;
-      const hourPart = ` | Horas: ${tech.hours}h (R$ ${(tech.hours * tech.laborRate).toFixed(2)})`;
-      
-      techText += kmPart;
+      const parts = [];
       if (detailed) {
-        techText += hourPart;
+        parts.push(`Horas: ${tech.hours}h (R$ ${(tech.hours * tech.laborRate).toFixed(2)})`);
+      }
+      if (detailedKM) {
+        parts.push(`KM: ${tech.km} (R$ ${(tech.km * tech.kmValue).toFixed(2)})`);
+      }
+      
+      if (parts.length > 0) {
+        techText += parts.join(' | ');
+      } else {
+        techText += 'Técnico Responsável';
       }
       
       doc.text(techText, margin + 5, y + 11 + (i * 6));
@@ -336,7 +343,17 @@ export const generateServicePDF = (
   drawSectionBox(summaryY, summaryHeight, 'RESUMO FINANCEIRO');
   
   const partsTotal = order.parts.reduce((acc, p) => acc + (p.quantity * p.price), 0);
-  const kmTotal = order.kmDriven * order.kmValue;
+  
+  // Recalculate totals dynamically to be robust
+  const techLaborTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
+  const laborTotal = (order.technicianDetails && order.technicianDetails.length > 0) 
+    ? techLaborTotal 
+    : (Number(order.laborCost) || 0);
+
+  const techKmTotal = (order.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+  const kmTotal = (order.technicianDetails && order.technicianDetails.length > 0)
+    ? techKmTotal
+    : (Number(order.kmDriven || 0) * Number(order.kmValue || 0));
   
   doc.setFontSize(9);
   doc.text('Total em Peças:', margin + 5, summaryY + 13);
@@ -345,41 +362,45 @@ export const generateServicePDF = (
   let currentSummaryY = summaryY + 19;
 
   // New Labor section with details
-  doc.text('Mão de Obra Total:', margin + 5, currentSummaryY);
-  doc.text(`R$ ${order.laborCost.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
-  currentSummaryY += 4;
-  
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 100, 100);
-  if (hasTechDetails) {
-    order.technicianDetails!.forEach(tech => {
-      doc.text(tech.name, margin + 10, currentSummaryY);
-      doc.text(`R$ ${(tech.hours * tech.laborRate).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
-      currentSummaryY += 3.5;
-    });
-  } else {
-    currentSummaryY += 1;
+  if (detailed) {
+    doc.text('Mão de Obra Total:', margin + 5, currentSummaryY);
+    doc.text(`R$ ${laborTotal.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
+    currentSummaryY += 4;
+    
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    if (hasTechDetails) {
+      order.technicianDetails!.forEach(tech => {
+        doc.text(tech.name, margin + 10, currentSummaryY);
+        doc.text(`R$ ${(tech.hours * tech.laborRate).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+        currentSummaryY += 3.5;
+      });
+    } else {
+      currentSummaryY += 2;
+    }
+    
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    currentSummaryY += 2;
   }
-  
-  doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0);
-  currentSummaryY += 2;
 
   // New Displacement section with details
-  doc.text(`Deslocamento Total (${order.kmDriven || 0} KM):`, margin + 5, currentSummaryY);
-  doc.text(`R$ ${(kmTotal || 0).toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
-  currentSummaryY += 4;
+  if (detailedKM) {
+    doc.text(`Deslocamento Total (${(order.kmDriven || 0) || (order.technicianDetails?.reduce((acc, t) => acc + (t.km || 0), 0) || 0)} KM):`, margin + 5, currentSummaryY);
+    doc.text(`R$ ${kmTotal.toFixed(2)}`, pageWidth - margin - 5, currentSummaryY, { align: 'right' });
+    currentSummaryY += 4;
 
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 100, 100);
-  if (hasTechDetails) {
-    order.technicianDetails!.forEach(tech => {
-      doc.text(tech.name, margin + 10, currentSummaryY);
-      doc.text(`R$ ${(tech.km * tech.kmValue).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
-      currentSummaryY += 3.5;
-    });
-  } else {
-    currentSummaryY += 1;
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    if (hasTechDetails) {
+      order.technicianDetails!.forEach(tech => {
+        doc.text(tech.name, margin + 10, currentSummaryY);
+        doc.text(`R$ ${(tech.km * tech.kmValue).toFixed(2)}`, pageWidth - margin - 10, currentSummaryY, { align: 'right' });
+        currentSummaryY += 3.5;
+      });
+    } else {
+      currentSummaryY += 2;
+    }
   }
 
   doc.setFontSize(9);
