@@ -16,7 +16,8 @@ import {
   Building2,
   TrendingUp,
   ClipboardList,
-  DollarSign
+  DollarSign,
+  Clock
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { generateReportPDF } from '../services/reportService';
@@ -102,6 +103,10 @@ export default function Reports() {
 
   const totalBilling = filteredOrders.reduce((acc, order) => acc + order.totalValue, 0);
   const totalDiscount = filteredOrders.reduce((acc, order) => acc + (order.discountValue || 0), 0);
+  const totalHours = filteredOrders.reduce((acc, order) => {
+    const techHours = (order.technicianDetails || []).reduce((sum, tech) => sum + (Number(tech.hours) || 0), 0);
+    return acc + (techHours || Number(order.hoursWorked) || 0);
+  }, 0);
 
   const statusBreakdown = {
     budget: filteredOrders.filter(o => o.status === 'budget').reduce((acc, o) => acc + o.totalValue, 0),
@@ -237,7 +242,7 @@ export default function Reports() {
         {/* Report Content */}
         <div className="lg:col-span-3 space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="border-none shadow-sm bg-primary text-primary-foreground">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -261,6 +266,20 @@ export default function Reports() {
                   </div>
                   <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                     <DollarSign className="w-5 h-5 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-muted-foreground text-sm font-medium">Total de Horas</p>
+                    <h3 className="text-2xl font-bold mt-1 text-primary">{totalHours.toFixed(1)}h</h3>
+                  </div>
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-primary" />
                   </div>
                 </div>
               </CardContent>

@@ -75,6 +75,7 @@ export const generateReportPDF = (
   }
 
   let totalBilling = 0;
+  let totalHours = 0;
 
   if (isFullReport) {
     // Group orders by customer
@@ -132,12 +133,16 @@ export const generateReportPDF = (
         doc.text(splitDescription, margin + 5, y);
         y += splitDescription.length * 4;
 
+        const techHours = (order.technicianDetails || []).reduce((sum, tech) => sum + (Number(tech.hours) || 0), 0);
+        const hoursToUse = techHours || Number(order.hoursWorked) || 0;
+
         // Labor
-        if (order.hoursWorked > 0) {
+        if (hoursToUse > 0) {
           const rate = order.laborRate || 0;
-          doc.text(`Mão de Obra: ${order.hoursWorked}h x R$ ${rate.toFixed(2)} = R$ ${(order.hoursWorked * rate).toFixed(2)}`, margin + 5, y);
+          doc.text(`Mão de Obra: ${hoursToUse}h x R$ ${rate.toFixed(2)} = R$ ${(hoursToUse * rate).toFixed(2)}`, margin + 5, y);
           y += 3.5;
-          customerTotalHours += order.hoursWorked;
+          customerTotalHours += hoursToUse;
+          totalHours += hoursToUse;
         }
 
         // Parts
@@ -218,6 +223,8 @@ export const generateReportPDF = (
       doc.text(statusLabel, margin + 110, y);
       doc.text(order.totalValue.toFixed(2), pageWidth - margin - 2, y, { align: 'right' });
 
+      const techHours = (order.technicianDetails || []).reduce((sum, tech) => sum + (Number(tech.hours) || 0), 0);
+      totalHours += techHours || Number(order.hoursWorked) || 0;
       totalBilling += order.totalValue;
       y += 7;
       
@@ -278,14 +285,18 @@ export const generateReportPDF = (
   }
 
   doc.setFillColor(41, 128, 185);
-  doc.rect(margin, y, pageWidth - (margin * 2), 15, 'F');
-  doc.setFontSize(12);
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+  doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('SUBTOTAL GERAL:', margin + 5, y + 10);
-  doc.text(`R$ ${totalBilling.toFixed(2)}`, pageWidth - margin - 5, y + 10, { align: 'right' });
+  doc.text('TOTAL DE HORAS:', margin + 5, y + 8);
+  doc.text(`${totalHours.toFixed(1)}h`, pageWidth - margin - 5, y + 8, { align: 'right' });
+  
+  doc.setFontSize(12);
+  doc.text('SUBTOTAL GERAL:', margin + 5, y + 17);
+  doc.text(`R$ ${totalBilling.toFixed(2)}`, pageWidth - margin - 5, y + 17, { align: 'right' });
 
-  y += 25;
+  y += 32;
   if (y > 270) {
     drawFooter();
     doc.addPage();
