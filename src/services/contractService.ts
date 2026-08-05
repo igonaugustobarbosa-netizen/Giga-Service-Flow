@@ -102,7 +102,7 @@ export const generateContractPDF = (
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const objectText = `O presente contrato tem por objeto a prestação de serviços de: ${order.description}. Referente à Ordem de Serviço Nº ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}.`;
+  const objectText = `O presente contrato tem por objeto a prestação de serviços de: ${order.description}. Referente ao Orçamento Nº ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}.`;
   const splitObject = doc.splitTextToSize(objectText, contentWidth);
   doc.text(splitObject, margin, y);
   y += splitObject.length * 5 + 12;

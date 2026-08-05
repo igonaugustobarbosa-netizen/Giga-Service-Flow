@@ -83,9 +83,9 @@ export default function ServiceOrders() {
       setOrders(data);
       setLoading(false);
     }, (error) => {
-      console.error('Erro ao carregar ordens:', error);
+      console.error('Erro ao carregar orçamentos:', error);
       setLoading(false);
-      toast.error('Erro ao carregar lista de ordens. Verifique as permissões.');
+      toast.error('Erro ao carregar lista de orçamentos. Verifique as permissões.');
     });
 
     const qCustomers = isAdmin
@@ -120,13 +120,14 @@ export default function ServiceOrders() {
   const handleDelete = async (id: string) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Excluir Ordem de Serviço',
-      description: 'Tem certeza que deseja excluir esta ordem de serviço? Esta ação não pode ser desfeita.',
+      title: 'Excluir Orçamento',
+      description: 'Tem certeza que deseja excluir este orçamento? Esta ação não pode ser desfeita.',
       variant: 'destructive',
       onConfirm: async () => {
         try {
           const order = orders.find(o => o.id === id);
           await deleteDoc(doc(db, 'serviceOrders', id));
+          toast.success('Orçamento excluído com sucesso!');
           if (order && userData) {
             logActivity({
               type: 'delete',
@@ -139,7 +140,7 @@ export default function ServiceOrders() {
             });
           }
         } catch (error) {
-          toast.error('Não foi possível excluir a ordem de serviço.');
+          toast.error('Não foi possível excluir o orçamento.');
           handleFirestoreError(error, OperationType.DELETE, `serviceOrders/${id}`);
         }
       }
@@ -218,13 +219,13 @@ export default function ServiceOrders() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Ordens de Serviço</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Orçamentos</h1>
           <p className="text-muted-foreground">Gerencie seus orçamentos e serviços em andamento.</p>
         </div>
         <Link to="/orders/new">
           <Button className="gap-2 h-12 px-6 rounded-xl shadow-lg">
             <Plus className="w-5 h-5" />
-            Nova Ordem
+            Novo Orçamento
           </Button>
         </Link>
       </div>
@@ -480,8 +481,8 @@ export default function ServiceOrders() {
       <Dialog open={closeOrderDialog.isOpen} onOpenChange={(open) => setCloseOrderDialog(prev => ({ ...prev, isOpen: open }))}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Encerrar Ordem de Serviço</DialogTitle>
-            <p className="text-muted-foreground text-sm">Escolha o status final para esta ordem de serviço:</p>
+            <DialogTitle>Encerrar Orçamento</DialogTitle>
+            <p className="text-muted-foreground text-sm">Escolha o status final para este orçamento:</p>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-3 py-4">
             <Button 

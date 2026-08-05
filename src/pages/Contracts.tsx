@@ -116,7 +116,7 @@ export default function Contracts() {
 
   const handleGenerateContract = () => {
     if (!selectedOrder) {
-      toast.error('Selecione uma ordem de serviço válida.');
+      toast.error('Selecione um orçamento válido.');
       return;
     }
     setFormatDialogOpen(true);
@@ -142,7 +142,7 @@ export default function Contracts() {
   if (loading) return (
     <div className="flex items-center justify-center p-20">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      <span className="ml-3">Carregando ordens de serviço...</span>
+      <span className="ml-3">Carregando orçamentos...</span>
     </div>
   );
 
@@ -151,7 +151,7 @@ export default function Contracts() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gerador de Contratos</h1>
-          <p className="text-muted-foreground">Selecione uma ordem de serviço para gerar o contrato de prestação de serviço.</p>
+          <p className="text-muted-foreground">Selecione um orçamento para gerar o contrato de prestação de serviço.</p>
         </div>
         <div className="flex items-center gap-2">
           <FileSignature className="w-8 h-8 text-primary opacity-20" />
@@ -163,15 +163,15 @@ export default function Contracts() {
         <div className="lg:col-span-1 space-y-6">
           <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-lg">Selecionar OS</CardTitle>
-              <CardDescription>Busque pela OS que deseja contratar</CardDescription>
+              <CardTitle className="text-lg">Selecionar Orçamento</CardTitle>
+              <CardDescription>Busque pelo orçamento que deseja contratar</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Pesquisar OS..."
+                  placeholder="Pesquisar orçamento..."
                   className="w-full pl-10 pr-4 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,7 +180,7 @@ export default function Contracts() {
 
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {filteredOrders.length === 0 ? (
-                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
+                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhum orçamento encontrado.</p>
                 ) : (
                   filteredOrders.map((order) => (
                     <button
@@ -194,7 +194,7 @@ export default function Contracts() {
                     >
                       <div className="flex flex-col gap-1">
                         <span className={`text-xs font-mono font-bold ${selectedOrderId === order.id ? "text-white/80" : "text-muted-foreground"}`}>
-                          OS N° {order.orderNumber}
+                          N° {order.orderNumber}
                         </span>
                         <span className="font-semibold line-clamp-1">{order.description}</span>
                         <div className={`flex items-center gap-2 text-[10px] mt-1 ${selectedOrderId === order.id ? "text-white/70" : "text-muted-foreground"}`}>
@@ -227,7 +227,7 @@ export default function Contracts() {
                       <div>
                         <CardTitle className="text-2xl">Prévia do Contrato</CardTitle>
                         <CardDescription className="text-primary-foreground/80">
-                          Resumo da Ordem de Serviço N° {selectedOrder.orderNumber}
+                          Resumo do Orçamento N° {selectedOrder.orderNumber}
                         </CardDescription>
                       </div>
                       <FileSignature className="w-10 h-10 opacity-20" />
@@ -330,8 +330,8 @@ export default function Contracts() {
                   <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto opacity-50">
                     <ClipboardList className="w-10 h-10" />
                   </div>
-                  <h3 className="text-xl font-bold text-foreground">Nenhuma OS Selecionada</h3>
-                  <p>Escola uma ordem de serviço na lista ao lado para visualizar e gerar o contrato correspondente.</p>
+                  <h3 className="text-xl font-bold text-foreground">Nenhum Orçamento Selecionado</h3>
+                  <p>Escolha um orçamento na lista ao lado para visualizar e gerar o contrato correspondente.</p>
                 </div>
               </div>
             )}

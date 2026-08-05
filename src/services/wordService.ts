@@ -13,7 +13,7 @@ export const generateServiceWord = async (
   detailedKM?: boolean
 ) => {
   const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'ServiceFlow';
-  const orderTitle = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
+  const orderTitle = 'ORÇAMENTO';
   const orderNumber = order.orderNumber || order.id.substring(0, 8).toUpperCase();
   const dateStr = order.executionDate ? format(new Date(order.executionDate.replace('Z', '')), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm');
 
@@ -202,7 +202,7 @@ export const generateServiceWord = async (
   });
 
   const blob = await Packer.toBlob(doc);
-  const fileName = `${order.status === 'budget' ? 'Orcamento' : 'OS'}_${orderNumber}.docx`;
+  const fileName = `Orcamento_${orderNumber}.docx`;
   saveAs(blob, fileName);
 };
 
@@ -235,7 +235,7 @@ export const generateTechnicalReportWord = async (
         }),
 
         new Paragraph({ children: [new TextRun({ text: `Empresa: ${companyName}`, bold: true })] }),
-        new Paragraph({ children: [new TextRun({ text: `OS Nº: ${orderNumber}` })] }),
+        new Paragraph({ children: [new TextRun({ text: `Nº: ${orderNumber}` })] }),
         new Paragraph({ children: [new TextRun({ text: `Cliente: ${customer?.name || order.customerNameSnapshot || 'N/A'}` })] }),
         ...(customer?.contactName ? [
           new Paragraph({ children: [new TextRun({ text: `Contato: ${customer.contactName}` })] })

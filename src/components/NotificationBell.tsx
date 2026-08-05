@@ -46,6 +46,7 @@ export default function NotificationBell() {
       case 'technician': return <User className="w-4 h-4" />;
       case 'supplier': return <Building2 className="w-4 h-4" />;
       case 'order': return <ClipboardList className="w-4 h-4" />;
+      case 'workOrder': return <ClipboardList className="w-4 h-4" />;
       case 'user': return <ShieldCheck className="w-4 h-4" />;
       default: return <Bell className="w-4 h-4" />;
     }
@@ -64,7 +65,8 @@ export default function NotificationBell() {
       customer: 'Cliente',
       technician: 'Técnico',
       supplier: 'Fornecedor',
-      order: 'Ordem de Serviço',
+      order: 'Orçamento',
+      workOrder: 'Ordem de Serviço',
       user: 'Usuário'
     };
 

@@ -121,7 +121,7 @@ export const generateReportPDF = (
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(0, 0, 0);
-        doc.text(`OS: ${order.orderNumber || order.id.substring(0, 8)} - ${dateStr}`, margin + 2, y);
+        doc.text(`N°: ${order.orderNumber || order.id.substring(0, 8)} - ${dateStr}`, margin + 2, y);
         y += 4;
 
         doc.setFont('helvetica', 'normal');
@@ -164,7 +164,7 @@ export const generateReportPDF = (
         }
 
         doc.setFont('helvetica', 'bold');
-        doc.text(`Total da OS: R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y, { align: 'right' });
+        doc.text(`Total: R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y, { align: 'right' });
         y += 6;
         
         doc.setDrawColor(240, 240, 240);
@@ -190,7 +190,7 @@ export const generateReportPDF = (
     doc.setFontSize(9);
     doc.setTextColor(50, 50, 50);
     
-    doc.text('Nº OS', margin + 2, y + 6);
+    doc.text('Nº', margin + 2, y + 6);
     doc.text('Data Exec.', margin + 20, y + 6);
     doc.text('Cliente', margin + 45, y + 6);
     doc.text('Status', margin + 110, y + 6);

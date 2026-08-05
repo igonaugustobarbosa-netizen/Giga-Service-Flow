@@ -420,7 +420,7 @@ export default function OrderForm() {
       }
       navigate('/orders');
     } catch (error) {
-      console.error('Erro ao salvar ordem:', error);
+      console.error('Erro ao salvar orçamento:', error);
       handleFirestoreError(error, OperationType.WRITE, 'serviceOrders');
     }
   };
@@ -437,10 +437,10 @@ export default function OrderForm() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {id ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}
+            {id ? 'Editar Orçamento' : 'Novo Orçamento'}
           </h1>
           {id && formData.orderNumber && (
-            <p className="text-muted-foreground font-mono">OS N° {formData.orderNumber}</p>
+            <p className="text-muted-foreground font-mono">N° {formData.orderNumber}</p>
           )}
           {!id && (
             <p className="text-muted-foreground">Preencha os detalhes do orçamento ou serviço.</p>
@@ -549,7 +549,7 @@ export default function OrderForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date">Data da Abertura da OS *</Label>
+                  <Label htmlFor="date">Data da Abertura *</Label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
@@ -844,7 +844,7 @@ export default function OrderForm() {
                   />
                 </div>
                 <p className="text-[10px] text-muted-foreground italic">
-                  * Estes dados são salvos nesta Ordem de Serviço e serão usados na geração do contrato.
+                  * Estes dados são salvos neste Orçamento e serão usados na geração do contrato.
                 </p>
               </CardContent>
             </Card>
@@ -1192,7 +1192,7 @@ export default function OrderForm() {
                 disabled={isUploadingPhoto}
               >
                 <Save className="w-5 h-5" />
-                {isUploadingPhoto ? 'Processando Foto...' : 'Salvar Ordem'}
+                {isUploadingPhoto ? 'Processando Foto...' : 'Salvar Orçamento'}
               </Button>
             </CardContent>
           </Card>

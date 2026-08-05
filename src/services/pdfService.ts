@@ -53,12 +53,12 @@ export const generateServicePDF = (
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    const mainTitle = order.status === 'budget' ? 'ORÇAMENTO' : 'ORDEM DE SERVIÇO';
+    const mainTitle = 'ORÇAMENTO';
     doc.text(mainTitle, margin, 13);
     
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    const orderNumberLabel = order.status === 'budget' ? 'ORÇAM. Nº:' : 'OS Nº:';
+    const orderNumberLabel = 'ORÇAM. Nº:';
     doc.text(`${orderNumberLabel} ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + 70, 13);
     
     const dateToDisplay = order.executionDate || order.createdAt;
@@ -444,7 +444,7 @@ export const generateServicePDF = (
   doc.rect(margin, y, contentWidth, 12, 'F');
   doc.setFontSize(14);
   doc.setTextColor(255, 255, 255);
-  doc.text('VALOR TOTAL DA ORDEM:', margin + 5, y + 8);
+  doc.text('VALOR TOTAL DO ORÇAMENTO:', margin + 5, y + 8);
   doc.text(`R$ ${order.totalValue.toFixed(2)}`, pageWidth - margin - 5, y + 8, { align: 'right' });
   
   y += 25;
@@ -575,5 +575,5 @@ export const generateServicePDF = (
   const splitValidity = doc.splitTextToSize(validityText, contentWidth);
   doc.text(splitValidity, margin, validityY + 5);
 
-  doc.save(`OS_${order.id.substring(0, 8).toUpperCase()}_${customerName.replace(/\s+/g, '_')}.pdf`);
+  doc.save(`Orcamento_${order.id.substring(0, 8).toUpperCase()}_${customerName.replace(/\s+/g, '_')}.pdf`);
 };

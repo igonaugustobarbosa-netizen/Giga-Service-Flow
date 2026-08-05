@@ -6,6 +6,7 @@ import {
   UserCog, 
   Building2,
   ClipboardList, 
+  ClipboardCheck,
   FileText,
   FileBadge,
   FileSignature,
@@ -32,11 +33,12 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'Ordem de Serviço', path: '/work-orders', icon: ClipboardCheck },
     { name: 'Propostas', path: '/proposals', icon: FileBadge },
-    { name: 'Ordens de Serviço', path: '/orders', icon: ClipboardList },
+    { name: 'Orçamentos', path: '/orders', icon: ClipboardList },
     { name: 'Clientes', path: '/customers', icon: Users },
     { name: 'Contratos', path: '/contracts', icon: FileSignature },
-    { name: 'Relat. Técnicos', path: '/technical-reports', icon: ClipboardList },
+    { name: 'Relat. Técnicos', path: '/technical-reports', icon: FileText },
     { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Técnicos', path: '/technicians', icon: UserCog },
     { name: 'Fornecedores', path: '/suppliers', icon: Building2 },

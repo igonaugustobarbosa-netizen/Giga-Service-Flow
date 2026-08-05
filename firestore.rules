@@ -99,6 +99,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /workOrders/{woId} {
+      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
+      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow delete: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow read: if isAuthenticated() && (settingId == getTenantId() || isAdmin());
       allow write: if isAuthenticated() && (settingId == getTenantId() || isAdmin());

@@ -24,7 +24,8 @@ import {
   DollarSign,
   FileBadge,
   FileSignature,
-  ClipboardList
+  ClipboardList,
+  ClipboardCheck
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -191,7 +192,7 @@ export default function OrderDetails() {
 
           loadRelatedData();
         } else {
-          toast.error('Ordem de serviço não encontrada.');
+          toast.error('Orçamento não encontrado.');
           navigate('/orders');
         }
       } catch (error) {
@@ -283,12 +284,13 @@ export default function OrderDetails() {
     if (!id) return;
     setConfirmDialog({
       isOpen: true,
-      title: 'Excluir Ordem de Serviço',
-      description: 'Tem certeza que deseja excluir esta ordem de serviço? Esta ação não pode ser desfeita.',
+      title: 'Excluir Orçamento',
+      description: 'Tem certeza que deseja excluir este orçamento? Esta ação não pode ser desfeita.',
       variant: 'destructive',
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, 'serviceOrders', id));
+          toast.success('Orçamento excluído com sucesso!');
           navigate('/orders');
         } catch (error) {
           handleFirestoreError(error, OperationType.DELETE, `serviceOrders/${id}`);
@@ -327,9 +329,9 @@ export default function OrderDetails() {
   
   if (!order) return (
     <div className="p-8 text-center">
-      <p className="text-destructive mb-4">Ordem de serviço não encontrada.</p>
+      <p className="text-destructive mb-4">Orçamento não encontrado.</p>
       <Link to="/orders">
-        <Button variant="outline">Voltar para Ordens</Button>
+        <Button variant="outline">Voltar para Orçamentos</Button>
       </Link>
     </div>
   );
@@ -353,8 +355,8 @@ export default function OrderDetails() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Detalhes da Ordem</h1>
-            <p className="text-muted-foreground font-mono">OS N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}</p>
+            <h1 className="text-3xl font-bold tracking-tight">Detalhes do Orçamento</h1>
+            <p className="text-muted-foreground font-mono">N° {order.orderNumber || order.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -394,6 +396,13 @@ export default function OrderDetails() {
               <span className="hidden sm:inline">Proposta</span>
             </Button>
           )}
+
+          <Link to={`/work-orders/new?budgetId=${order.id}`}>
+            <Button size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+              <ClipboardCheck className="w-4 h-4" />
+              <span className="hidden sm:inline">Gerar OS</span>
+            </Button>
+          </Link>
 
           <Link to={`/orders/${order.id}/edit`}>
             <Button size="sm" className="gap-2">
@@ -886,8 +895,8 @@ export default function OrderDetails() {
       <Dialog open={closeOrderDialog} onOpenChange={setCloseOrderDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Encerrar Ordem de Serviço</DialogTitle>
-            <p className="text-muted-foreground text-sm">Escolha o status final para esta ordem de serviço:</p>
+            <DialogTitle>Encerrar Orçamento</DialogTitle>
+            <p className="text-muted-foreground text-sm">Escolha o status final para este orçamento:</p>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-3 py-4">
             <Button 

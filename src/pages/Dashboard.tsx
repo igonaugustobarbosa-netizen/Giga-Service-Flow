@@ -5,6 +5,7 @@ import { ServiceOrder, Customer, Supplier, Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { 
   ClipboardList, 
+  ClipboardCheck,
   Users, 
   TrendingUp, 
   Clock, 
@@ -250,12 +251,20 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Visão geral do seu negócio e serviços recentes.</p>
         </div>
-        <Link to="/orders/new">
-          <Button className="gap-2 h-12 px-6 rounded-xl shadow-lg">
-            <Plus className="w-5 h-5" />
-            Nova Ordem de Serviço
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/work-orders/new">
+            <Button className="gap-2 h-12 px-6 rounded-xl shadow-lg bg-indigo-600 hover:bg-indigo-700">
+              <ClipboardCheck className="w-5 h-5" />
+              Nova OS
+            </Button>
+          </Link>
+          <Link to="/orders/new">
+            <Button className="gap-2 h-12 px-6 rounded-xl shadow-lg">
+              <Plus className="w-5 h-5" />
+              Novo Orçamento
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
@@ -448,7 +457,7 @@ export default function Dashboard() {
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
                   <ClipboardList className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">Nenhuma ordem de serviço encontrada.</p>
+                <p className="text-muted-foreground">Nenhum orçamento encontrado.</p>
               </div>
             ) : (
               <div className="space-y-4">

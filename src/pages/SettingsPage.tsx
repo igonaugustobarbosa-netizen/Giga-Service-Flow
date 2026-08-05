@@ -27,7 +27,10 @@ import { useAuth } from '../components/AuthGuard';
 
 export default function SettingsPage() {
   const { userData } = useAuth();
-  const [settings, setSettings] = useState<Settings>({ lastOrderNumber: 0 } as Settings);
+  const [settings, setSettings] = useState<Settings>({ 
+    lastOrderNumber: 0,
+    lastWorkOrderNumber: 0 
+  } as Settings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -95,7 +98,7 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="lastOrderNumber" className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> Próximo Número de OS
+                    <Clock className="w-4 h-4" /> Próximo Número de Orçamento
                   </Label>
                   <Input 
                     id="lastOrderNumber" 
@@ -103,7 +106,19 @@ export default function SettingsPage() {
                     value={settings.lastOrderNumber === 0 ? '' : settings.lastOrderNumber} 
                     onChange={e => setSettings({...settings, lastOrderNumber: e.target.value === '' ? 0 : Number(e.target.value)})} 
                   />
-                  <p className="text-xs text-muted-foreground">O próximo número gerado será este valor + 1.</p>
+                  <p className="text-xs text-muted-foreground">O próximo número gerado para Orçamentos será este valor + 1.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastWorkOrderNumber" className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4" /> Próximo Número de Ordem de Serviço (OS)
+                  </Label>
+                  <Input 
+                    id="lastWorkOrderNumber" 
+                    type="number" 
+                    value={(settings.lastWorkOrderNumber ?? 0) === 0 ? '' : settings.lastWorkOrderNumber} 
+                    onChange={e => setSettings({...settings, lastWorkOrderNumber: e.target.value === '' ? 0 : Number(e.target.value)})} 
+                  />
+                  <p className="text-xs text-muted-foreground">O próximo número gerado para OS será este valor + 1.</p>
                 </div>
               </div>
             </CardContent>

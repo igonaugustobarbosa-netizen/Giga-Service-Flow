@@ -130,7 +130,7 @@ export default function TechnicalReports() {
 
   const handleGenerateReport = () => {
     if (!selectedOrder) {
-      toast.error('Selecione uma ordem de serviço válida.');
+      toast.error('Selecione um orçamento válido.');
       return;
     }
     setFormatDialogOpen(true);
@@ -164,7 +164,7 @@ export default function TechnicalReports() {
   if (loading) return (
     <div className="flex items-center justify-center p-20">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      <span className="ml-3">Carregando ordens de serviço...</span>
+      <span className="ml-3">Carregando orçamentos...</span>
     </div>
   );
 
@@ -173,7 +173,7 @@ export default function TechnicalReports() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gerador de Relatórios Técnicos</h1>
-          <p className="text-muted-foreground">Selecione uma OS para gerar o relatório técnico profissional sem valores financeiros.</p>
+          <p className="text-muted-foreground">Selecione um orçamento para gerar o relatório técnico profissional sem valores financeiros.</p>
         </div>
         <div className="flex items-center gap-2">
           <ClipboardList className="w-8 h-8 text-primary opacity-20" />
@@ -185,15 +185,15 @@ export default function TechnicalReports() {
         <div className="lg:col-span-1 space-y-6">
           <Card className="border-none shadow-sm bg-blue-50/20 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-lg">Selecionar OS</CardTitle>
-              <CardDescription>Busque pela OS para emitir o relatório</CardDescription>
+              <CardTitle className="text-lg">Selecionar Orçamento</CardTitle>
+              <CardDescription>Busque pelo orçamento para emitir o relatório</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Pesquisar OS..."
+                  placeholder="Pesquisar orçamento..."
                   className="w-full pl-10 pr-4 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -202,7 +202,7 @@ export default function TechnicalReports() {
 
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {filteredOrders.length === 0 ? (
-                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
+                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhum orçamento encontrado.</p>
                 ) : (
                   filteredOrders.map((order) => (
                     <button
@@ -216,7 +216,7 @@ export default function TechnicalReports() {
                     >
                       <div className="flex flex-col gap-1">
                         <span className={`text-xs font-mono font-bold ${selectedOrderId === order.id ? "text-white/80" : "text-muted-foreground"}`}>
-                          OS N° {order.orderNumber}
+                          N° {order.orderNumber}
                         </span>
                         <span className="font-semibold line-clamp-1">{order.description}</span>
                         <div className={`flex items-center gap-2 text-[10px] mt-1 ${selectedOrderId === order.id ? "text-white/70" : "text-muted-foreground"}`}>
@@ -249,7 +249,7 @@ export default function TechnicalReports() {
                       <div>
                         <CardTitle className="text-2xl">Prévia do Relatório</CardTitle>
                         <CardDescription className="text-blue-100">
-                          Resumo Técnico da Ordem de Serviço N° {selectedOrder.orderNumber}
+                          Resumo Técnico do Orçamento N° {selectedOrder.orderNumber}
                         </CardDescription>
                       </div>
                       <ClipboardList className="w-10 h-10 opacity-20" />
@@ -297,7 +297,7 @@ export default function TechnicalReports() {
                             <Clock className="w-5 h-5 text-blue-600" />
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Status da OS</p>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Status</p>
                             <div className="flex items-center gap-2 mt-1">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                               <p className="font-bold uppercase text-xs">{selectedOrder.status === 'closed' ? 'Concluída' : 'Orçamento/Em Aberto'}</p>
@@ -385,7 +385,7 @@ export default function TechnicalReports() {
                     <ClipboardList className="w-10 h-10 text-blue-600" />
                   </div>
                   <h3 className="text-xl font-bold text-foreground">Aguardando Seleção</h3>
-                  <p>Selecione uma ordem de serviço na lista para visualizar o resumo técnico e gerar o PDF.</p>
+                  <p>Selecione um orçamento na lista para visualizar o resumo técnico e gerar o PDF.</p>
                 </div>
               </div>
             )}

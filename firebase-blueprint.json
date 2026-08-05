@@ -56,15 +56,34 @@
       "properties": {
         "kmValue": { "type": "number", "description": "Valor padrão por KM rodado" },
         "laborHourValue": { "type": "number", "description": "Valor padrão por hora de mão de obra" },
-        "lastOrderNumber": { "type": "number", "description": "Último número de ordem gerado" }
+        "lastOrderNumber": { "type": "number", "description": "Último número de orçamento gerado" },
+        "lastWorkOrderNumber": { "type": "number", "description": "Último número de ordem de serviço gerado" }
       }
     },
-    "ServiceOrder": {
+    "WorkOrder": {
       "title": "Ordem de Serviço",
+      "description": "Gestão de serviços diários das equipes.",
+      "type": "object",
+      "properties": {
+        "workOrderNumber": { "type": "string", "description": "Número sequencial da OS" },
+        "budgetId": { "type": "string", "description": "ID do orçamento vinculado (referência)" },
+        "customerId": { "type": "string", "description": "ID do cliente (referência)" },
+        "technicianIds": { "type": "array", "items": { "type": "string" }, "description": "IDs dos técnicos vinculados" },
+        "description": { "type": "string", "description": "Descrição do serviço" },
+        "kmDriven": { "type": "number", "description": "KM rodado" },
+        "status": { "type": "string", "enum": ["open", "in-progress", "closed"], "description": "Status da OS" },
+        "scheduledDate": { "type": "string", "format": "date-time", "description": "Data agendada" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["workOrderNumber", "customerId", "status"]
+    },
+    "ServiceOrder": {
+      "title": "Orçamento",
       "description": "Registro de serviços e orçamentos.",
       "type": "object",
       "properties": {
-        "orderNumber": { "type": "string", "description": "Número sequencial da ordem (ex: 00001)" },
+        "orderNumber": { "type": "string", "description": "Número sequencial do orçamento (ex: 00001)" },
         "customerId": { "type": "string", "description": "ID do cliente (referência)" },
         "technicianIds": { "type": "array", "items": { "type": "string" }, "description": "IDs dos técnicos envolvidos" },
         "supplierId": { "type": "string", "description": "ID do fornecedor (referência)" },
@@ -109,7 +128,8 @@
     "/customers": { "schema": "Customer", "description": "Coleção de clientes" },
     "/technicians": { "schema": "Technician", "description": "Coleção de técnicos" },
     "/suppliers": { "schema": "Supplier", "description": "Coleção de fornecedores" },
-    "/serviceOrders": { "schema": "ServiceOrder", "description": "Coleção de ordens de serviço e orçamentos" },
+    "/serviceOrders": { "schema": "ServiceOrder", "description": "Coleção de orçamentos" },
+    "/workOrders": { "schema": "WorkOrder", "description": "Coleção de ordens de serviço (execução)" },
     "/settings": { "schema": "Settings", "description": "Configurações globais" }
   }
 }

@@ -113,6 +113,7 @@ export interface Settings {
   kmValue?: number;
   laborHourValue?: number;
   lastOrderNumber: number;
+  lastWorkOrderNumber?: number;
   companyName?: string;
   companyTaxId?: string;
   companyAddress?: string;
@@ -121,10 +122,31 @@ export interface Settings {
   technicalReportDefaultProcedures?: string;
 }
 
+export type WorkOrderStatus = 'open' | 'in-progress' | 'closed';
+
+export interface WorkOrder {
+  id: string;
+  workOrderNumber: string;
+  budgetId?: string;
+  customerId: string;
+  customerNameSnapshot?: string;
+  technicianIds: string[];
+  technicianDetails?: TechnicianWork[];
+  description: string;
+  kmDriven: number;
+  kmRate?: number;
+  laborHours: number;
+  status: WorkOrderStatus;
+  scheduledDate: string;
+  createdAt: string;
+  updatedAt: string;
+  tenantId: string;
+}
+
 export interface Activity {
   id: string;
   type: 'create' | 'update' | 'delete';
-  entity: 'customer' | 'technician' | 'supplier' | 'order' | 'user';
+  entity: 'customer' | 'technician' | 'supplier' | 'order' | 'user' | 'workOrder';
   entityId: string;
   entityName: string;
   userId: string;
