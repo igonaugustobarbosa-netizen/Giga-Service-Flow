@@ -7,6 +7,7 @@ interface ConfirmDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  onCancel?: () => void;
   title: string;
   description: string;
   confirmText?: string;
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   isOpen,
   onOpenChange,
   onConfirm,
+  onCancel,
   title,
   description,
   confirmText = 'Confirmar',
@@ -39,7 +41,13 @@ export function ConfirmDialog({
           <p className="text-muted-foreground">{description}</p>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              if (onCancel) onCancel();
+              onOpenChange(false);
+            }}
+          >
             {cancelText}
           </Button>
           <Button 

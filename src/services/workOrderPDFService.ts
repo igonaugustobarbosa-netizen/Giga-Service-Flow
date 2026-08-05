@@ -4,11 +4,16 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WorkOrder, Customer, Settings, Technician } from '../types';
 
+export interface PDFOptions {
+  includeDetails?: boolean;
+}
+
 export const generateWorkOrderPDF = (
   wo: WorkOrder,
   customer: Customer | null,
   technicians: Technician[],
-  settings: Settings | null
+  settings: Settings | null,
+  options: PDFOptions = {}
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -59,12 +64,13 @@ export const generateWorkOrderPDF = (
   // Details Table
   autoTable(doc, {
     startY: currentY,
-    head: [['Data Agendada', 'Status', 'KM Estimado', 'Horas Est.']],
+    head: [['Data Agendada', 'Status', 'Horas Est.', 'Trabalhadas', 'Restante']],
     body: [[
       wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Não agendado',
       wo.status === 'open' ? 'Aberta' : wo.status === 'in-progress' ? 'Em Andamento' : 'Encerrada',
-      wo.kmDriven.toString(),
-      wo.laborHours?.toString() || '0'
+      wo.laborHours?.toString() || '0',
+      wo.totalWorkedHours?.toString() || '0',
+      wo.remainingHours?.toString() || '0'
     ]],
     theme: 'grid',
     headStyles: { fillColor: [79, 70, 229] } // Indigo-600
@@ -72,8 +78,35 @@ export const generateWorkOrderPDF = (
   
   currentY = (doc as any).lastAutoTable.finalY + 15;
 
+  // Work Sessions History
+  if (wo.workSessions && wo.workSessions.length > 0) {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('HISTÓRICO DE SESSÕES DE TRABALHO', margin, currentY);
+    
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['Início', 'Fim', 'Duração']],
+      body: wo.workSessions.map(session => [
+        format(new Date(session.startTime), "dd/MM/yyyy HH:mm"),
+        format(new Date(session.endTime), "dd/MM/yyyy HH:mm"),
+        `${session.duration}h`
+      ]),
+      foot: [[
+        'TOTAL TRABALHADO',
+        '',
+        `${wo.totalWorkedHours || 0}h`
+      ]],
+      theme: 'striped',
+      headStyles: { fillColor: [50, 50, 50] },
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+    
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+  }
+
   // Technician Detailed Work (from Budget)
-  if (wo.technicianDetails && wo.technicianDetails.length > 0) {
+  if (options.includeDetails && wo.technicianDetails && wo.technicianDetails.length > 0) {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('DETALHAMENTO DE MÃO DE OBRA', margin, currentY);

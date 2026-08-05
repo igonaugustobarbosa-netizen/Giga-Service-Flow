@@ -124,6 +124,12 @@ export interface Settings {
 
 export type WorkOrderStatus = 'open' | 'in-progress' | 'closed';
 
+export interface WorkSession {
+  startTime: string;
+  endTime: string;
+  duration: number; // hours
+}
+
 export interface WorkOrder {
   id: string;
   workOrderNumber: string;
@@ -135,7 +141,11 @@ export interface WorkOrder {
   description: string;
   kmDriven: number;
   kmRate?: number;
-  laborHours: number;
+  laborHours: number; // This will be treated as Estimated Hours
+  totalWorkedHours?: number;
+  remainingHours?: number;
+  currentStartTime?: string | null;
+  workSessions?: WorkSession[];
   status: WorkOrderStatus;
   scheduledDate: string;
   createdAt: string;

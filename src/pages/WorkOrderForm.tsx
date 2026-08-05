@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Play,
+  Square,
   FileText,
   Users
 } from 'lucide-react';
@@ -36,6 +37,7 @@ import { useAuth } from '../components/AuthGuard';
 import { Customer, Technician, ServiceOrder, WorkOrder, WorkOrderStatus, Settings } from '../types';
 import { format } from 'date-fns';
 import { generateWorkOrderPDF } from '../services/workOrderPDFService';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export default function WorkOrderForm() {
   const { id } = useParams();
@@ -50,6 +52,7 @@ export default function WorkOrderForm() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [pdfConfirmDialog, setPdfConfirmDialog] = useState(false);
   
   const [formData, setFormData] = useState<Partial<WorkOrder>>({
     workOrderNumber: '',
@@ -59,6 +62,10 @@ export default function WorkOrderForm() {
     kmDriven: 0,
     kmRate: 0,
     laborHours: 0,
+    totalWorkedHours: 0,
+    remainingHours: 0,
+    currentStartTime: null,
+    workSessions: [],
     technicianIds: []
   });
 
@@ -126,7 +133,17 @@ export default function WorkOrderForm() {
           if (woSnap.exists()) {
             const data = woSnap.data() as WorkOrder;
             console.log('Loaded existing WO:', data);
-            setFormData(data);
+            
+            const totalWorked = data.totalWorkedHours || 0;
+            const remaining = data.remainingHours ?? Number(((data.laborHours || 0) - totalWorked).toFixed(2));
+            
+            setFormData({
+              ...data,
+              totalWorkedHours: totalWorked,
+              remainingHours: remaining,
+              currentStartTime: data.currentStartTime || null,
+              workSessions: data.workSessions || []
+            });
           }
         } else {
           // Generate new WO number
@@ -155,6 +172,10 @@ export default function WorkOrderForm() {
                 kmDriven: budget.kmDriven || 0,
                 kmRate: budget.kmValue || 0,
                 laborHours: totalHours,
+                totalWorkedHours: 0,
+                remainingHours: totalHours,
+                currentStartTime: null,
+                workSessions: [],
                 technicianDetails: budget.technicianDetails || []
               };
             }
@@ -193,10 +214,51 @@ export default function WorkOrderForm() {
         kmDriven: budget.kmDriven || 0,
         kmRate: budget.kmValue || 0,
         laborHours: totalHours,
+        totalWorkedHours: 0,
+        remainingHours: totalHours,
+        currentStartTime: null,
+        workSessions: [],
         technicianDetails: budget.technicianDetails || []
       }));
       toast.info('Dados do orçamento carregados na OS.');
     }
+  };
+
+  const handleStartWork = () => {
+    setFormData(prev => ({ ...prev, currentStartTime: new Date().toISOString() }));
+    toast.success('Trabalho iniciado às ' + format(new Date(), "HH:mm") + '!');
+  };
+
+  const handleFinishWork = () => {
+    if (!formData.currentStartTime) return;
+    
+    const startTime = formData.currentStartTime;
+    const endTime = new Date().toISOString();
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end.getTime() - start.getTime();
+    const diffHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    
+    const newSession = {
+      startTime,
+      endTime,
+      duration: diffHours
+    };
+
+    const newSessions = [...(formData.workSessions || []), newSession];
+    const totalWorked = Number(newSessions.reduce((sum, s) => sum + s.duration, 0).toFixed(2));
+    const estimated = formData.laborHours || 0;
+    const remaining = Number((estimated - totalWorked).toFixed(2));
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      totalWorkedHours: totalWorked,
+      remainingHours: remaining,
+      workSessions: newSessions,
+      currentStartTime: null 
+    }));
+    
+    toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
   };
 
   const handleGeneratePDF = () => {
@@ -204,8 +266,13 @@ export default function WorkOrderForm() {
       toast.error('Salve a OS antes de gerar o PDF.');
       return;
     }
+    setPdfConfirmDialog(true);
+  };
+
+  const confirmGeneratePDF = (includeDetails: boolean) => {
     const customer = customers.find(c => c.id === formData.customerId);
-    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings);
+    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings, { includeDetails });
+    setPdfConfirmDialog(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -383,7 +450,65 @@ export default function WorkOrderForm() {
                     type="number" 
                     step="0.1"
                     value={formData.laborHours}
-                    onChange={(e) => setFormData(prev => ({ ...prev, laborHours: Number(e.target.value) }))}
+                    onChange={(e) => {
+                      const est = Number(e.target.value);
+                      const worked = formData.totalWorkedHours || 0;
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        laborHours: est,
+                        remainingHours: Number((est - worked).toFixed(2))
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Horas Trabalhadas</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="number" 
+                      step="0.1"
+                      value={formData.totalWorkedHours || 0}
+                      readOnly
+                      className="flex-1 bg-muted font-bold"
+                    />
+                    {!formData.currentStartTime ? (
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="outline" 
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={handleStartWork}
+                        title="Iniciar Trabalho do Dia"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="outline" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse"
+                        onClick={handleFinishWork}
+                        title="Finalizar Trabalho do Dia"
+                      >
+                        <Square className="w-4 h-4 fill-current" />
+                      </Button>
+                    )}
+                  </div>
+                  {formData.currentStartTime && (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Sessão iniciada: {format(new Date(formData.currentStartTime), "HH:mm")}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Horas Restante</Label>
+                  <Input 
+                    type="number" 
+                    value={formData.remainingHours || 0}
+                    readOnly
+                    className={`bg-muted font-bold ${Number(formData.remainingHours) < 0 ? 'text-red-600' : 'text-green-600'}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -456,6 +581,35 @@ export default function WorkOrderForm() {
                   required
                 />
               </div>
+
+              {formData.workSessions && formData.workSessions.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Histórico de Sessões de Trabalho
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    {formData.workSessions.map((session, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border text-xs">
+                        <div className="flex gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
+                            <span>{format(new Date(session.startTime), "dd/MM/yy HH:mm")}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
+                            <span>{format(new Date(session.endTime), "dd/MM/yy HH:mm")}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração</span>
+                          <span className="font-bold text-indigo-600">{session.duration}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -508,6 +662,17 @@ export default function WorkOrderForm() {
           </Button>
         </div>
       </form>
+
+      <ConfirmDialog 
+        isOpen={pdfConfirmDialog}
+        onOpenChange={setPdfConfirmDialog}
+        onConfirm={() => confirmGeneratePDF(true)}
+        title="Gerar PDF com Detalhes?"
+        description="Deseja incluir o detalhamento de valores (horas e km) no PDF?"
+        confirmText="Sim, incluir valores"
+        cancelText="Não, apenas básico"
+        onCancel={() => confirmGeneratePDF(false)}
+      />
     </div>
   );
 }

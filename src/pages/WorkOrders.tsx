@@ -47,6 +47,14 @@ export default function WorkOrders() {
     id: ''
   });
 
+  const [pdfConfirmDialog, setPdfConfirmDialog] = useState<{
+    isOpen: boolean;
+    workOrder: WorkOrder | null;
+  }>({
+    isOpen: false,
+    workOrder: null
+  });
+
   useEffect(() => {
     if (!userData?.tenantId) return;
 
@@ -221,7 +229,7 @@ export default function WorkOrders() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 rounded-full text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      onClick={() => generateWorkOrderPDF(wo, customer || null, technicians, settings)}
+                      onClick={() => setPdfConfirmDialog({ isOpen: true, workOrder: wo })}
                       title="Gerar PDF"
                     >
                       <FileText className="w-4 h-4" />
@@ -282,6 +290,27 @@ export default function WorkOrders() {
         title="Excluir Ordem de Serviço"
         description="Tem certeza que deseja excluir esta OS? Esta ação não pode ser desfeita."
         variant="destructive"
+      />
+      <ConfirmDialog 
+        isOpen={pdfConfirmDialog.isOpen}
+        onOpenChange={(open) => setPdfConfirmDialog(prev => ({ ...prev, isOpen: open }))}
+        onConfirm={() => {
+          if (pdfConfirmDialog.workOrder) {
+            const customer = customers.find(c => c.id === pdfConfirmDialog.workOrder?.customerId);
+            generateWorkOrderPDF(pdfConfirmDialog.workOrder, customer || null, technicians, settings, { includeDetails: true });
+          }
+        }}
+        title="Gerar PDF com Detalhes?"
+        description="Deseja incluir o detalhamento de valores (horas e km) no PDF?"
+        confirmText="Sim, incluir valores"
+        cancelText="Não, apenas básico"
+        onCancel={() => {
+          if (pdfConfirmDialog.workOrder) {
+            const customer = customers.find(c => c.id === pdfConfirmDialog.workOrder?.customerId);
+            generateWorkOrderPDF(pdfConfirmDialog.workOrder, customer || null, technicians, settings, { includeDetails: false });
+          }
+          setPdfConfirmDialog({ isOpen: false, workOrder: null });
+        }}
       />
     </div>
   );
