@@ -64,9 +64,9 @@ export const generateWorkOrderPDF = (
   // Details Table
   autoTable(doc, {
     startY: currentY,
-    head: [['Data Agendada', 'Status', 'Horas Est.', 'Trabalhadas', 'Restante']],
+    head: [['Data Executada', 'Status', 'Horas Est.', 'Trabalhadas', 'Restante']],
     body: [[
-      wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Não agendado',
+      wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Não informada',
       wo.status === 'open' ? 'Aberta' : wo.status === 'in-progress' ? 'Em Andamento' : 'Encerrada',
       wo.laborHours?.toString() || '0',
       wo.totalWorkedHours?.toString() || '0',

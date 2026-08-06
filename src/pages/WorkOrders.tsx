@@ -221,7 +221,7 @@ export default function WorkOrders() {
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5" />
-                      {wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd 'de' MMMM, HH:mm", { locale: ptBR }) : 'Não agendado'}
+                      {wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd 'de' MMMM, HH:mm", { locale: ptBR }) : 'Não informada'}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

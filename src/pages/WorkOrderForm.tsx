@@ -242,12 +242,29 @@ export default function WorkOrderForm() {
     const endTime = new Date().toISOString();
     const start = new Date(startTime);
     const end = new Date(endTime);
+    
+    // If Data Executada is set, use its date but keep the duration
+    let finalStartTime = startTime;
+    let finalEndTime = endTime;
+    
+    if (formData.scheduledDate) {
+      const baseDate = new Date(formData.scheduledDate);
+      const s = new Date(startTime);
+      const e = new Date(endTime);
+      
+      s.setFullYear(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+      e.setFullYear(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+      
+      finalStartTime = s.toISOString();
+      finalEndTime = e.toISOString();
+    }
+    
     const diffMs = end.getTime() - start.getTime();
     const diffHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
     
     const newSession = {
-      startTime,
-      endTime,
+      startTime: finalStartTime,
+      endTime: finalEndTime,
       duration: diffHours,
       technicianIds: formData.technicianIds || []
     };
@@ -293,9 +310,10 @@ export default function WorkOrderForm() {
       if (diff !== 0) {
         // Create an adjustment session with the current technicians
         const adjustmentDuration = Number((diff / techCount).toFixed(2));
+        const sessionDate = prev.scheduledDate ? new Date(prev.scheduledDate).toISOString() : new Date().toISOString();
         newSessions.push({
-          startTime: new Date().toISOString(),
-          endTime: new Date().toISOString(),
+          startTime: sessionDate,
+          endTime: sessionDate,
           duration: adjustmentDuration,
           technicianIds: prev.technicianIds || []
         });
@@ -587,7 +605,7 @@ export default function WorkOrderForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Data Agendada</Label>
+                  <Label>Data Executada</Label>
                   <div className="relative">
                     <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
