@@ -35,7 +35,7 @@ export const generateServicePDF = (
   // Use snapshots or fallbacks
   const customerName = order.customerNameSnapshot || customer?.name || 'Cliente';
   const customerAddress = order.customerAddressSnapshot || customer?.address;
-  const companyName = order.companyNameSnapshot || 'ServiceFlow';
+  const companyName = settings?.companyName || order.companyNameSnapshot || 'ServiceFlow';
 
   const drawFooter = () => {
     const pageNum = doc.getCurrentPageInfo().pageNumber;
@@ -48,7 +48,7 @@ export const generateServicePDF = (
 
   const drawHeader = () => {
     doc.setFillColor(41, 128, 185); // Primary blue
-    doc.rect(0, 0, pageWidth, 20, 'F');
+    doc.rect(0, 0, pageWidth, 25, 'F');
     
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
@@ -64,6 +64,15 @@ export const generateServicePDF = (
     const dateToDisplay = order.executionDate || order.createdAt;
     const dateStr = dateToDisplay ? format(new Date(dateToDisplay.replace('Z', '')), 'dd/MM/yyyy HH:mm') : 'N/A';
     doc.text(`Data: ${dateStr}`, pageWidth - margin, 13, { align: 'right' });
+
+    // Company details in header background area
+    doc.setFontSize(7);
+    const companyInfo = [
+      settings?.companyName || order.companyNameSnapshot || 'ServiceFlow',
+      settings?.companyAddress || order.companyAddressSnapshot || '',
+      settings?.companyTaxId ? `CNPJ/CPF: ${settings.companyTaxId}` : (order.companyTaxIdSnapshot ? `CNPJ/CPF: ${order.companyTaxIdSnapshot}` : '')
+    ].filter(Boolean).join(' | ');
+    doc.text(companyInfo, margin, 22);
   };
 
   // Header

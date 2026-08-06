@@ -30,11 +30,20 @@ export const generateCommercialProposalPDF = (
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(22);
-  doc.text('PROPOSTA COMERCIAL', margin, 25);
+  doc.text('PROPOSTA COMERCIAL', margin, 20);
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Ref: Orçamento Nº ${orderNumber}`, margin, 32);
+  doc.text(`Ref: Orçamento Nº ${orderNumber}`, margin, 27);
+
+  // Company details in header
+  doc.setFontSize(8);
+  const companyInfo = [
+    settings?.companyName || order.companyNameSnapshot || 'ServiceFlow',
+    settings?.companyAddress || order.companyAddressSnapshot || '',
+    settings?.companyTaxId ? `CNPJ/CPF: ${settings.companyTaxId}` : (order.companyTaxIdSnapshot ? `CNPJ/CPF: ${order.companyTaxIdSnapshot}` : '')
+  ].filter(Boolean).join(' | ');
+  doc.text(companyInfo, margin, 35);
 
   // Info Section (Side by Side)
   doc.setTextColor(50, 50, 50);

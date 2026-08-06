@@ -44,22 +44,23 @@ export const generateTechnicalReport = (
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  const companyName = supplier?.name || order.companyNameSnapshot || settings?.companyName || 'Giga Elétrica';
-  const companyTaxId = supplier?.taxId || order.companyTaxIdSnapshot || settings?.companyTaxId;
-  const companyPhone = supplier?.phone;
-  const companyAddress = supplier?.address || order.companyAddressSnapshot || settings?.companyAddress;
+  const companyName = settings?.companyName || supplier?.name || order.companyNameSnapshot || 'Giga Elétrica';
+  const companyTaxId = settings?.companyTaxId || supplier?.taxId || order.companyTaxIdSnapshot;
+  const companyPhone = supplier?.phone || '';
+  const companyAddress = settings?.companyAddress || supplier?.address || order.companyAddressSnapshot;
   
   doc.text(`Empresa: ${companyName}`, margin, 18);
   
-  if (companyTaxId) doc.text(`CNPJ/CPF: ${companyTaxId}`, margin + 80, 18);
-  if (companyPhone) doc.text(`Fone: ${companyPhone}`, margin + 140, 18);
+  const details = [];
+  if (companyTaxId) details.push(`CNPJ/CPF: ${companyTaxId}`);
+  if (companyPhone) details.push(`Fone: ${companyPhone}`);
+  if (companyAddress) details.push(`End: ${companyAddress}`);
   
-  let headerY = 23;
-  if (companyAddress) {
-    const splitAddrHeader = doc.splitTextToSize(`Endereço: ${companyAddress}`, contentWidth - 10);
-    doc.text(splitAddrHeader, margin, headerY);
-    headerY += (splitAddrHeader.length * 4) + 1;
-  }
+  const detailsStr = details.join(' | ');
+  const splitDetails = doc.splitTextToSize(detailsStr, contentWidth);
+  doc.text(splitDetails, margin, 23);
+  
+  let headerY = 23 + (splitDetails.length * 4) + 1;
   
   const techNames = technicians.length > 0 
     ? technicians.map((t: any) => t.name).join(' / ') 

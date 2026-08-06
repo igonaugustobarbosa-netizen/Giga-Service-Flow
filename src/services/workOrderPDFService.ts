@@ -32,34 +32,42 @@ export const generateWorkOrderPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text(settings?.companyName || 'Empresa de Serviços', margin, 35);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(settings?.companyAddress || '', margin, 40);
-  doc.text(settings?.companyTaxId ? `CNPJ/CPF: ${settings.companyTaxId}` : '', margin, 45);
+  doc.setFontSize(9);
   
-  doc.line(margin, 50, pageWidth - margin, 50);
+  const companyDetails = [];
+  if (settings?.companyAddress) companyDetails.push(settings.companyAddress);
+  if (settings?.companyTaxId) companyDetails.push(`CNPJ/CPF: ${settings.companyTaxId}`);
+  
+  const detailsStr = companyDetails.join(' | ');
+  const splitDetails = doc.splitTextToSize(detailsStr, pageWidth - 2 * margin);
+  doc.text(splitDetails, margin, 41);
+  
+  doc.line(margin, 41 + (splitDetails.length * 5), pageWidth - margin, 41 + (splitDetails.length * 5));
   
   // Customer Info
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('DADOS DO CLIENTE', margin, 60);
+  const customerInfoY = 41 + (splitDetails.length * 5) + 10;
+  doc.text('DADOS DO CLIENTE', margin, customerInfoY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.text(`Nome: ${customer?.name || wo.customerNameSnapshot || 'Não informado'}`, margin, 65);
-  doc.text(`Telefone: ${customer?.phone || ''}`, margin, 70);
-  doc.text(`Endereço: ${customer?.address || ''}`, margin, 75);
+  doc.text(`Nome: ${customer?.name || wo.customerNameSnapshot || 'Não informado'}`, margin, customerInfoY + 5);
+  doc.text(`Telefone: ${customer?.phone || ''}`, margin, customerInfoY + 10);
+  doc.text(`Endereço: ${customer?.address || ''}`, margin, customerInfoY + 15);
   
-  doc.line(margin, 80, pageWidth - margin, 80);
+  doc.line(margin, customerInfoY + 20, pageWidth - margin, customerInfoY + 20);
   
   // Service Info
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('DESCRIÇÃO DO SERVIÇO', margin, 90);
+  const serviceInfoY = customerInfoY + 30;
+  doc.text('DESCRIÇÃO DO SERVIÇO', margin, serviceInfoY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   const splitDescription = doc.splitTextToSize(wo.description, pageWidth - 2 * margin);
-  doc.text(splitDescription, margin, 95);
+  doc.text(splitDescription, margin, serviceInfoY + 5);
   
-  let currentY = 95 + (splitDescription.length * 5) + 10;
+  let currentY = serviceInfoY + 5 + (splitDescription.length * 5) + 10;
   
   // Details Table
   autoTable(doc, {
