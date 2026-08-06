@@ -12,7 +12,8 @@ import {
   Play,
   Square,
   FileText,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -66,7 +67,10 @@ export default function WorkOrderForm() {
     remainingHours: 0,
     currentStartTime: null,
     workSessions: [],
-    technicianIds: []
+    technicianIds: [],
+    technicianDetails: [],
+    customerId: '',
+    budgetId: ''
   });
 
   const getWorkOrderNumberFromBudget = async (budgetOrderNumber: string, budgetId: string) => {
@@ -141,8 +145,10 @@ export default function WorkOrderForm() {
               ...data,
               totalWorkedHours: totalWorked,
               remainingHours: remaining,
-              currentStartTime: data.currentStartTime || null,
-              workSessions: data.workSessions || []
+              currentStartTime: data.currentStartTime ?? null,
+              workSessions: data.workSessions || [],
+              technicianIds: data.technicianIds || [],
+              technicianDetails: data.technicianDetails || []
             });
           }
         } else {
@@ -166,9 +172,9 @@ export default function WorkOrderForm() {
                 workOrderNumber: nextNumberFromBudget,
                 budgetId: budget.id,
                 customerId: budget.customerId,
-                customerNameSnapshot: budget.customerNameSnapshot,
+                customerNameSnapshot: budget.customerNameSnapshot || '',
                 technicianIds: budget.technicianIds || [],
-                description: budget.description,
+                description: budget.description || '',
                 kmDriven: budget.kmDriven || 0,
                 kmRate: budget.kmValue || 0,
                 laborHours: totalHours,
@@ -242,11 +248,16 @@ export default function WorkOrderForm() {
     const newSession = {
       startTime,
       endTime,
-      duration: diffHours
+      duration: diffHours,
+      technicianIds: formData.technicianIds || []
     };
 
     const newSessions = [...(formData.workSessions || []), newSession];
-    const totalWorked = Number(newSessions.reduce((sum, s) => sum + s.duration, 0).toFixed(2));
+    
+    // Calculate Total Worked Hours as Man-Hours (duration * number of technicians in the session)
+    const totalWorked = Number(newSessions.reduce((sum, s) => 
+      sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+      
     const estimated = formData.laborHours || 0;
     const remaining = Number((estimated - totalWorked).toFixed(2));
     
@@ -259,6 +270,62 @@ export default function WorkOrderForm() {
     }));
     
     toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
+  };
+
+  const handleManualTotalHoursChange = (val: number) => {
+    const total = Number(val);
+    const est = formData.laborHours || 0;
+    const remaining = Number((est - total).toFixed(2));
+    const techCount = formData.technicianIds?.length || 0;
+
+    if (techCount === 0 && total > 0) {
+      toast.warning('Selecione os técnicos primeiro para atribuir as horas.');
+      return;
+    }
+
+    setFormData(prev => {
+      const currentSessions = prev.workSessions || [];
+      // Calculate how many man-hours are already in other sessions
+      const currentManHours = currentSessions.reduce((sum, s) => sum + (s.duration * (s.technicianIds?.length || 0)), 0);
+      const diff = total - currentManHours;
+      
+      let newSessions = [...currentSessions];
+      if (diff !== 0) {
+        // Create an adjustment session with the current technicians
+        const adjustmentDuration = Number((diff / techCount).toFixed(2));
+        newSessions.push({
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          duration: adjustmentDuration,
+          technicianIds: prev.technicianIds || []
+        });
+      }
+
+      return {
+        ...prev,
+        totalWorkedHours: total,
+        remainingHours: remaining,
+        workSessions: newSessions
+      };
+    });
+  };
+
+  const removeSession = (index: number) => {
+    setFormData(prev => {
+      const newSessions = [...(prev.workSessions || [])];
+      newSessions.splice(index, 1);
+      
+      const totalWorked = Number(newSessions.reduce((sum, s) => 
+        sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+      const est = prev.laborHours || 0;
+      
+      return {
+        ...prev,
+        workSessions: newSessions,
+        totalWorkedHours: totalWorked,
+        remainingHours: Number((est - totalWorked).toFixed(2))
+      };
+    });
   };
 
   const handleGeneratePDF = () => {
@@ -284,13 +351,21 @@ export default function WorkOrderForm() {
 
     setLoading(true);
     try {
-      const woData = {
+      // Create a clean data object and remove any undefined fields to prevent Firestore errors
+      const woData = JSON.parse(JSON.stringify({
         ...formData,
         tenantId: userData.tenantId,
         updatedAt: new Date().toISOString(),
-      };
+        // Ensure critical fields are never undefined
+        currentStartTime: formData.currentStartTime ?? null,
+        workSessions: formData.workSessions || [],
+        technicianIds: formData.technicianIds || [],
+        totalWorkedHours: formData.totalWorkedHours || 0,
+        remainingHours: formData.remainingHours || 0,
+        laborHours: formData.laborHours || 0
+      }));
 
-      if (id) {
+      if (id && id !== 'new') {
         await updateDoc(doc(db, 'workOrders', id), woData);
         toast.success('Ordem de serviço atualizada!');
       } else {
@@ -468,8 +543,8 @@ export default function WorkOrderForm() {
                       type="number" 
                       step="0.1"
                       value={formData.totalWorkedHours || 0}
-                      readOnly
-                      className="flex-1 bg-muted font-bold"
+                      onChange={(e) => handleManualTotalHoursChange(Number(e.target.value))}
+                      className="flex-1 font-bold"
                     />
                     {!formData.currentStartTime ? (
                       <Button 
@@ -583,11 +658,49 @@ export default function WorkOrderForm() {
               </div>
 
               {formData.workSessions && formData.workSessions.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-border">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Histórico de Sessões de Trabalho
-                  </h3>
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Total de Horas por Técnico
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(() => {
+                        const techHoursMap: Record<string, number> = {};
+                        formData.workSessions.forEach(session => {
+                          session.technicianIds?.forEach(techId => {
+                            techHoursMap[techId] = (techHoursMap[techId] || 0) + session.duration;
+                          });
+                        });
+
+                        return Object.entries(techHoursMap).map(([id, hours]) => {
+                          const tech = technicians.find(t => t.id === id);
+                          const hourlyRate = tech?.defaultLaborHourValue || 0;
+                          const totalValue = hours * hourlyRate;
+                          return (
+                            <div key={id} className="flex items-center justify-between p-2 bg-muted/30 rounded border border-border text-xs">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{tech?.name || 'Técnico'}</span>
+                                {hourlyRate > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">Valor/hora: R$ {hourlyRate.toFixed(2)}</span>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <span className="font-bold text-indigo-600">{hours.toFixed(2)}h</span>
+                                <span className="font-bold text-green-600">R$ {totalValue.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Histórico de Sessões de Trabalho
+                    </h3>
                   <div className="grid grid-cols-1 gap-2">
                     {formData.workSessions.map((session, index) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border text-xs">
@@ -601,17 +714,52 @@ export default function WorkOrderForm() {
                             <span>{format(new Date(session.endTime), "dd/MM/yy HH:mm")}</span>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração</span>
-                          <span className="font-bold text-indigo-600">{session.duration}h</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col items-end">
+                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração (h)</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
+                              value={session.duration}
+                              onChange={(e) => {
+                                const newDur = Number(e.target.value);
+                                setFormData(prev => {
+                                  const newSessions = [...(prev.workSessions || [])];
+                                  newSessions[index] = { ...newSessions[index], duration: newDur };
+                                  
+                                  const totalWorked = Number(newSessions.reduce((sum, s) => 
+                                    sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+                                  const est = prev.laborHours || 0;
+                                  
+                                  return {
+                                    ...prev,
+                                    workSessions: newSessions,
+                                    totalWorkedHours: totalWorked,
+                                    remainingHours: Number((est - totalWorked).toFixed(2))
+                                  };
+                                });
+                              }}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => removeSession(index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
           <Card className="border-none shadow-sm">
             <CardHeader>

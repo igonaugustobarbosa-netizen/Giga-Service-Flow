@@ -128,6 +128,7 @@ export interface WorkSession {
   startTime: string;
   endTime: string;
   duration: number; // hours
+  technicianIds: string[];
 }
 
 export interface WorkOrder {

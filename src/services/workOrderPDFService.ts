@@ -105,6 +105,49 @@ export const generateWorkOrderPDF = (
     currentY = (doc as any).lastAutoTable.finalY + 15;
   }
 
+  // Worked Hours per Technician Summary
+  if (wo.workSessions && wo.workSessions.length > 0) {
+    const techHoursMap: Record<string, number> = {};
+    wo.workSessions.forEach(session => {
+      session.technicianIds?.forEach(techId => {
+        techHoursMap[techId] = (techHoursMap[techId] || 0) + session.duration;
+      });
+    });
+
+    const techWorkedSummary = Object.entries(techHoursMap).map(([id, hours]) => {
+      const tech = technicians.find(t => t.id === id);
+      if (options.includeDetails) {
+        const hourlyRate = tech?.defaultLaborHourValue || 0;
+        const totalValue = hours * hourlyRate;
+        return [
+          tech?.name || 'Técnico Desconhecido',
+          `${hours.toFixed(2)}h`,
+          `R$ ${hourlyRate.toFixed(2)}`,
+          `R$ ${totalValue.toFixed(2)}`
+        ];
+      }
+      return [tech?.name || 'Técnico Desconhecido', `${hours.toFixed(2)}h`];
+    });
+
+    if (techWorkedSummary.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TOTAL DE HORAS POR TÉCNICO', margin, currentY);
+      
+      autoTable(doc, {
+        startY: currentY + 5,
+        head: options.includeDetails 
+          ? [['Técnico', 'Total Horas', 'Valor Hora', 'Total a Pagar']]
+          : [['Técnico', 'Total Horas']],
+        body: techWorkedSummary,
+        theme: 'striped',
+        headStyles: { fillColor: [60, 60, 60] }
+      });
+      
+      currentY = (doc as any).lastAutoTable.finalY + 15;
+    }
+  }
+
   // Technician Detailed Work (from Budget)
   if (options.includeDetails && wo.technicianDetails && wo.technicianDetails.length > 0) {
     doc.setFontSize(12);
