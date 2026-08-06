@@ -52,6 +52,7 @@ export default function WorkOrderForm() {
   const [budgets, setBudgets] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [pdfConfirmDialog, setPdfConfirmDialog] = useState(false);
   
@@ -70,7 +71,8 @@ export default function WorkOrderForm() {
     technicianIds: [],
     technicianDetails: [],
     customerId: '',
-    budgetId: ''
+    budgetId: '',
+    supplierId: ''
   });
 
   const getWorkOrderNumberFromBudget = async (budgetOrderNumber: string, budgetId: string) => {
@@ -100,23 +102,28 @@ export default function WorkOrderForm() {
         const customersRef = collection(db, 'customers');
         const techniciansRef = collection(db, 'technicians');
         const serviceOrdersRef = collection(db, 'serviceOrders');
+        const suppliersRef = collection(db, 'suppliers');
 
-        const [custSnap, techSnap, serviceOrdersSnap] = await Promise.all([
+        const [custSnap, techSnap, serviceOrdersSnap, suppliersSnap] = await Promise.all([
           getDocs(isAdmin ? query(customersRef) : query(customersRef, where('tenantId', '==', tenantId))),
           getDocs(isAdmin ? query(techniciansRef) : query(techniciansRef, where('tenantId', '==', tenantId))),
-          getDocs(isAdmin ? query(serviceOrdersRef) : query(serviceOrdersRef, where('tenantId', '==', tenantId)))
+          getDocs(isAdmin ? query(serviceOrdersRef) : query(serviceOrdersRef, where('tenantId', '==', tenantId))),
+          getDocs(isAdmin ? query(suppliersRef) : query(suppliersRef, where('tenantId', '==', tenantId)))
         ]);
 
         const customersData = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
         const techniciansData = techSnap.docs.map(d => ({ id: d.id, ...d.data() } as Technician));
+        const suppliersData = suppliersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         
         console.log('Data loaded:', { 
           customersCount: customersData.length, 
-          techniciansCount: techniciansData.length 
+          techniciansCount: techniciansData.length,
+          suppliersCount: suppliersData.length
         });
 
         setCustomers(customersData);
         setTechnicians(techniciansData);
+        setSuppliers(suppliersData);
         
         // Fetch Settings
         const settingsSnap = await getDoc(doc(db, 'settings', tenantId));
@@ -171,6 +178,7 @@ export default function WorkOrderForm() {
                 ...initialWOData,
                 workOrderNumber: nextNumberFromBudget,
                 budgetId: budget.id,
+                supplierId: budget.supplierId || '',
                 customerId: budget.customerId,
                 customerNameSnapshot: budget.customerNameSnapshot || '',
                 technicianIds: budget.technicianIds || [],
@@ -213,6 +221,7 @@ export default function WorkOrderForm() {
         ...prev,
         workOrderNumber: nextNumberFromBudget,
         budgetId: budget.id,
+        supplierId: budget.supplierId || '',
         customerId: budget.customerId,
         customerNameSnapshot: budget.customerNameSnapshot,
         technicianIds: budget.technicianIds || [],
@@ -379,7 +388,8 @@ export default function WorkOrderForm() {
 
   const confirmGeneratePDF = (includeDetails: boolean) => {
     const customer = customers.find(c => c.id === formData.customerId);
-    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings, { includeDetails });
+    const supplier = suppliers.find(s => s.id === formData.supplierId);
+    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings, supplier || null, { includeDetails });
     setPdfConfirmDialog(false);
   };
 

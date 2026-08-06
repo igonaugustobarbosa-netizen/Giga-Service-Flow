@@ -13,6 +13,7 @@ export const generateWorkOrderPDF = (
   customer: Customer | null,
   technicians: Technician[],
   settings: Settings | null,
+  supplier: any | null = null,
   options: PDFOptions = {}
 ) => {
   const doc = new jsPDF();
@@ -43,17 +44,21 @@ export const generateWorkOrderPDF = (
   doc.text('PRESTADOR DE SERVIÇO', margin, 35);
   
   doc.setFontSize(10);
-  doc.text(settings?.companyName || 'Empresa de Serviços', margin, 41);
+  const providerName = supplier?.name || settings?.companyName || 'Empresa de Serviços';
+  doc.text(providerName, margin, 41);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   
   let providerY = 46;
-  if (settings?.companyTaxId) {
-    doc.text(`CNPJ/CPF: ${settings.companyTaxId}`, margin, providerY);
+  const providerTaxId = supplier?.taxId || settings?.companyTaxId;
+  if (providerTaxId) {
+    doc.text(`CNPJ/CPF: ${providerTaxId}`, margin, providerY);
     providerY += 4;
   }
-  if (settings?.companyAddress) {
-    const splitAddr = doc.splitTextToSize(`End: ${settings.companyAddress}`, (pageWidth / 2) - margin - 5);
+  
+  const providerAddress = supplier?.address || settings?.companyAddress;
+  if (providerAddress) {
+    const splitAddr = doc.splitTextToSize(`End: ${providerAddress}`, (pageWidth / 2) - margin - 5);
     doc.text(splitAddr, margin, providerY);
     providerY += (splitAddr.length * 4);
   }
