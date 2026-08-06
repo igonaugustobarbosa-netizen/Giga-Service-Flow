@@ -17,57 +17,84 @@ export const generateWorkOrderPDF = (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   
-  // Header
-  doc.setFontSize(20);
+  // Header with title bar
+  doc.setFillColor(41, 128, 185); // Professional Blue
+  doc.rect(0, 0, pageWidth, 25, 'F');
+  
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ORDEM DE SERVIÇO', margin, 17);
+  
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Nº: ${wo.workOrderNumber}`, pageWidth - margin, 12, { align: 'right' });
+  doc.text(`Emissão: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin, 18, { align: 'right' });
+
+  // Info Section
   doc.setTextColor(40, 40, 40);
-  doc.text('ORDEM DE SERVIÇO', pageWidth / 2, 20, { align: 'center' });
+  
+  // 1. PROVIDER BLOCK (Left)
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PRESTADOR DE SERVIÇO', margin, 35);
   
   doc.setFontSize(10);
-  doc.text(`Nº: ${wo.workOrderNumber}`, pageWidth - margin, 20, { align: 'right' });
-  
-  // Company Info
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text(settings?.companyName || 'Empresa de Serviços', margin, 35);
+  doc.text(settings?.companyName || 'Empresa de Serviços', margin, 41);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   
-  const companyDetails = [];
-  if (settings?.companyAddress) companyDetails.push(settings.companyAddress);
-  if (settings?.companyTaxId) companyDetails.push(`CNPJ/CPF: ${settings.companyTaxId}`);
-  
-  const detailsStr = companyDetails.join(' | ');
-  const splitDetails = doc.splitTextToSize(detailsStr, pageWidth - 2 * margin);
-  doc.text(splitDetails, margin, 41);
-  
-  doc.line(margin, 41 + (splitDetails.length * 5), pageWidth - margin, 41 + (splitDetails.length * 5));
-  
-  // Customer Info
-  doc.setFontSize(12);
+  let providerY = 46;
+  if (settings?.companyTaxId) {
+    doc.text(`CNPJ/CPF: ${settings.companyTaxId}`, margin, providerY);
+    providerY += 4;
+  }
+  if (settings?.companyAddress) {
+    const splitAddr = doc.splitTextToSize(`End: ${settings.companyAddress}`, (pageWidth / 2) - margin - 5);
+    doc.text(splitAddr, margin, providerY);
+    providerY += (splitAddr.length * 4);
+  }
+
+  // 2. CUSTOMER BLOCK (Right)
+  const customerX = (pageWidth / 2) + 5;
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  const customerInfoY = 41 + (splitDetails.length * 5) + 10;
-  doc.text('DADOS DO CLIENTE', margin, customerInfoY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Nome: ${customer?.name || wo.customerNameSnapshot || 'Não informado'}`, margin, customerInfoY + 5);
-  doc.text(`Telefone: ${customer?.phone || ''}`, margin, customerInfoY + 10);
-  doc.text(`Endereço: ${customer?.address || ''}`, margin, customerInfoY + 15);
+  doc.text('CLIENTE', customerX, 35);
   
-  doc.line(margin, customerInfoY + 20, pageWidth - margin, customerInfoY + 20);
+  doc.setFontSize(10);
+  doc.text(customer?.name || wo.customerNameSnapshot || 'Não informado', customerX, 41);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  
+  let customerY = 46;
+  if (customer?.phone) {
+    doc.text(`Fone: ${customer.phone}`, customerX, customerY);
+    customerY += 4;
+  }
+  if (customer?.address) {
+    const splitCustAddr = doc.splitTextToSize(`End: ${customer.address}`, pageWidth - margin - customerX);
+    doc.text(splitCustAddr, customerX, customerY);
+    customerY += (splitCustAddr.length * 4);
+  }
+
+  const separatorY = Math.max(providerY, customerY) + 5;
+  doc.setDrawColor(200, 200, 200);
+  doc.line(margin, separatorY, pageWidth - margin, separatorY);
   
   // Service Info
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  const serviceInfoY = customerInfoY + 30;
+  const serviceInfoY = separatorY + 10;
   doc.text('DESCRIÇÃO DO SERVIÇO', margin, serviceInfoY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   const splitDescription = doc.splitTextToSize(wo.description, pageWidth - 2 * margin);
-  doc.text(splitDescription, margin, serviceInfoY + 5);
+  doc.text(splitDescription, margin, serviceInfoY + 6);
   
-  let currentY = serviceInfoY + 5 + (splitDescription.length * 5) + 10;
+  let currentY = serviceInfoY + 6 + (splitDescription.length * 5) + 8;
   
   // Details Table
   autoTable(doc, {
@@ -243,12 +270,8 @@ export const generateWorkOrderPDF = (
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(
-      `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - Página ${i} de ${pageCount}`,
-      pageWidth / 2,
-      285,
-      { align: 'center' }
-    );
+    const footerText = `${settings?.companyName || 'ServiceFlow'} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} | Página ${i} de ${pageCount}`;
+    doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
   
   doc.save(`OS_${wo.workOrderNumber}_${(customer?.name || 'Cliente').replace(/\s+/g, '_')}.pdf`);

@@ -22,28 +22,31 @@ export const generateReportPDF = (
   const margin = 15;
   let y = 20;
 
-  const drawFooter = () => {
+  const drawFooter = (pageNum: number, totalPages: number) => {
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text('Desenvolvedor Giga Elétrica Fone 43 996118806', margin, pageHeight - 10);
+    const footerText = `Giga Elétrica | Página ${pageNum} de ${totalPages}`;
+    doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
   };
 
   const isFullReport = filters.reportType === 'full';
+  const companyName = 'Giga Elétrica';
 
   // Header
   doc.setFillColor(41, 128, 185);
-  doc.rect(0, 0, pageWidth, 25, 'F');
+  doc.rect(0, 0, pageWidth, 28, 'F');
   
   doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text(isFullReport ? 'RELATÓRIO DETALHADO' : 'RELATÓRIO DE FATURAMENTO', margin, 15);
+  doc.text(isFullReport ? 'RELATÓRIO DETALHADO' : 'RELATÓRIO DE FATURAMENTO', margin, 12);
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, 21);
+  doc.text(`Empresa: ${companyName} | Fone: (43) 99611-8806`, margin, 18);
+  doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, 23);
 
-  y = 35;
+  y = 38;
 
   // Filters Summary
   doc.setFontSize(10);
@@ -91,7 +94,6 @@ export const generateReportPDF = (
       const customer = customers.find(c => c.id === customerId);
       
       if (y > 250) {
-        drawFooter();
         doc.addPage();
         y = 20;
       }
@@ -110,7 +112,6 @@ export const generateReportPDF = (
 
       customerOrders.forEach((order) => {
         if (y > 240) {
-          drawFooter();
           doc.addPage();
           y = 20;
         }
@@ -202,7 +203,6 @@ export const generateReportPDF = (
 
     orders.forEach((order) => {
       if (y > 270) {
-        drawFooter();
         doc.addPage();
         y = 20;
       }
@@ -246,7 +246,6 @@ export const generateReportPDF = (
     };
 
     if (y > 220) {
-      drawFooter();
       doc.addPage();
       y = 20;
     }
@@ -279,7 +278,6 @@ export const generateReportPDF = (
   }
 
   if (y > 250) {
-    drawFooter();
     doc.addPage();
     y = 20;
   }
@@ -298,7 +296,6 @@ export const generateReportPDF = (
 
   y += 32;
   if (y > 270) {
-    drawFooter();
     doc.addPage();
     y = 20;
   }
@@ -316,7 +313,12 @@ export const generateReportPDF = (
   const splitValidity = doc.splitTextToSize(validityText, pageWidth - (margin * 2));
   doc.text(splitValidity, margin, y);
 
-  drawFooter();
+  // Final Footer Application
+  const totalPages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(i, totalPages);
+  }
 
   doc.save(`Relatorio_Faturamento_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
 };
