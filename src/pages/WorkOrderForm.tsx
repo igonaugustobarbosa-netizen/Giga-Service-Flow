@@ -346,6 +346,29 @@ export default function WorkOrderForm() {
     });
   };
 
+  const handleFinishOS = async () => {
+    if (!id || id === 'new') {
+      toast.error('Salve a OS antes de finalizá-la.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'workOrders', id), {
+        status: 'closed',
+        updatedAt: new Date().toISOString()
+      });
+      setFormData(prev => ({ ...prev, status: 'closed' }));
+      toast.success('Ordem de serviço encerrada com sucesso!');
+      navigate('/work-orders');
+    } catch (error) {
+      console.error('Error closing OS:', error);
+      toast.error('Erro ao encerrar ordem de serviço.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGeneratePDF = () => {
     if (!id || !formData.customerId) {
       toast.error('Salve a OS antes de gerar o PDF.');
@@ -454,17 +477,31 @@ export default function WorkOrderForm() {
             <p className="text-muted-foreground">Gestão de execução de serviço em campo.</p>
           </div>
         </div>
-        {id && (
-          <Button 
-            type="button" 
-            variant="outline" 
-            className="gap-2"
-            onClick={handleGeneratePDF}
-          >
-            <FileText className="w-4 h-4" />
-            Gerar PDF
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {id && formData.status !== 'closed' && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+              onClick={handleFinishOS}
+              disabled={loading}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Finalizar OS
+            </Button>
+          )}
+          {id && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="gap-2"
+              onClick={handleGeneratePDF}
+            >
+              <FileText className="w-4 h-4" />
+              Gerar PDF
+            </Button>
+          )}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

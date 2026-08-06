@@ -37,6 +37,7 @@ export default function WorkOrders() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -152,11 +153,16 @@ export default function WorkOrders() {
     const customerName = customer?.name || '';
     const description = wo.description || '';
     
-    return (
+    const matchesSearch = (
       woNumber.toLowerCase().includes(searchLower) ||
       customerName.toLowerCase().includes(searchLower) ||
       description.toLowerCase().includes(searchLower)
     );
+
+    const isArchived = wo.status === 'closed';
+    const matchesTab = activeTab === 'active' ? !isArchived : isArchived;
+
+    return matchesSearch && matchesTab;
   });
 
   return (
@@ -174,15 +180,36 @@ export default function WorkOrders() {
         </Link>
       </div>
 
-      <div className="flex items-center gap-4 bg-card/50 p-4 rounded-xl border-none shadow-sm backdrop-blur-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Pesquisar por N°, cliente ou serviço..." 
-            className="pl-10 border-none bg-background/50 focus-visible:ring-1"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        <div className="flex items-center gap-4 bg-card/50 p-1 rounded-xl border shadow-sm backdrop-blur-sm flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Pesquisar por N°, cliente ou serviço..." 
+              className="pl-10 border-none bg-background/50 focus-visible:ring-1"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+        
+        <div className="flex bg-muted p-1 rounded-lg">
+          <Button
+            variant={activeTab === 'active' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="flex-1 sm:flex-none"
+            onClick={() => setActiveTab('active')}
+          >
+            Ativas
+          </Button>
+          <Button
+            variant={activeTab === 'archived' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="flex-1 sm:flex-none"
+            onClick={() => setActiveTab('archived')}
+          >
+            Arquivadas
+          </Button>
         </div>
       </div>
 

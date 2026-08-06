@@ -75,35 +75,35 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
       allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
       allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
     }
 
     match /technicians/{technicianId} {
       allow read: if isAuthenticated() && (isAdmin() || resource == null || resource.data.tenantId == getTenantId());
       allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
       allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
     }
 
     match /suppliers/{supplierId} {
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
       allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
       allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
     }
 
     match /serviceOrders/{orderId} {
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
       allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
       allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
     }
 
     match /workOrders/{woId} {
       allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
       allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
       allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
     }
 
     match /settings/{settingId} {
