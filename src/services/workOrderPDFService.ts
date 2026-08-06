@@ -270,8 +270,9 @@ export const generateWorkOrderPDF = (
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    const footerText = `${settings?.companyName || 'ServiceFlow'} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} | Página ${i} de ${pageCount}`;
-    doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    const companyName = settings?.companyName || 'ServiceFlow';
+    const footerText = `Página ${i} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
+    doc.text(footerText, margin, pageHeight - 10);
   }
   
   doc.save(`OS_${wo.workOrderNumber}_${(customer?.name || 'Cliente').replace(/\s+/g, '_')}.pdf`);
