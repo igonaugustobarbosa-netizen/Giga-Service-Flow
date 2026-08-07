@@ -288,43 +288,67 @@ export default function WorkOrderForm() {
     toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
   };
 
-  const handleManualTotalHoursChange = (val: number) => {
-    const total = Number(val);
-    const est = formData.laborHours || 0;
-    const remaining = Number((est - total).toFixed(2));
-    const techCount = formData.technicianIds?.length || 0;
+  const [laborHoursInput, setLaborHoursInput] = useState<string>('');
+  const [manualSessionDuration, setManualSessionDuration] = useState<string>('');
 
-    if (techCount === 0 && total > 0) {
+  useEffect(() => {
+    if (formData.laborHours !== undefined) {
+      setLaborHoursInput(formData.laborHours.toString());
+    }
+  }, [formData.laborHours]);
+
+  const handleLaborHoursChange = (val: string) => {
+    setLaborHoursInput(val);
+    const num = Number(val.replace(',', '.'));
+    if (!isNaN(num)) {
+      const worked = formData.totalWorkedHours || 0;
+      setFormData(prev => ({ 
+        ...prev, 
+        laborHours: num,
+        remainingHours: Number((num - worked).toFixed(2))
+      }));
+    }
+  };
+
+  const handleAddManualSession = () => {
+    const duration = Number(manualSessionDuration.replace(',', '.'));
+    if (isNaN(duration) || duration <= 0) {
+      toast.error('Insira uma duração válida.');
+      return;
+    }
+    
+    const techCount = formData.technicianIds?.length || 0;
+    if (techCount === 0) {
       toast.warning('Selecione os técnicos primeiro para atribuir as horas.');
       return;
     }
 
     setFormData(prev => {
       const currentSessions = prev.workSessions || [];
-      // Calculate how many man-hours are already in other sessions
-      const currentManHours = currentSessions.reduce((sum, s) => sum + (s.duration * (s.technicianIds?.length || 0)), 0);
-      const diff = total - currentManHours;
+      const sessionDate = prev.scheduledDate ? new Date(prev.scheduledDate).toISOString() : new Date().toISOString();
       
-      let newSessions = [...currentSessions];
-      if (diff !== 0) {
-        // Create an adjustment session with the current technicians
-        const adjustmentDuration = Number((diff / techCount).toFixed(2));
-        const sessionDate = prev.scheduledDate ? new Date(prev.scheduledDate).toISOString() : new Date().toISOString();
-        newSessions.push({
-          startTime: sessionDate,
-          endTime: sessionDate,
-          duration: adjustmentDuration,
-          technicianIds: prev.technicianIds || []
-        });
-      }
+      const newSession = {
+        startTime: sessionDate,
+        endTime: sessionDate,
+        duration: duration,
+        technicianIds: prev.technicianIds || []
+      };
+
+      const newSessions = [...currentSessions, newSession];
+      const totalWorked = Number(newSessions.reduce((sum, s) => 
+        sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+      const est = prev.laborHours || 0;
 
       return {
         ...prev,
-        totalWorkedHours: total,
-        remainingHours: remaining,
-        workSessions: newSessions
+        workSessions: newSessions,
+        totalWorkedHours: totalWorked,
+        remainingHours: Number((est - totalWorked).toFixed(2))
       };
     });
+    
+    setManualSessionDuration('');
+    toast.success(`Adicionadas ${duration}h para cada técnico selecionado.`);
   };
 
   const removeSession = (index: number) => {
@@ -579,30 +603,38 @@ export default function WorkOrderForm() {
                 <div className="space-y-2">
                   <Label>Horas Estimadas</Label>
                   <Input 
-                    type="number" 
-                    step="0.1"
-                    value={formData.laborHours}
-                    onChange={(e) => {
-                      const est = Number(e.target.value);
-                      const worked = formData.totalWorkedHours || 0;
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        laborHours: est,
-                        remainingHours: Number((est - worked).toFixed(2))
-                      }));
-                    }}
+                    type="text" 
+                    inputMode="decimal"
+                    placeholder="0.0"
+                    value={laborHoursInput}
+                    onChange={(e) => handleLaborHoursChange(e.target.value)}
+                    className="font-mono"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Horas Trabalhadas</Label>
+                  <Label>Adicionar Horas Trabalhadas (p/ técnico)</Label>
                   <div className="flex gap-2">
                     <Input 
-                      type="number" 
-                      step="0.1"
-                      value={formData.totalWorkedHours || 0}
-                      onChange={(e) => handleManualTotalHoursChange(Number(e.target.value))}
+                      type="text" 
+                      inputMode="decimal"
+                      placeholder="Ex: 8.0"
+                      value={manualSessionDuration}
+                      onChange={(e) => setManualSessionDuration(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddManualSession();
+                        }
+                      }}
                       className="flex-1 font-bold"
                     />
+                    <Button
+                      type="button"
+                      onClick={handleAddManualSession}
+                      className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      Add
+                    </Button>
                     {!formData.currentStartTime ? (
                       <Button 
                         type="button" 
@@ -633,6 +665,15 @@ export default function WorkOrderForm() {
                       Sessão iniciada: {format(new Date(formData.currentStartTime), "HH:mm")}
                     </p>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Man-Hours</Label>
+                  <Input 
+                    type="number" 
+                    value={formData.totalWorkedHours || 0}
+                    readOnly
+                    className="bg-muted font-bold text-indigo-600"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Horas Restante</Label>
@@ -775,27 +816,30 @@ export default function WorkOrderForm() {
                           <div className="flex flex-col items-end">
                             <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração (h)</span>
                             <input
-                              type="number"
-                              step="0.1"
+                              type="text"
+                              inputMode="decimal"
                               className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
                               value={session.duration}
                               onChange={(e) => {
-                                const newDur = Number(e.target.value);
-                                setFormData(prev => {
-                                  const newSessions = [...(prev.workSessions || [])];
-                                  newSessions[index] = { ...newSessions[index], duration: newDur };
-                                  
-                                  const totalWorked = Number(newSessions.reduce((sum, s) => 
-                                    sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-                                  const est = prev.laborHours || 0;
-                                  
-                                  return {
-                                    ...prev,
-                                    workSessions: newSessions,
-                                    totalWorkedHours: totalWorked,
-                                    remainingHours: Number((est - totalWorked).toFixed(2))
-                                  };
-                                });
+                                const val = e.target.value.replace(',', '.');
+                                const newDur = val === '' ? 0 : Number(val);
+                                if (!isNaN(newDur)) {
+                                  setFormData(prev => {
+                                    const newSessions = [...(prev.workSessions || [])];
+                                    newSessions[index] = { ...newSessions[index], duration: newDur };
+                                    
+                                    const totalWorked = Number(newSessions.reduce((sum, s) => 
+                                      sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+                                    const est = prev.laborHours || 0;
+                                    
+                                    return {
+                                      ...prev,
+                                      workSessions: newSessions,
+                                      totalWorkedHours: totalWorked,
+                                      remainingHours: Number((est - totalWorked).toFixed(2))
+                                    };
+                                  });
+                                }
                               }}
                             />
                           </div>

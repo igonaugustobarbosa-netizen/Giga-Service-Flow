@@ -295,8 +295,13 @@ export default function WorkOrders() {
                   </div>
 
                   <div className="pt-4 border-t flex items-center justify-between">
-                    <div className="text-xs font-medium text-muted-foreground">
-                      KM: <span className="text-foreground">{wo.kmDriven}</span>
+                    <div className="flex gap-4">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        KM: <span className="text-foreground">{wo.kmDriven}</span>
+                      </div>
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Horas: <span className="text-indigo-600 font-bold">{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
+                      </div>
                     </div>
                     <Link to={`/work-orders/${wo.id}/edit`}>
                       <Button variant="ghost" size="sm" className="gap-1.5 text-primary h-8 px-2 hover:bg-primary/5">

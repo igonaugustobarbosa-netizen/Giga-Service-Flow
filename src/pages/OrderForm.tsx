@@ -679,13 +679,18 @@ export default function OrderForm() {
                           <div className="space-y-1">
                             <Label className="text-[10px]">Horas</Label>
                             <Input 
-                              type="number" 
-                              className="h-8 text-xs" 
+                              type="text" 
+                              inputMode="decimal"
+                              className="h-8 text-xs font-mono" 
                               value={tech.hours || ''} 
                               onChange={e => {
-                                const newDetails = [...(formData.technicianDetails || [])];
-                                newDetails[index] = { ...newDetails[index], hours: Number(e.target.value) };
-                                setFormData({ ...formData, technicianDetails: newDetails });
+                                const val = e.target.value.replace(',', '.');
+                                const num = val === '' ? 0 : Number(val);
+                                if (!isNaN(num)) {
+                                  const newDetails = [...(formData.technicianDetails || [])];
+                                  newDetails[index] = { ...newDetails[index], hours: num };
+                                  setFormData({ ...formData, technicianDetails: newDetails });
+                                }
                               }}
                             />
                           </div>
