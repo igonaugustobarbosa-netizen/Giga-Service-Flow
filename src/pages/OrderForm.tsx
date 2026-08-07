@@ -684,12 +684,19 @@ export default function OrderForm() {
                               className="h-8 text-xs font-mono" 
                               value={tech.hours || ''} 
                               onChange={e => {
-                                const val = e.target.value.replace(',', '.');
-                                const num = val === '' ? 0 : Number(val);
+                                const val = e.target.value;
+                                const numericVal = val.replace(',', '.');
+                                const num = Number(numericVal);
+                                
                                 if (!isNaN(num)) {
-                                  const newDetails = [...(formData.technicianDetails || [])];
-                                  newDetails[index] = { ...newDetails[index], hours: num };
-                                  setFormData({ ...formData, technicianDetails: newDetails });
+                                  // Só sincroniza se não for final decimal (evita resetar enquanto digita vírgula)
+                                  if (!val.endsWith('.') && !val.endsWith(',')) {
+                                    const newDetails = [...(formData.technicianDetails || [])];
+                                    if (newDetails[index].hours === num) return;
+                                    
+                                    newDetails[index] = { ...newDetails[index], hours: num };
+                                    setFormData({ ...formData, technicianDetails: newDetails });
+                                  }
                                 }
                               }}
                             />

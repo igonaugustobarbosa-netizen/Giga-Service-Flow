@@ -292,15 +292,24 @@ export default function WorkOrderForm() {
   const [manualSessionDuration, setManualSessionDuration] = useState<string>('');
 
   useEffect(() => {
+    // Sincronizar apenas se o valor no formData for diferente do valor numérico atual no input
+    // Isso evita que o input seja resetado enquanto o usuário digita (ex: perdendo a vírgula)
     if (formData.laborHours !== undefined) {
-      setLaborHoursInput(formData.laborHours.toString());
+      const currentNumericVal = Number(laborHoursInput.replace(',', '.'));
+      if (isNaN(currentNumericVal) || currentNumericVal !== formData.laborHours) {
+        setLaborHoursInput(formData.laborHours.toString());
+      }
     }
   }, [formData.laborHours]);
 
   const handleLaborHoursChange = (val: string) => {
     setLaborHoursInput(val);
-    const num = Number(val.replace(',', '.'));
-    if (!isNaN(num)) {
+    const numericVal = val.replace(',', '.');
+    const num = Number(numericVal);
+    
+    // Só atualiza o formData se for um número válido e não estiver terminando em separador decimal
+    // Isso evita que o useEffect de sincronização resete o input enquanto o usuário digita "8,"
+    if (!isNaN(num) && val.trim() !== '' && !val.endsWith('.') && !val.endsWith(',')) {
       const worked = formData.totalWorkedHours || 0;
       setFormData(prev => ({ 
         ...prev, 
@@ -821,24 +830,31 @@ export default function WorkOrderForm() {
                               className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
                               value={session.duration}
                               onChange={(e) => {
-                                const val = e.target.value.replace(',', '.');
-                                const newDur = val === '' ? 0 : Number(val);
+                                const val = e.target.value;
+                                const numericVal = val.replace(',', '.');
+                                const newDur = Number(numericVal);
+                                
                                 if (!isNaN(newDur)) {
-                                  setFormData(prev => {
-                                    const newSessions = [...(prev.workSessions || [])];
-                                    newSessions[index] = { ...newSessions[index], duration: newDur };
-                                    
-                                    const totalWorked = Number(newSessions.reduce((sum, s) => 
-                                      sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-                                    const est = prev.laborHours || 0;
-                                    
-                                    return {
-                                      ...prev,
-                                      workSessions: newSessions,
-                                      totalWorkedHours: totalWorked,
-                                      remainingHours: Number((est - totalWorked).toFixed(2))
-                                    };
-                                  });
+                                  // Só sincroniza com o estado global se não estiver no meio de uma digitação decimal
+                                  if (!val.endsWith('.') && !val.endsWith(',')) {
+                                    setFormData(prev => {
+                                      const newSessions = [...(prev.workSessions || [])];
+                                      if (newSessions[index].duration === newDur) return prev;
+                                      
+                                      newSessions[index] = { ...newSessions[index], duration: newDur };
+                                      
+                                      const totalWorked = Number(newSessions.reduce((sum, s) => 
+                                        sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+                                      const est = prev.laborHours || 0;
+                                      
+                                      return {
+                                        ...prev,
+                                        workSessions: newSessions,
+                                        totalWorkedHours: totalWorked,
+                                        remainingHours: Number((est - totalWorked).toFixed(2))
+                                      };
+                                    });
+                                  }
                                 }
                               }}
                             />
