@@ -600,7 +600,7 @@ export default function WorkOrderForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.5fr] gap-4">
                 <div className="space-y-2">
                   <Label>KM Estimado</Label>
                   <Input 
@@ -635,12 +635,13 @@ export default function WorkOrderForm() {
                           handleAddManualSession();
                         }
                       }}
-                      className="flex-1 font-bold"
+                      className="flex-1 font-bold h-10"
                     />
                     <Button
                       type="button"
+                      size="sm"
                       onClick={handleAddManualSession}
-                      className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                      className="bg-indigo-600 hover:bg-indigo-700 px-3 h-10"
                     >
                       Add
                     </Button>
@@ -649,7 +650,7 @@ export default function WorkOrderForm() {
                         type="button" 
                         size="icon" 
                         variant="outline" 
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 h-10"
                         onClick={handleStartWork}
                         title="Iniciar Trabalho do Dia"
                       >
@@ -660,7 +661,7 @@ export default function WorkOrderForm() {
                         type="button" 
                         size="icon" 
                         variant="outline" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse h-10"
                         onClick={handleFinishWork}
                         title="Finalizar Trabalho do Dia"
                       >
