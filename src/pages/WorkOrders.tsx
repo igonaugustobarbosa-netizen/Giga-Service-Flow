@@ -150,13 +150,13 @@ export default function WorkOrders() {
     const customer = customers.find(c => c.id === wo.customerId);
     const searchLower = searchTerm.toLowerCase();
     const woNumber = wo.workOrderNumber || '';
-    const customerName = customer?.name || '';
-    const description = wo.description || '';
+    const customerName = (customer?.name || wo.customerNameSnapshot || '').toLowerCase();
+    const description = (wo.description || '').toLowerCase();
     
     const matchesSearch = (
       woNumber.toLowerCase().includes(searchLower) ||
-      customerName.toLowerCase().includes(searchLower) ||
-      description.toLowerCase().includes(searchLower)
+      customerName.includes(searchLower) ||
+      description.includes(searchLower)
     );
 
     const isArchived = wo.status === 'closed';

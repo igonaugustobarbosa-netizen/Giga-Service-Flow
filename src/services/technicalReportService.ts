@@ -18,7 +18,6 @@ export const generateTechnicalReport = (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
 
@@ -286,13 +285,13 @@ export const generateTechnicalReport = (
 
   // Page numbering
   const pageCount = (doc.internal as any).pages?.length - 1 || 1;
-  const footerCompanyName = settings?.companyName || 'ServiceFlow';
+  const developerInfo = "Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR";
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    const footerText = `Página ${i} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${footerCompanyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
-    doc.text(footerText, margin, pageHeight - 10);
+    const footerText = `Página ${i} de ${pageCount} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} | ${developerInfo}`;
+    doc.text(footerText, pageWidth / 2, 290, { align: 'center' });
   }
 
   const fileName = `RELATORIO_TECNICO_${order.orderNumber || order.id.substring(0, 8)}.pdf`;

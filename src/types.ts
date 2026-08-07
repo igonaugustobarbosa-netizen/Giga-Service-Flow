@@ -135,7 +135,6 @@ export interface WorkOrder {
   id: string;
   workOrderNumber: string;
   budgetId?: string;
-  supplierId?: string;
   customerId: string;
   customerNameSnapshot?: string;
   technicianIds: string[];

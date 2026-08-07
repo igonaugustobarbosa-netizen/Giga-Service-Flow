@@ -13,7 +13,6 @@ export const generateWorkOrderPDF = (
   customer: Customer | null,
   technicians: Technician[],
   settings: Settings | null,
-  supplier: any | null = null,
   options: PDFOptions = {}
 ) => {
   const doc = new jsPDF();
@@ -44,21 +43,17 @@ export const generateWorkOrderPDF = (
   doc.text('PRESTADOR DE SERVIÇO', margin, 35);
   
   doc.setFontSize(10);
-  const providerName = supplier?.name || settings?.companyName || 'Empresa de Serviços';
-  doc.text(providerName, margin, 41);
+  doc.text(settings?.companyName || 'Empresa de Serviços', margin, 41);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   
   let providerY = 46;
-  const providerTaxId = supplier?.taxId || settings?.companyTaxId;
-  if (providerTaxId) {
-    doc.text(`CNPJ/CPF: ${providerTaxId}`, margin, providerY);
+  if (settings?.companyTaxId) {
+    doc.text(`CNPJ/CPF: ${settings.companyTaxId}`, margin, providerY);
     providerY += 4;
   }
-  
-  const providerAddress = supplier?.address || settings?.companyAddress;
-  if (providerAddress) {
-    const splitAddr = doc.splitTextToSize(`End: ${providerAddress}`, (pageWidth / 2) - margin - 5);
+  if (settings?.companyAddress) {
+    const splitAddr = doc.splitTextToSize(`End: ${settings.companyAddress}`, (pageWidth / 2) - margin - 5);
     doc.text(splitAddr, margin, providerY);
     providerY += (splitAddr.length * 4);
   }
@@ -275,9 +270,8 @@ export const generateWorkOrderPDF = (
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    const companyName = settings?.companyName || 'ServiceFlow';
-    const footerText = `Página ${i} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
-    doc.text(footerText, margin, pageHeight - 10);
+    const footerText = `${settings?.companyName || 'ServiceFlow'} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} | Página ${i} de ${pageCount}`;
+    doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
   
   doc.save(`OS_${wo.workOrderNumber}_${(customer?.name || 'Cliente').replace(/\s+/g, '_')}.pdf`);

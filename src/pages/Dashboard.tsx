@@ -409,7 +409,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                           <Link to={`/orders/${order.id}`}>
                             <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 h-8 px-2">
-                              Ver OS
+                              Ver Detalhes
                             </Button>
                           </Link>
                           <Button 

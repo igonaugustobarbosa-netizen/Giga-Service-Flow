@@ -21,16 +21,16 @@ export const generateReportPDF = (
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
   let y = 20;
-  const companyName = 'Giga Elétrica';
 
   const drawFooter = (pageNum: number, totalPages: number) => {
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    const footerText = `Página ${pageNum} | Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm')} - ${companyName} | Desenvolvedor Giga Eletrica Fone 43996118806 Joaquim Tavora PR`;
-    doc.text(footerText, margin, pageHeight - 10);
+    const footerText = `Giga Elétrica | Página ${pageNum} de ${totalPages}`;
+    doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
   };
 
   const isFullReport = filters.reportType === 'full';
+  const companyName = 'Giga Elétrica';
 
   // Header
   doc.setFillColor(41, 128, 185);

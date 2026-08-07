@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 export default function TechnicalReports() {
   const { userData, isAdmin } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -55,6 +56,17 @@ export default function TechnicalReports() {
       setLoading(false);
     });
 
+    // Load all customers for search
+    const customersRef = collection(db, 'customers');
+    const qCust = isAdmin
+      ? query(customersRef)
+      : query(customersRef, where('tenantId', '==', userData.tenantId));
+
+    const unsubscribeCustomers = onSnapshot(qCust, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      setAllCustomers(data);
+    });
+
     // Load settings
     const unsubscribeSettings = onSnapshot(doc(db, 'settings', userData.tenantId), (snapshot) => {
       if (snapshot.exists()) {
@@ -64,6 +76,7 @@ export default function TechnicalReports() {
 
     return () => {
       unsubscribeOrders();
+      unsubscribeCustomers();
       unsubscribeSettings();
     };
   }, [userData, isAdmin]);
@@ -123,10 +136,16 @@ export default function TechnicalReports() {
     fetchOrderDetails();
   }, [selectedOrderId, orders, settings]);
 
-  const filteredOrders = orders.filter(order => 
-    (order.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (order.description || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(order => {
+    const customer = allCustomers.find(c => c.id === order.customerId);
+    const customerName = (customer?.name || order.customerNameSnapshot || '').toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (order.orderNumber || '').toLowerCase().includes(searchLower) ||
+      (order.description || '').toLowerCase().includes(searchLower) ||
+      customerName.includes(searchLower)
+    );
+  });
 
   const handleGenerateReport = () => {
     if (!selectedOrder) {

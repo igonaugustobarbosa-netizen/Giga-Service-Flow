@@ -194,11 +194,14 @@ export default function ServiceOrders() {
 
   const filteredOrders = orders.filter(order => {
     const customer = customers.find(c => c.id === order.customerId);
-    const customerName = customer?.name.toLowerCase() || '';
+    const customerName = (customer?.name || order.customerNameSnapshot || '').toLowerCase();
     const description = (order.description || '').toLowerCase();
+    const orderNumber = (order.orderNumber || '').toLowerCase();
     const search = searchTerm.toLowerCase();
     
-    const matchesSearch = customerName.includes(search) || description.includes(search);
+    const matchesSearch = customerName.includes(search) || 
+                         description.includes(search) || 
+                         orderNumber.includes(search);
     const matchesStatus = !filters.status || order.status === filters.status;
     const matchesCustomer = !filters.customerId || order.customerId === filters.customerId;
     

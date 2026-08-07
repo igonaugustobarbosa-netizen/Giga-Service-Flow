@@ -400,7 +400,7 @@ export default function OrderForm() {
           const newOrderRef = doc(collection(db, 'serviceOrders'));
           const newOrderData = {
             ...dataToSave,
-            orderNumber: formattedNumber,
+            orderNumber: formData.orderNumber || formattedNumber,
             tenantId: userData.tenantId
           };
           
@@ -457,6 +457,16 @@ export default function OrderForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="orderNumber">N° da OS (Manual/Opcional)</Label>
+                  <Input 
+                    id="orderNumber" 
+                    value={formData.orderNumber || ''} 
+                    onChange={e => setFormData({...formData, orderNumber: e.target.value})}
+                    placeholder="Auto-gerado se vazio"
+                    className="font-mono font-bold"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="customer">Cliente *</Label>
                   <Select 
