@@ -682,21 +682,18 @@ export default function OrderForm() {
                               type="text" 
                               inputMode="decimal"
                               className="h-8 text-xs font-mono" 
-                              value={tech.hours || ''} 
+                              value={tech.hours === 0 ? '' : tech.hours.toString().replace('.', ',')} 
                               onChange={e => {
-                                const val = e.target.value;
-                                const numericVal = val.replace(',', '.');
-                                const num = Number(numericVal);
+                                const val = e.target.value.replace(',', '.');
+                                const num = Number(val);
                                 
-                                if (!isNaN(num)) {
-                                  // Só sincroniza se não for final decimal (evita resetar enquanto digita vírgula)
-                                  if (!val.endsWith('.') && !val.endsWith(',')) {
-                                    const newDetails = [...(formData.technicianDetails || [])];
-                                    if (newDetails[index].hours === num) return;
-                                    
-                                    newDetails[index] = { ...newDetails[index], hours: num };
-                                    setFormData({ ...formData, technicianDetails: newDetails });
-                                  }
+                                if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                                  const newDetails = [...(formData.technicianDetails || [])];
+                                  const finalVal = e.target.value === '' ? 0 : num;
+                                  if (newDetails[index].hours === finalVal) return;
+                                  
+                                  newDetails[index] = { ...newDetails[index], hours: finalVal };
+                                  setFormData({ ...formData, technicianDetails: newDetails });
                                 }
                               }}
                             />
@@ -704,39 +701,54 @@ export default function OrderForm() {
                           <div className="space-y-1">
                             <Label className="text-[10px]">Valor/Hora</Label>
                             <Input 
-                              type="number" 
+                              type="text" 
+                              inputMode="decimal"
                               className="h-8 text-xs" 
-                              value={tech.laborRate || ''} 
+                              value={tech.laborRate === 0 ? '' : tech.laborRate.toString().replace('.', ',')} 
                               onChange={e => {
-                                const newDetails = [...(formData.technicianDetails || [])];
-                                newDetails[index] = { ...newDetails[index], laborRate: Number(e.target.value) };
-                                setFormData({ ...formData, technicianDetails: newDetails });
+                                const val = e.target.value.replace(',', '.');
+                                const num = Number(val);
+                                if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                                  const newDetails = [...(formData.technicianDetails || [])];
+                                  newDetails[index] = { ...newDetails[index], laborRate: e.target.value === '' ? 0 : num };
+                                  setFormData({ ...formData, technicianDetails: newDetails });
+                                }
                               }}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">KM</Label>
                             <Input 
-                              type="number" 
+                              type="text" 
+                              inputMode="decimal"
                               className="h-8 text-xs" 
-                              value={tech.km || ''} 
+                              value={tech.km === 0 ? '' : tech.km.toString().replace('.', ',')} 
                               onChange={e => {
-                                const newDetails = [...(formData.technicianDetails || [])];
-                                newDetails[index] = { ...newDetails[index], km: Number(e.target.value) };
-                                setFormData({ ...formData, technicianDetails: newDetails });
+                                const val = e.target.value.replace(',', '.');
+                                const num = Number(val);
+                                if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                                  const newDetails = [...(formData.technicianDetails || [])];
+                                  newDetails[index] = { ...newDetails[index], km: e.target.value === '' ? 0 : num };
+                                  setFormData({ ...formData, technicianDetails: newDetails });
+                                }
                               }}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Valor/KM</Label>
                             <Input 
-                              type="number" 
+                              type="text" 
+                              inputMode="decimal"
                               className="h-8 text-xs" 
-                              value={tech.kmValue || ''} 
+                              value={tech.kmValue === 0 ? '' : tech.kmValue.toString().replace('.', ',')} 
                               onChange={e => {
-                                const newDetails = [...(formData.technicianDetails || [])];
-                                newDetails[index] = { ...newDetails[index], kmValue: Number(e.target.value) };
-                                setFormData({ ...formData, technicianDetails: newDetails });
+                                const val = e.target.value.replace(',', '.');
+                                const num = Number(val);
+                                if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                                  const newDetails = [...(formData.technicianDetails || [])];
+                                  newDetails[index] = { ...newDetails[index], kmValue: e.target.value === '' ? 0 : num };
+                                  setFormData({ ...formData, technicianDetails: newDetails });
+                                }
                               }}
                             />
                           </div>
@@ -1022,18 +1034,20 @@ export default function OrderForm() {
                     <Clock className="w-4 h-4" /> Horas Trabalhadas
                   </Label>
                   <Input 
-                    type="number" 
-                    value={formData.hoursWorked === 0 ? '' : formData.hoursWorked} 
+                    type="text"
+                    inputMode="decimal"
+                    value={formData.hoursWorked === 0 ? '' : formData.hoursWorked.toString().replace('.', ',')} 
                     onChange={e => {
-                      const val = e.target.value;
-                      const hours = val === '' ? 0 : Number(val);
-                      const laborRate = formData.laborRate || 0;
-
-                      setFormData({
-                        ...formData, 
-                        hoursWorked: val === '' ? 0 : hours,
-                        laborCost: hours * laborRate
-                      });
+                      const val = e.target.value.replace(',', '.');
+                      const num = Number(val);
+                      if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                        const laborRate = formData.laborRate || 0;
+                        setFormData({
+                          ...formData, 
+                          hoursWorked: e.target.value === '' ? 0 : num,
+                          laborCost: (e.target.value === '' ? 0 : num) * laborRate
+                        });
+                      }
                     }} 
                   />
                 </div>
@@ -1042,17 +1056,20 @@ export default function OrderForm() {
                     <DollarSign className="w-4 h-4" /> Valor por Hora (R$)
                   </Label>
                   <Input 
-                    type="number" 
-                    step="0.01"
-                    value={formData.laborRate === 0 ? '' : formData.laborRate} 
+                    type="text"
+                    inputMode="decimal"
+                    value={formData.laborRate === 0 ? '' : formData.laborRate.toString().replace('.', ',')} 
                     onChange={e => {
-                      const val = e.target.value;
-                      const rate = val === '' ? 0 : Number(val);
-                      setFormData({
-                        ...formData, 
-                        laborRate: rate,
-                        laborCost: (formData.hoursWorked || 0) * rate
-                      });
+                      const val = e.target.value.replace(',', '.');
+                      const num = Number(val);
+                      if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                        const rate = e.target.value === '' ? 0 : num;
+                        setFormData({
+                          ...formData, 
+                          laborRate: rate,
+                          laborCost: (formData.hoursWorked || 0) * rate
+                        });
+                      }
                     }} 
                   />
                 </div>
@@ -1061,10 +1078,16 @@ export default function OrderForm() {
                     <DollarSign className="w-4 h-4" /> Mão de Obra Total (R$)
                   </Label>
                   <Input 
-                    type="number" 
-                    step="0.01"
-                    value={formData.laborCost === 0 ? '' : formData.laborCost} 
-                    onChange={e => setFormData({...formData, laborCost: e.target.value === '' ? 0 : Number(e.target.value)})} 
+                    type="text"
+                    inputMode="decimal"
+                    value={formData.laborCost === 0 ? '' : formData.laborCost.toString().replace('.', ',')} 
+                    onChange={e => {
+                      const val = e.target.value.replace(',', '.');
+                      const num = Number(val);
+                      if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
+                        setFormData({...formData, laborCost: e.target.value === '' ? 0 : num});
+                      }
+                    }} 
                   />
                 </div>
                 <div className="space-y-2">

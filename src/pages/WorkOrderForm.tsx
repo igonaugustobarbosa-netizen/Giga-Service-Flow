@@ -309,12 +309,12 @@ export default function WorkOrderForm() {
     
     // Só atualiza o formData se for um número válido e não estiver terminando em separador decimal
     // Isso evita que o useEffect de sincronização resete o input enquanto o usuário digita "8,"
-    if (!isNaN(num) && val.trim() !== '' && !val.endsWith('.') && !val.endsWith(',')) {
+    if (!isNaN(num) && !val.endsWith('.') && !val.endsWith(',')) {
       const worked = formData.totalWorkedHours || 0;
       setFormData(prev => ({ 
         ...prev, 
-        laborHours: num,
-        remainingHours: Number((num - worked).toFixed(2))
+        laborHours: val.trim() === '' ? 0 : num,
+        remainingHours: Number(((val.trim() === '' ? 0 : num) - worked).toFixed(2))
       }));
     }
   };
