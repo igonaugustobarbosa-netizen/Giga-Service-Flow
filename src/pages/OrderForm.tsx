@@ -72,7 +72,8 @@ export default function OrderForm() {
     // Snapshot fields
     companyNameSnapshot: '',
     companyTaxIdSnapshot: '',
-    companyAddressSnapshot: ''
+    companyAddressSnapshot: '',
+    supplierNameSnapshot: ''
   });
 
   useEffect(() => {
@@ -511,6 +512,7 @@ export default function OrderForm() {
                         setFormData({
                           ...formData, 
                           supplierId,
+                          supplierNameSnapshot: selectedSupplier.name,
                           companyNameSnapshot: selectedSupplier.name,
                           companyTaxIdSnapshot: selectedSupplier.taxId || '',
                           companyAddressSnapshot: selectedSupplier.address || ''
@@ -519,6 +521,7 @@ export default function OrderForm() {
                         setFormData({
                           ...formData, 
                           supplierId: '',
+                          supplierNameSnapshot: '',
                           companyNameSnapshot: settings.companyName || '',
                           companyTaxIdSnapshot: settings.companyTaxId || '',
                           companyAddressSnapshot: settings.companyAddress || ''

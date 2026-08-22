@@ -107,6 +107,7 @@ export interface ServiceOrder {
   customerNameSnapshot?: string;
   customerTaxIdSnapshot?: string;
   customerAddressSnapshot?: string;
+  supplierNameSnapshot?: string;
 }
 
 export interface Settings {
@@ -130,6 +131,7 @@ export interface WorkSession {
   endTime: string;
   duration: number; // hours
   technicianIds: string[];
+  description?: string;
 }
 
 export interface WorkOrder {
@@ -138,6 +140,8 @@ export interface WorkOrder {
   budgetId?: string;
   customerId: string;
   customerNameSnapshot?: string;
+  supplierId?: string;
+  supplierNameSnapshot?: string;
   technicianIds: string[];
   technicianDetails?: TechnicianWork[];
   description: string;

@@ -35,7 +35,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthGuard';
-import { Customer, Technician, ServiceOrder, WorkOrder, WorkOrderStatus, Settings } from '../types';
+import { Customer, Technician, ServiceOrder, WorkOrder, WorkOrderStatus, Settings, Supplier } from '../types';
 import { format } from 'date-fns';
 import { generateWorkOrderPDF } from '../services/workOrderPDFService';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -53,6 +53,7 @@ export default function WorkOrderForm() {
   const [budgets, setBudgets] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [pdfConfirmDialog, setPdfConfirmDialog] = useState(false);
   
@@ -73,7 +74,9 @@ export default function WorkOrderForm() {
     technicianIds: [],
     technicianDetails: [],
     customerId: '',
-    budgetId: ''
+    budgetId: '',
+    supplierId: '',
+    supplierNameSnapshot: ''
   });
 
   const getWorkOrderNumberFromBudget = async (budgetOrderNumber: string, budgetId: string) => {
@@ -94,38 +97,34 @@ export default function WorkOrderForm() {
     if (!userData?.tenantId) return;
 
     const fetchData = async () => {
+      setLoading(true);
       try {
         const tenantId = userData.tenantId;
         const isAdmin = userData.role === 'admin';
         
-        console.log('Fetching data for WorkOrderForm...', { tenantId, isAdmin, id });
-
-        const customersRef = collection(db, 'customers');
-        const techniciansRef = collection(db, 'technicians');
-        const serviceOrdersRef = collection(db, 'serviceOrders');
-
-        const [custSnap, techSnap, serviceOrdersSnap] = await Promise.all([
-          getDocs(isAdmin ? query(customersRef) : query(customersRef, where('tenantId', '==', tenantId))),
-          getDocs(isAdmin ? query(techniciansRef) : query(techniciansRef, where('tenantId', '==', tenantId))),
-          getDocs(isAdmin ? query(serviceOrdersRef) : query(serviceOrdersRef, where('tenantId', '==', tenantId)))
+        const [custSnap, techSnap, supSnap, serviceOrdersSnap, settingsSnap] = await Promise.all([
+          getDocs(isAdmin ? query(collection(db, 'customers')) : query(collection(db, 'customers'), where('tenantId', '==', tenantId))),
+          getDocs(isAdmin ? query(collection(db, 'technicians')) : query(collection(db, 'technicians'), where('tenantId', '==', tenantId))),
+          getDocs(isAdmin ? query(collection(db, 'suppliers')) : query(collection(db, 'suppliers'), where('tenantId', '==', tenantId))),
+          getDocs(isAdmin ? query(collection(db, 'serviceOrders')) : query(collection(db, 'serviceOrders'), where('tenantId', '==', tenantId))),
+          getDoc(doc(db, 'settings', tenantId))
         ]);
 
         const customersData = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
         const techniciansData = techSnap.docs.map(d => ({ id: d.id, ...d.data() } as Technician));
+        const suppliersData = supSnap.docs.map(d => ({ id: d.id, ...d.data() } as Supplier));
         
         setCustomers(customersData);
         setTechnicians(techniciansData);
+        setSuppliers(suppliersData);
         
-        // Fetch Settings
-        const settingsSnap = await getDoc(doc(db, 'settings', tenantId));
         let settingsData: Settings | null = null;
         if (settingsSnap.exists()) {
           settingsData = settingsSnap.data() as Settings;
           setSettings(settingsData);
         }
 
-        const allServiceOrders = serviceOrdersSnap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceOrder));
-        const budgetListData = allServiceOrders
+        const budgetListData = serviceOrdersSnap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceOrder))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           
         setBudgets(budgetListData);
@@ -138,8 +137,20 @@ export default function WorkOrderForm() {
             const totalWorked = data.totalWorkedHours || 0;
             const remaining = data.remainingHours ?? Number(((data.laborHours || 0) - totalWorked).toFixed(2));
             
+            const supplierFromList = suppliersData.find(s => s.id === data.supplierId);
+            let supplierName = data.supplierNameSnapshot || supplierFromList?.name || '';
+
+            if (!supplierName && data.budgetId) {
+              const budget = budgetListData.find(b => b.id === data.budgetId);
+              if (budget?.supplierId) {
+                const s = suppliersData.find(sup => sup.id === budget.supplierId);
+                supplierName = s?.name || '';
+              }
+            }
+
             setFormData({
               ...data,
+              supplierNameSnapshot: supplierName,
               totalWorkedHours: totalWorked,
               remainingHours: remaining,
               estimatedKm: data.estimatedKm || 0,
@@ -152,14 +163,15 @@ export default function WorkOrderForm() {
             });
           }
         } else {
-          // Generate new WO number
           const nextNumber = (settingsData?.lastWorkOrderNumber || 0) + 1;
           
           let initialWOData: Partial<WorkOrder> = {
             workOrderNumber: String(nextNumber).padStart(5, '0'),
             estimatedKm: 0,
             kmDriven: 0,
-            remainingKm: 0
+            remainingKm: 0,
+            status: 'open',
+            scheduledDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
           };
 
           if (initialBudgetId) {
@@ -168,12 +180,12 @@ export default function WorkOrderForm() {
               const totalHours = budget.technicianDetails?.reduce((sum, t) => sum + (t.hours || 0), 0) || budget.hoursWorked || 0;
               const nextNumberFromBudget = await getWorkOrderNumberFromBudget(budget.orderNumber, budget.id);
               
-              // Try to calculate distance from company to budget customer if possible
+              const supplier = suppliersData.find(s => s.id === budget.supplierId);
               let estKm = budget.kmDriven || 0;
               const customer = customersData.find(c => c.id === budget.customerId);
               if (settingsData?.companyLocation && customer?.location) {
                 const dist = calculateDistance(settingsData.companyLocation, customer.location);
-                estKm = Number((dist * 2).toFixed(2)); // Round trip
+                estKm = Number((dist * 2).toFixed(2));
               }
 
               initialWOData = {
@@ -182,6 +194,8 @@ export default function WorkOrderForm() {
                 budgetId: budget.id,
                 customerId: budget.customerId,
                 customerNameSnapshot: budget.customerNameSnapshot || '',
+                supplierId: budget.supplierId || '',
+                supplierNameSnapshot: supplier?.name || '',
                 technicianIds: budget.technicianIds || [],
                 description: budget.description || '',
                 estimatedKm: estKm,
@@ -205,15 +219,31 @@ export default function WorkOrderForm() {
         }
       } catch (error) {
         console.error('Error fetching data in WorkOrderForm:', error);
-        if (error instanceof Error) {
-          console.error('Stack trace:', error.stack);
-        }
         toast.error('Erro ao carregar dados.');
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
-  }, [userData?.id, id]); // Changed from userData to userData?.id to avoid unnecessary re-runs
+  }, [userData?.id, id]);
+
+  // Reactive sync for supplier name if it's missing but budget exists
+  useEffect(() => {
+    if (formData.budgetId && !formData.supplierNameSnapshot && budgets.length > 0 && suppliers.length > 0) {
+      const budget = budgets.find(b => b.id === formData.budgetId);
+      if (budget?.supplierId) {
+        const supplier = suppliers.find(s => s.id === budget.supplierId);
+        if (supplier) {
+          setFormData(prev => ({ 
+            ...prev, 
+            supplierId: budget.supplierId,
+            supplierNameSnapshot: supplier.name 
+          }));
+        }
+      }
+    }
+  }, [formData.budgetId, budgets.length, suppliers.length]); // Changed from userData to userData?.id to avoid unnecessary re-runs
 
   const handleBudgetChange = async (budgetId: string) => {
     const budget = budgets.find(b => b.id === budgetId);
@@ -221,6 +251,9 @@ export default function WorkOrderForm() {
       const totalHours = budget.technicianDetails?.reduce((sum, t) => sum + (t.hours || 0), 0) || budget.hoursWorked || 0;
       const nextNumberFromBudget = await getWorkOrderNumberFromBudget(budget.orderNumber, budget.id);
       
+      const supplier = suppliers.find(s => s.id === budget.supplierId);
+      const supplierName = supplier?.name || (budget as any).supplierNameSnapshot || '';
+
       let estKm = budget.kmDriven || 0;
       const customer = customers.find(c => c.id === budget.customerId);
       if (settings?.companyLocation && customer?.location) {
@@ -234,6 +267,8 @@ export default function WorkOrderForm() {
         budgetId: budget.id,
         customerId: budget.customerId,
         customerNameSnapshot: budget.customerNameSnapshot,
+        supplierId: budget.supplierId || '',
+        supplierNameSnapshot: supplierName,
         technicianIds: budget.technicianIds || [],
         description: budget.description,
         estimatedKm: estKm,
@@ -304,7 +339,8 @@ export default function WorkOrderForm() {
       startTime: finalStartTime,
       endTime: finalEndTime,
       duration: diffHours,
-      technicianIds: formData.technicianIds || []
+      technicianIds: formData.technicianIds || [],
+      description: 'Sessão em tempo real finalizada'
     };
 
     const newSessions = [...(formData.workSessions || []), newSession];
@@ -346,6 +382,7 @@ export default function WorkOrderForm() {
 
   const [laborHoursInput, setLaborHoursInput] = useState<string>('');
   const [manualSessionDuration, setManualSessionDuration] = useState<string>('');
+  const [manualSessionDescription, setManualSessionDescription] = useState<string>('');
   const [manualStartTime, setManualStartTime] = useState<string>('');
   const [manualEndTime, setManualEndTime] = useState<string>('');
 
@@ -430,7 +467,8 @@ export default function WorkOrderForm() {
         startTime: startISO,
         endTime: endISO,
         duration: duration,
-        technicianIds: prev.technicianIds || []
+        technicianIds: prev.technicianIds || [],
+        description: manualSessionDescription
       };
 
       const newSessions = [...currentSessions, newSession];
@@ -460,6 +498,7 @@ export default function WorkOrderForm() {
     });
     
     setManualSessionDuration('');
+    setManualSessionDescription('');
     setManualStartTime('');
     setManualEndTime('');
     toast.success(`Trabalho diário lançado: ${duration}h adicionadas.`);
@@ -688,6 +727,16 @@ export default function WorkOrderForm() {
                 </div>
               </div>
 
+              {formData.supplierNameSnapshot && (
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                  <div className="flex items-center gap-2 text-indigo-700">
+                    <Users className="w-4 h-4" />
+                    <span className="text-sm font-medium">Fornecedor do Orçamento:</span>
+                    <span className="text-sm font-bold uppercase">{formData.supplierNameSnapshot}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Cliente *</Label>
@@ -760,8 +809,19 @@ export default function WorkOrderForm() {
 
               <div className="space-y-2">
                 <Label>Adicionar Horas Trabalhadas (p/ técnico)</Label>
-                <div className="flex flex-col gap-3 p-3 border rounded-lg bg-slate-50/50">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                  <div className="flex flex-col gap-3 p-3 border rounded-lg bg-slate-50/50">
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-slate-500">O que foi feito?</Label>
+                        <Input 
+                          placeholder="Breve descrição do trabalho realizado..."
+                          value={manualSessionDescription}
+                          onChange={(e) => setManualSessionDescription(e.target.value)}
+                          className="h-9 bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-bold text-slate-500">Início</Label>
                       <Input 
@@ -970,65 +1030,73 @@ export default function WorkOrderForm() {
                     </h3>
                   <div className="grid grid-cols-1 gap-2">
                     {formData.workSessions.map((session, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border text-xs">
-                        <div className="flex gap-4">
-                          <div className="flex flex-col">
-                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
-                            <span>{format(new Date(session.startTime), "dd/MM/yy HH:mm")}</span>
+                      <div key={index} className="flex flex-col p-3 bg-muted/20 rounded-lg border border-border text-xs gap-2">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex gap-4">
+                            <div className="flex flex-col">
+                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
+                              <span>{format(new Date(session.startTime), "dd/MM/yy HH:mm")}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
+                              <span>{format(new Date(session.endTime), "dd/MM/yy HH:mm")}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
-                            <span>{format(new Date(session.endTime), "dd/MM/yy HH:mm")}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-col items-end">
-                            <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração (h)</span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
-                              value={session.duration}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const numericVal = val.replace(',', '.');
-                                const newDur = Number(numericVal);
-                                
-                                if (!isNaN(newDur)) {
-                                  // Só sincroniza com o estado global se não estiver no meio de uma digitação decimal
-                                  if (!val.endsWith('.') && !val.endsWith(',')) {
-                                    setFormData(prev => {
-                                      const newSessions = [...(prev.workSessions || [])];
-                                      if (newSessions[index].duration === newDur) return prev;
-                                      
-                                      newSessions[index] = { ...newSessions[index], duration: newDur };
-                                      
-                                      const totalWorked = Number(newSessions.reduce((sum, s) => 
-                                        sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-                                      const est = prev.laborHours || 0;
-                                      
-                                      return {
-                                        ...prev,
-                                        workSessions: newSessions,
-                                        totalWorkedHours: totalWorked,
-                                        remainingHours: Number((est - totalWorked).toFixed(2))
-                                      };
-                                    });
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-end">
+                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração (h)</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
+                                value={session.duration}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const numericVal = val.replace(',', '.');
+                                  const newDur = Number(numericVal);
+                                  
+                                  if (!isNaN(newDur)) {
+                                    // Só sincroniza com o estado global se não estiver no meio de uma digitação decimal
+                                    if (!val.endsWith('.') && !val.endsWith(',')) {
+                                      setFormData(prev => {
+                                        const newSessions = [...(prev.workSessions || [])];
+                                        if (newSessions[index].duration === newDur) return prev;
+                                        
+                                        newSessions[index] = { ...newSessions[index], duration: newDur };
+                                        
+                                        const totalWorked = Number(newSessions.reduce((sum, s) => 
+                                          sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+                                        const est = prev.laborHours || 0;
+                                        
+                                        return {
+                                          ...prev,
+                                          workSessions: newSessions,
+                                          totalWorkedHours: totalWorked,
+                                          remainingHours: Number((est - totalWorked).toFixed(2))
+                                        };
+                                      });
+                                    }
                                   }
-                                }
-                              }}
-                            />
+                                }}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => removeSession(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => removeSession(index)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                         </div>
+                        {session.description && (
+                          <div className="pt-2 border-t border-border/50">
+                            <span className="text-muted-foreground font-medium">Procedimento:</span>
+                            <p className="mt-0.5 text-slate-700 italic">{session.description}</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

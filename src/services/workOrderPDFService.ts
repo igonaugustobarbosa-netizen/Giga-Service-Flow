@@ -80,7 +80,20 @@ export const generateWorkOrderPDF = (
     customerY += (splitCustAddr.length * 4);
   }
 
-  const separatorY = Math.max(providerY, customerY) + 5;
+  // Supplier info if exists
+  let supplierY = 0;
+  if (wo.supplierNameSnapshot) {
+    supplierY = Math.max(providerY, customerY) + 5;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FORNECEDOR', margin, supplierY);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(wo.supplierNameSnapshot, margin, supplierY + 6);
+    supplierY += 12;
+  }
+
+  const separatorY = Math.max(providerY, customerY, supplierY) + 5;
   doc.setDrawColor(200, 200, 200);
   doc.line(margin, separatorY, pageWidth - margin, separatorY);
   
@@ -121,16 +134,18 @@ export const generateWorkOrderPDF = (
     
     autoTable(doc, {
       startY: currentY + 5,
-      head: [['Início', 'Fim', 'Duração']],
+      head: [['Início', 'Fim', 'Duração', 'Procedimento']],
       body: wo.workSessions.map(session => [
         format(new Date(session.startTime), "dd/MM/yyyy HH:mm"),
         format(new Date(session.endTime), "dd/MM/yyyy HH:mm"),
-        `${session.duration}h`
+        `${session.duration}h`,
+        session.description || '-'
       ]),
       foot: [[
         'TOTAL TRABALHADO',
         '',
-        `${wo.totalWorkedHours || 0}h`
+        `${wo.totalWorkedHours || 0}h`,
+        ''
       ]],
       theme: 'striped',
       headStyles: { fillColor: [50, 50, 50] },
