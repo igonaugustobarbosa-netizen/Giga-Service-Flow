@@ -39,6 +39,7 @@ import { Customer, Technician, ServiceOrder, WorkOrder, WorkOrderStatus, Setting
 import { format } from 'date-fns';
 import { generateWorkOrderPDF } from '../services/workOrderPDFService';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { calculateDistance } from '../services/locationService';
 
 export default function WorkOrderForm() {
   const { id } = useParams();
@@ -60,7 +61,9 @@ export default function WorkOrderForm() {
     status: 'open',
     scheduledDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     description: '',
+    estimatedKm: 0,
     kmDriven: 0,
+    remainingKm: 0,
     kmRate: 0,
     laborHours: 0,
     totalWorkedHours: 0,
@@ -110,18 +113,15 @@ export default function WorkOrderForm() {
         const customersData = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
         const techniciansData = techSnap.docs.map(d => ({ id: d.id, ...d.data() } as Technician));
         
-        console.log('Data loaded:', { 
-          customersCount: customersData.length, 
-          techniciansCount: techniciansData.length 
-        });
-
         setCustomers(customersData);
         setTechnicians(techniciansData);
         
         // Fetch Settings
         const settingsSnap = await getDoc(doc(db, 'settings', tenantId));
+        let settingsData: Settings | null = null;
         if (settingsSnap.exists()) {
-          setSettings(settingsSnap.data() as Settings);
+          settingsData = settingsSnap.data() as Settings;
+          setSettings(settingsData);
         }
 
         const allServiceOrders = serviceOrdersSnap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceOrder));
@@ -129,13 +129,11 @@ export default function WorkOrderForm() {
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           
         setBudgets(budgetListData);
-        console.log('Budgets loaded:', budgetListData.length);
 
-        if (id) {
+        if (id && id !== 'new') {
           const woSnap = await getDoc(doc(db, 'workOrders', id));
           if (woSnap.exists()) {
             const data = woSnap.data() as WorkOrder;
-            console.log('Loaded existing WO:', data);
             
             const totalWorked = data.totalWorkedHours || 0;
             const remaining = data.remainingHours ?? Number(((data.laborHours || 0) - totalWorked).toFixed(2));
@@ -144,6 +142,9 @@ export default function WorkOrderForm() {
               ...data,
               totalWorkedHours: totalWorked,
               remainingHours: remaining,
+              estimatedKm: data.estimatedKm || 0,
+              kmDriven: data.kmDriven || 0,
+              remainingKm: data.remainingKm || Number(((data.estimatedKm || 0) - (data.kmDriven || 0)).toFixed(2)),
               currentStartTime: data.currentStartTime ?? null,
               workSessions: data.workSessions || [],
               technicianIds: data.technicianIds || [],
@@ -152,20 +153,29 @@ export default function WorkOrderForm() {
           }
         } else {
           // Generate new WO number
-          const settingsSnap = await getDoc(doc(db, 'settings', tenantId));
-          const settings = settingsSnap.exists() ? settingsSnap.data() as Settings : { lastWorkOrderNumber: 0 };
-          const nextNumber = (settings.lastWorkOrderNumber || 0) + 1;
+          const nextNumber = (settingsData?.lastWorkOrderNumber || 0) + 1;
           
           let initialWOData: Partial<WorkOrder> = {
-            workOrderNumber: String(nextNumber).padStart(5, '0')
+            workOrderNumber: String(nextNumber).padStart(5, '0'),
+            estimatedKm: 0,
+            kmDriven: 0,
+            remainingKm: 0
           };
 
-        if (initialBudgetId) {
+          if (initialBudgetId) {
             const budget = budgetListData.find(b => b.id === initialBudgetId);
             if (budget) {
-              console.log('Linking to initial budget:', budget.id);
               const totalHours = budget.technicianDetails?.reduce((sum, t) => sum + (t.hours || 0), 0) || budget.hoursWorked || 0;
               const nextNumberFromBudget = await getWorkOrderNumberFromBudget(budget.orderNumber, budget.id);
+              
+              // Try to calculate distance from company to budget customer if possible
+              let estKm = budget.kmDriven || 0;
+              const customer = customersData.find(c => c.id === budget.customerId);
+              if (settingsData?.companyLocation && customer?.location) {
+                const dist = calculateDistance(settingsData.companyLocation, customer.location);
+                estKm = Number((dist * 2).toFixed(2)); // Round trip
+              }
+
               initialWOData = {
                 ...initialWOData,
                 workOrderNumber: nextNumberFromBudget,
@@ -174,7 +184,9 @@ export default function WorkOrderForm() {
                 customerNameSnapshot: budget.customerNameSnapshot || '',
                 technicianIds: budget.technicianIds || [],
                 description: budget.description || '',
-                kmDriven: budget.kmDriven || 0,
+                estimatedKm: estKm,
+                kmDriven: 0,
+                remainingKm: estKm,
                 kmRate: budget.kmValue || 0,
                 laborHours: totalHours,
                 totalWorkedHours: 0,
@@ -208,6 +220,14 @@ export default function WorkOrderForm() {
     if (budget) {
       const totalHours = budget.technicianDetails?.reduce((sum, t) => sum + (t.hours || 0), 0) || budget.hoursWorked || 0;
       const nextNumberFromBudget = await getWorkOrderNumberFromBudget(budget.orderNumber, budget.id);
+      
+      let estKm = budget.kmDriven || 0;
+      const customer = customers.find(c => c.id === budget.customerId);
+      if (settings?.companyLocation && customer?.location) {
+        const dist = calculateDistance(settings.companyLocation, customer.location);
+        estKm = Number((dist * 2).toFixed(2));
+      }
+
       setFormData(prev => ({
         ...prev,
         workOrderNumber: nextNumberFromBudget,
@@ -216,7 +236,9 @@ export default function WorkOrderForm() {
         customerNameSnapshot: budget.customerNameSnapshot,
         technicianIds: budget.technicianIds || [],
         description: budget.description,
-        kmDriven: budget.kmDriven || 0,
+        estimatedKm: estKm,
+        kmDriven: 0,
+        remainingKm: estKm,
         kmRate: budget.kmValue || 0,
         laborHours: totalHours,
         totalWorkedHours: 0,
@@ -227,6 +249,23 @@ export default function WorkOrderForm() {
       }));
       toast.info('Dados do orçamento carregados na OS.');
     }
+  };
+
+  const handleCustomerChange = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    let estKm = 0;
+    if (settings?.companyLocation && customer?.location) {
+      const dist = calculateDistance(settings.companyLocation, customer.location);
+      estKm = Number((dist * 2).toFixed(2));
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      customerId,
+      customerNameSnapshot: customer?.name || '',
+      estimatedKm: estKm,
+      remainingKm: Number((estKm - (prev.kmDriven || 0)).toFixed(2))
+    }));
   };
 
   const handleStartWork = () => {
@@ -277,19 +316,51 @@ export default function WorkOrderForm() {
     const estimated = formData.laborHours || 0;
     const remaining = Number((estimated - totalWorked).toFixed(2));
     
+    // Auto KM calculation
+    let additionalKm = 0;
+    const customer = customers.find(c => c.id === formData.customerId);
+    if (settings?.companyLocation && customer?.location) {
+      const dist = calculateDistance(settings.companyLocation, customer.location);
+      additionalKm = Number((dist * 2).toFixed(2));
+    }
+    
+    const newKmTotal = Number(((formData.kmDriven || 0) + additionalKm).toFixed(2));
+    const newKmRemaining = Number(((formData.estimatedKm || 0) - newKmTotal).toFixed(2));
+
     setFormData(prev => ({ 
       ...prev, 
       totalWorkedHours: totalWorked,
       remainingHours: remaining,
+      kmDriven: newKmTotal,
+      remainingKm: newKmRemaining,
       workSessions: newSessions,
       currentStartTime: null 
     }));
     
-    toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
+    if (additionalKm > 0) {
+      toast.success(`Trabalho finalizado! +${diffHours}h e +${additionalKm}km registrados.`);
+    } else {
+      toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
+    }
   };
 
   const [laborHoursInput, setLaborHoursInput] = useState<string>('');
   const [manualSessionDuration, setManualSessionDuration] = useState<string>('');
+  const [manualStartTime, setManualStartTime] = useState<string>('');
+  const [manualEndTime, setManualEndTime] = useState<string>('');
+
+  useEffect(() => {
+    if (manualStartTime && manualEndTime) {
+      const [startH, startM] = manualStartTime.split(':').map(Number);
+      const [endH, endM] = manualEndTime.split(':').map(Number);
+      
+      let diffMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      if (diffMinutes < 0) diffMinutes += 24 * 60;
+      
+      const hours = Number((diffMinutes / 60).toFixed(2));
+      setManualSessionDuration(hours.toString().replace('.', ','));
+    }
+  }, [manualStartTime, manualEndTime]);
 
   useEffect(() => {
     // Sincronizar apenas se o valor no formData for diferente do valor numérico atual no input
@@ -336,9 +407,28 @@ export default function WorkOrderForm() {
       const currentSessions = prev.workSessions || [];
       const sessionDate = prev.scheduledDate ? new Date(prev.scheduledDate).toISOString() : new Date().toISOString();
       
+      let startISO = sessionDate;
+      let endISO = sessionDate;
+
+      if (manualStartTime && manualEndTime) {
+        const base = new Date(sessionDate);
+        const [sh, sm] = manualStartTime.split(':').map(Number);
+        const [eh, em] = manualEndTime.split(':').map(Number);
+        
+        const startDate = new Date(base);
+        startDate.setHours(sh, sm, 0, 0);
+        
+        const endDate = new Date(base);
+        endDate.setHours(eh, em, 0, 0);
+        if (endDate < startDate) endDate.setDate(endDate.getDate() + 1);
+        
+        startISO = startDate.toISOString();
+        endISO = endDate.toISOString();
+      }
+
       const newSession = {
-        startTime: sessionDate,
-        endTime: sessionDate,
+        startTime: startISO,
+        endTime: endISO,
         duration: duration,
         technicianIds: prev.technicianIds || []
       };
@@ -348,16 +438,31 @@ export default function WorkOrderForm() {
         sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
       const est = prev.laborHours || 0;
 
+      // Auto KM calculation for manual session
+      let additionalKm = 0;
+      const customer = customers.find(c => c.id === prev.customerId);
+      if (settings?.companyLocation && customer?.location) {
+        const dist = calculateDistance(settings.companyLocation, customer.location);
+        additionalKm = Number((dist * 2).toFixed(2));
+      }
+
+      const newKmTotal = Number(((prev.kmDriven || 0) + additionalKm).toFixed(2));
+      const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
+
       return {
         ...prev,
         workSessions: newSessions,
         totalWorkedHours: totalWorked,
-        remainingHours: Number((est - totalWorked).toFixed(2))
+        remainingHours: Number((est - totalWorked).toFixed(2)),
+        kmDriven: newKmTotal,
+        remainingKm: newKmRemaining
       };
     });
     
     setManualSessionDuration('');
-    toast.success(`Adicionadas ${duration}h para cada técnico selecionado.`);
+    setManualStartTime('');
+    setManualEndTime('');
+    toast.success(`Trabalho diário lançado: ${duration}h adicionadas.`);
   };
 
   const removeSession = (index: number) => {
@@ -368,12 +473,23 @@ export default function WorkOrderForm() {
       const totalWorked = Number(newSessions.reduce((sum, s) => 
         sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
       const est = prev.laborHours || 0;
+
+      // Re-calculate KM based on remaining sessions
+      let totalKm = 0;
+      const customer = customers.find(c => c.id === prev.customerId);
+      if (settings?.companyLocation && customer?.location) {
+        const dist = calculateDistance(settings.companyLocation, customer.location);
+        const sessionKm = Number((dist * 2).toFixed(2));
+        totalKm = Number((newSessions.length * sessionKm).toFixed(2));
+      }
       
       return {
         ...prev,
         workSessions: newSessions,
         totalWorkedHours: totalWorked,
-        remainingHours: Number((est - totalWorked).toFixed(2))
+        remainingHours: Number((est - totalWorked).toFixed(2)),
+        kmDriven: totalKm,
+        remainingKm: Number(((prev.estimatedKm || 0) - totalKm).toFixed(2))
       };
     });
   };
@@ -577,7 +693,7 @@ export default function WorkOrderForm() {
                   <Label>Cliente *</Label>
                   <Select 
                     value={formData.customerId || ''} 
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerId: e.target.value }))}
+                    onChange={(e) => handleCustomerChange(e.target.value)}
                     required
                   >
                     <option value="">Selecione o cliente</option>
@@ -600,15 +716,7 @@ export default function WorkOrderForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.5fr] gap-4">
-                <div className="space-y-2">
-                  <Label>KM Estimado</Label>
-                  <Input 
-                    type="number" 
-                    value={formData.kmDriven}
-                    onChange={(e) => setFormData(prev => ({ ...prev, kmDriven: Number(e.target.value) }))}
-                  />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Horas Estimadas</Label>
                   <Input 
@@ -621,77 +729,19 @@ export default function WorkOrderForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Adicionar Horas Trabalhadas (p/ técnico)</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      type="text" 
-                      inputMode="decimal"
-                      placeholder="Ex: 8.0"
-                      value={manualSessionDuration}
-                      onChange={(e) => setManualSessionDuration(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddManualSession();
-                        }
-                      }}
-                      className="flex-1 font-bold h-10"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleAddManualSession}
-                      className="bg-indigo-600 hover:bg-indigo-700 px-3 h-10"
-                    >
-                      Add
-                    </Button>
-                    {!formData.currentStartTime ? (
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="outline" 
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50 h-10"
-                        onClick={handleStartWork}
-                        title="Iniciar Trabalho do Dia"
-                      >
-                        <Play className="w-4 h-4 fill-current" />
-                      </Button>
-                    ) : (
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="outline" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse h-10"
-                        onClick={handleFinishWork}
-                        title="Finalizar Trabalho do Dia"
-                      >
-                        <Square className="w-4 h-4 fill-current" />
-                      </Button>
-                    )}
-                  </div>
-                  {formData.currentStartTime && (
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Sessão iniciada: {format(new Date(formData.currentStartTime), "HH:mm")}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Man-Hours</Label>
+                  <Label>KM Estimado</Label>
                   <Input 
                     type="number" 
-                    value={formData.totalWorkedHours || 0}
-                    readOnly
-                    className="bg-muted font-bold text-indigo-600"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Horas Restante</Label>
-                  <Input 
-                    type="number" 
-                    value={formData.remainingHours || 0}
-                    readOnly
-                    className={`bg-muted font-bold ${Number(formData.remainingHours) < 0 ? 'text-red-600' : 'text-green-600'}`}
+                    value={formData.estimatedKm || 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        estimatedKm: val,
+                        remainingKm: Number((val - (prev.kmDriven || 0)).toFixed(2))
+                      }));
+                    }}
+                    className="font-mono"
                   />
                 </div>
                 <div className="space-y-2">
@@ -704,6 +754,115 @@ export default function WorkOrderForm() {
                       value={formData.scheduledDate}
                       onChange={(e) => setFormData(prev => ({ ...prev, scheduledDate: e.target.value }))}
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Adicionar Horas Trabalhadas (p/ técnico)</Label>
+                <div className="flex flex-col gap-3 p-3 border rounded-lg bg-slate-50/50">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-slate-500">Início</Label>
+                      <Input 
+                        type="time" 
+                        value={manualStartTime}
+                        onChange={(e) => setManualStartTime(e.target.value)}
+                        className="h-9 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-slate-500">Fim</Label>
+                      <Input 
+                        type="time" 
+                        value={manualEndTime}
+                        onChange={(e) => setManualEndTime(e.target.value)}
+                        className="h-9 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-slate-500">Duração (h)</Label>
+                      <Input 
+                        type="text" 
+                        inputMode="decimal"
+                        placeholder="0.0"
+                        value={manualSessionDuration}
+                        onChange={(e) => setManualSessionDuration(e.target.value)}
+                        className="h-9 font-bold bg-white"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddManualSession();
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleAddManualSession}
+                      className="bg-indigo-600 hover:bg-indigo-700 h-9"
+                    >
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    {!formData.currentStartTime ? (
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        variant="outline" 
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 gap-2 flex-1 h-9"
+                        onClick={handleStartWork}
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        Iniciar Agora
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        variant="outline" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse gap-2 flex-1 h-9"
+                        onClick={handleFinishWork}
+                      >
+                        <Square className="w-3 h-3 fill-current" />
+                        Finalizar Agora
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {formData.currentStartTime && (
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
+                    <Clock className="w-3 h-3" />
+                    Sessão iniciada em tempo real: {format(new Date(formData.currentStartTime), "HH:mm")}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-100/50 rounded-xl border border-slate-200">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Real</Label>
+                  <div className="text-xl font-mono font-bold text-indigo-600">
+                    {formData.kmDriven || 0} <span className="text-xs text-slate-400">km</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
+                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingKm) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formData.remainingKm || 0} <span className="text-xs opacity-50">km</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Total Man-Hours</Label>
+                  <div className="text-xl font-mono font-bold text-indigo-600">
+                    {formData.totalWorkedHours || 0} <span className="text-xs text-slate-400">h</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Horas Restante</Label>
+                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingHours) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formData.remainingHours || 0} <span className="text-xs opacity-50">h</span>
                   </div>
                 </div>
               </div>

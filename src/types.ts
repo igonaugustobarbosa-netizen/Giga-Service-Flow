@@ -117,6 +117,7 @@ export interface Settings {
   companyName?: string;
   companyTaxId?: string;
   companyAddress?: string;
+  companyLocation?: ServiceLocation;
   contractClauses?: string;
   technicalReportDefaultMessage?: string;
   technicalReportDefaultProcedures?: string;
@@ -140,8 +141,10 @@ export interface WorkOrder {
   technicianIds: string[];
   technicianDetails?: TechnicianWork[];
   description: string;
-  kmDriven: number;
+  kmDriven: number; // This will be treated as Actual KM
   kmRate?: number;
+  estimatedKm?: number;
+  remainingKm?: number;
   laborHours: number; // This will be treated as Estimated Hours
   totalWorkedHours?: number;
   remainingHours?: number;

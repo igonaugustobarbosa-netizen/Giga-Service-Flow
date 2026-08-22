@@ -32,9 +32,21 @@ export const getCurrentLocation = (): Promise<ServiceLocation> => {
         }
       },
       (error) => {
-        reject(error);
+        let message = 'Erro desconhecido ao obter localização.';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = 'Permissão de geolocalização negada pelo usuário.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = 'Informações de localização indisponíveis.';
+            break;
+          case error.TIMEOUT:
+            message = 'Tempo esgotado ao tentar obter localização.';
+            break;
+        }
+        reject(new Error(message));
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });
 };

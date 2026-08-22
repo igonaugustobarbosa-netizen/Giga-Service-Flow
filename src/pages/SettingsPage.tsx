@@ -15,13 +15,17 @@ import {
   AlertCircle,
   Building2,
   FileSignature,
-  ClipboardList
+  ClipboardList,
+  MapPin,
+  Search as SearchIcon
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
 import { Textarea } from '../components/ui/Textarea';
 import { cn } from '../lib/utils';
 import { logActivity } from '../services/activityService';
+import { getCoordinatesFromAddress, getCurrentLocation } from '../services/locationService';
+import { toast } from 'sonner';
 
 import { useAuth } from '../components/AuthGuard';
 
@@ -73,6 +77,32 @@ export default function SettingsPage() {
     }
   };
 
+  const handleGetLocation = async () => {
+    try {
+      const location = await getCurrentLocation();
+      setSettings(prev => ({ ...prev, companyLocation: location }));
+      toast.success('Localização atual obtida com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao obter localização:', error);
+      toast.error(error.message || 'Erro ao obter localização atual.');
+    }
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!settings.companyAddress) {
+      toast.error('Preencha o endereço da empresa primeiro.');
+      return;
+    }
+    try {
+      const location = await getCoordinatesFromAddress(settings.companyAddress);
+      setSettings(prev => ({ ...prev, companyLocation: location }));
+      toast.success('Endereço geocodificado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao geocodificar:', error);
+      toast.error(error.message || 'Erro ao buscar coordenadas para este endereço.');
+    }
+  };
+
   if (loading) return <div>Carregando...</div>;
 
   return (
@@ -84,6 +114,102 @@ export default function SettingsPage() {
 
       <div className="max-w-2xl">
         <form onSubmit={handleSave} className="space-y-6">
+          <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                Dados da Empresa
+              </CardTitle>
+              <CardDescription>
+                Informações básicas e localização da sede.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Nome da Empresa</Label>
+                  <Input 
+                    id="companyName" 
+                    value={settings.companyName || ''} 
+                    onChange={e => setSettings({...settings, companyName: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="companyTaxId">CNPJ/CPF</Label>
+                  <Input 
+                    id="companyTaxId" 
+                    value={settings.companyTaxId || ''} 
+                    onChange={e => setSettings({...settings, companyTaxId: e.target.value})} 
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyAddress">Endereço da Sede</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="companyAddress" 
+                    value={settings.companyAddress || ''} 
+                    onChange={e => setSettings({...settings, companyAddress: e.target.value})} 
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={handleGeocodeAddress} title="Buscar coordenadas deste endereço">
+                    <SearchIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-3 border rounded-lg bg-white/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2 text-primary font-bold">
+                    <MapPin className="w-4 h-4" /> Coordenadas da Empresa
+                  </Label>
+                  <Button type="button" variant="ghost" size="sm" className="text-[10px] h-7" onClick={handleGetLocation}>
+                    Usar Minha Localização
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">Latitude</Label>
+                    <Input 
+                      type="number" 
+                      step="any"
+                      value={settings.companyLocation?.latitude || ''} 
+                      onChange={e => setSettings({
+                        ...settings, 
+                        companyLocation: { 
+                          ...(settings.companyLocation || { latitude: 0, longitude: 0 }), 
+                          latitude: Number(e.target.value) 
+                        }
+                      })}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">Longitude</Label>
+                    <Input 
+                      type="number" 
+                      step="any"
+                      value={settings.companyLocation?.longitude || ''} 
+                      onChange={e => setSettings({
+                        ...settings, 
+                        companyLocation: { 
+                          ...(settings.companyLocation || { latitude: 0, longitude: 0 }), 
+                          longitude: Number(e.target.value) 
+                        }
+                      })}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+                {!settings.companyLocation?.latitude && (
+                  <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    As coordenadas são necessárias para o cálculo automático de KM.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

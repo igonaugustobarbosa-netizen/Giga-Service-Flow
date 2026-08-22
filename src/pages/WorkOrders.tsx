@@ -30,7 +30,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { logActivity } from '../services/activityService';
 
 export default function WorkOrders() {
-  const { userData } = useAuth();
+  const { userData, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -66,11 +66,13 @@ export default function WorkOrders() {
       if (snap.exists()) setSettings(snap.data() as Settings);
     });
 
-    const q = query(
-      collection(db, 'workOrders'),
-      where('tenantId', '==', tenantId),
-      orderBy('createdAt', 'desc')
-    );
+    const q = isAdmin
+      ? query(collection(db, 'workOrders'), orderBy('createdAt', 'desc'))
+      : query(
+          collection(db, 'workOrders'),
+          where('tenantId', '==', tenantId),
+          orderBy('createdAt', 'desc')
+        );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setWorkOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder)));
@@ -80,10 +82,13 @@ export default function WorkOrders() {
       setLoading(false);
     });
 
-    const qCust = query(
-      collection(db, 'customers'),
-      where('tenantId', '==', tenantId)
-    );
+    const qCust = isAdmin
+      ? query(collection(db, 'customers'), orderBy('name', 'asc'))
+      : query(
+          collection(db, 'customers'),
+          where('tenantId', '==', tenantId),
+          orderBy('name', 'asc')
+        );
 
     const unsubscribeCust = onSnapshot(qCust, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
@@ -91,10 +96,13 @@ export default function WorkOrders() {
       console.error('Error loading customers:', error);
     });
 
-    const qTech = query(
-      collection(db, 'technicians'),
-      where('tenantId', '==', tenantId)
-    );
+    const qTech = isAdmin
+      ? query(collection(db, 'technicians'), orderBy('name', 'asc'))
+      : query(
+          collection(db, 'technicians'),
+          where('tenantId', '==', tenantId),
+          orderBy('name', 'asc')
+        );
 
     const unsubscribeTech = onSnapshot(qTech, (snapshot) => {
       setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
@@ -107,7 +115,7 @@ export default function WorkOrders() {
       unsubscribeCust();
       unsubscribeTech();
     };
-  }, [userData]);
+  }, [userData, isAdmin]);
 
   const handleDelete = async (id: string) => {
     try {
