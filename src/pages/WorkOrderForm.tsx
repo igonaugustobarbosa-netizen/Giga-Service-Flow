@@ -79,6 +79,27 @@ export default function WorkOrderForm() {
     supplierNameSnapshot: ''
   });
 
+  const calculateDisplacement = (customerId: string, supplierId?: string): number => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer?.location) return 0;
+
+    let originLocation = settings?.companyLocation;
+
+    if (supplierId) {
+      const supplier = suppliers.find(s => s.id === supplierId);
+      if (supplier?.location && supplier.location.latitude !== 0) {
+        originLocation = supplier.location;
+      }
+    }
+
+    if (originLocation && originLocation.latitude !== 0) {
+      const dist = calculateDistance(originLocation, customer.location);
+      return Number((dist * 2).toFixed(2));
+    }
+
+    return 0;
+  };
+
   const getWorkOrderNumberFromBudget = async (budgetOrderNumber: string, budgetId: string) => {
     if (!userData?.tenantId) return budgetOrderNumber;
     
@@ -182,10 +203,11 @@ export default function WorkOrderForm() {
               
               const supplier = suppliersData.find(s => s.id === budget.supplierId);
               let estKm = budget.kmDriven || 0;
-              const customer = customersData.find(c => c.id === budget.customerId);
-              if (settingsData?.companyLocation && customer?.location) {
-                const dist = calculateDistance(settingsData.companyLocation, customer.location);
-                estKm = Number((dist * 2).toFixed(2));
+              
+              // Use new calculation logic
+              const calculatedKm = calculateDisplacement(budget.customerId, budget.supplierId);
+              if (calculatedKm > 0) {
+                estKm = calculatedKm;
               }
 
               initialWOData = {
@@ -254,12 +276,7 @@ export default function WorkOrderForm() {
       const supplier = suppliers.find(s => s.id === budget.supplierId);
       const supplierName = supplier?.name || (budget as any).supplierNameSnapshot || '';
 
-      let estKm = budget.kmDriven || 0;
-      const customer = customers.find(c => c.id === budget.customerId);
-      if (settings?.companyLocation && customer?.location) {
-        const dist = calculateDistance(settings.companyLocation, customer.location);
-        estKm = Number((dist * 2).toFixed(2));
-      }
+      const estKm = calculateDisplacement(budget.customerId, budget.supplierId) || budget.kmDriven || 0;
 
       setFormData(prev => ({
         ...prev,
@@ -288,11 +305,7 @@ export default function WorkOrderForm() {
 
   const handleCustomerChange = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
-    let estKm = 0;
-    if (settings?.companyLocation && customer?.location) {
-      const dist = calculateDistance(settings.companyLocation, customer.location);
-      estKm = Number((dist * 2).toFixed(2));
-    }
+    const estKm = calculateDisplacement(customerId, formData.supplierId);
 
     setFormData(prev => ({
       ...prev,
@@ -353,12 +366,7 @@ export default function WorkOrderForm() {
     const remaining = Number((estimated - totalWorked).toFixed(2));
     
     // Auto KM calculation
-    let additionalKm = 0;
-    const customer = customers.find(c => c.id === formData.customerId);
-    if (settings?.companyLocation && customer?.location) {
-      const dist = calculateDistance(settings.companyLocation, customer.location);
-      additionalKm = Number((dist * 2).toFixed(2));
-    }
+    const additionalKm = calculateDisplacement(formData.customerId || '', formData.supplierId);
     
     const newKmTotal = Number(((formData.kmDriven || 0) + additionalKm).toFixed(2));
     const newKmRemaining = Number(((formData.estimatedKm || 0) - newKmTotal).toFixed(2));
@@ -477,12 +485,7 @@ export default function WorkOrderForm() {
       const est = prev.laborHours || 0;
 
       // Auto KM calculation for manual session
-      let additionalKm = 0;
-      const customer = customers.find(c => c.id === prev.customerId);
-      if (settings?.companyLocation && customer?.location) {
-        const dist = calculateDistance(settings.companyLocation, customer.location);
-        additionalKm = Number((dist * 2).toFixed(2));
-      }
+      const additionalKm = calculateDisplacement(prev.customerId || '', prev.supplierId);
 
       const newKmTotal = Number(((prev.kmDriven || 0) + additionalKm).toFixed(2));
       const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
@@ -514,13 +517,8 @@ export default function WorkOrderForm() {
       const est = prev.laborHours || 0;
 
       // Re-calculate KM based on remaining sessions
-      let totalKm = 0;
-      const customer = customers.find(c => c.id === prev.customerId);
-      if (settings?.companyLocation && customer?.location) {
-        const dist = calculateDistance(settings.companyLocation, customer.location);
-        const sessionKm = Number((dist * 2).toFixed(2));
-        totalKm = Number((newSessions.length * sessionKm).toFixed(2));
-      }
+      const sessionKm = calculateDisplacement(prev.customerId || '', prev.supplierId);
+      const totalKm = Number((newSessions.length * sessionKm).toFixed(2));
       
       return {
         ...prev,

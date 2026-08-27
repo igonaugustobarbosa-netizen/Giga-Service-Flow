@@ -63,6 +63,7 @@ export interface Supplier {
   pixKey?: string;
   paymentDetails?: string;
   signature?: string;
+  location?: ServiceLocation;
   tenantId: string;
 }
 

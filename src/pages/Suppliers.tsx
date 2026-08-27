@@ -27,6 +27,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 import { logActivity } from '../services/activityService';
+import { getCoordinatesFromAddress, getCurrentLocation } from '../services/locationService';
+import { toast } from 'sonner';
 
 export default function Suppliers() {
   const { userData, isAdmin } = useAuth();
@@ -61,7 +63,11 @@ export default function Suppliers() {
     taxId: '',
     pixKey: '',
     paymentDetails: '',
-    signature: ''
+    signature: '',
+    location: {
+      latitude: 0,
+      longitude: 0
+    }
   });
 
   useEffect(() => {
@@ -91,13 +97,50 @@ export default function Suppliers() {
         taxId: supplier.taxId || '',
         pixKey: supplier.pixKey || '',
         paymentDetails: supplier.paymentDetails || '',
-        signature: supplier.signature || ''
+        signature: supplier.signature || '',
+        location: supplier.location || { latitude: 0, longitude: 0 }
       });
     } else {
       setEditingSupplier(null);
-      setFormData({ name: '', email: '', phone: '', address: '', taxId: '', pixKey: '', paymentDetails: '', signature: '' });
+      setFormData({ 
+        name: '', 
+        email: '', 
+        phone: '', 
+        address: '', 
+        taxId: '', 
+        pixKey: '', 
+        paymentDetails: '', 
+        signature: '',
+        location: { latitude: 0, longitude: 0 }
+      });
     }
     setIsDialogOpen(true);
+  };
+
+  const handleGetLocation = async () => {
+    try {
+      const location = await getCurrentLocation();
+      setFormData(prev => ({ ...prev, location }));
+      toast.success('Localização atual obtida com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao obter localização:', error);
+      toast.error(error.message || 'Erro ao obter localização atual.');
+    }
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!formData.address) {
+      toast.error('Preencha o endereço primeiro.');
+      return;
+    }
+    try {
+      const location = await getCoordinatesFromAddress(formData.address);
+      setFormData(prev => ({ ...prev, location }));
+      toast.success('Endereço geocodificado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao geocodificar:', error);
+      toast.error(error.message || 'Erro ao buscar coordenadas para este endereço.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -335,11 +378,61 @@ export default function Suppliers() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">Endereço</Label>
-              <Input 
-                id="address" 
-                value={formData.address} 
-                onChange={e => setFormData({...formData, address: e.target.value})} 
-              />
+              <div className="flex gap-2">
+                <Input 
+                  id="address" 
+                  value={formData.address} 
+                  onChange={e => setFormData({...formData, address: e.target.value})} 
+                />
+                <Button type="button" variant="outline" size="icon" onClick={handleGeocodeAddress} title="Buscar coordenadas deste endereço">
+                  <Search className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-3 border rounded-lg bg-slate-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-primary font-bold text-[10px] uppercase">
+                  <MapPin className="w-3 h-3" /> Coordenadas (Usado p/ cálculo de KM)
+                </Label>
+                <Button type="button" variant="ghost" size="sm" className="text-[10px] h-7" onClick={handleGetLocation}>
+                  Usar Minha Localização
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground uppercase">Latitude</Label>
+                  <Input 
+                    type="number" 
+                    step="any"
+                    value={formData.location?.latitude || ''} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      location: { 
+                        ...(formData.location || { latitude: 0, longitude: 0 }), 
+                        latitude: Number(e.target.value) 
+                      }
+                    })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground uppercase">Longitude</Label>
+                  <Input 
+                    type="number" 
+                    step="any"
+                    value={formData.location?.longitude || ''} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      location: { 
+                        ...(formData.location || { latitude: 0, longitude: 0 }), 
+                        longitude: Number(e.target.value) 
+                      }
+                    })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
