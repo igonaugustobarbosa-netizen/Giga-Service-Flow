@@ -25,9 +25,11 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative z-50 w-full max-w-lg overflow-hidden rounded-xl border bg-background shadow-lg"
+            className="relative z-50 w-full max-w-lg rounded-xl border bg-background shadow-lg flex flex-col max-h-[95vh]"
           >
-            {children}
+            <div className="overflow-y-auto">
+              {children}
+            </div>
             <button
               onClick={() => onOpenChange(false)}
               className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"

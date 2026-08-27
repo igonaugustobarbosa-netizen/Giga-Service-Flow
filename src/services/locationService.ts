@@ -52,9 +52,39 @@ export const getCurrentLocation = (): Promise<ServiceLocation> => {
 };
 
 export const getCoordinatesFromAddress = async (address: string): Promise<ServiceLocation> => {
+  const fetchCoordinates = async (query: string) => {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+      {
+        headers: {
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+          'User-Agent': 'ServiceOrderApp/1.0'
+        }
+      }
+    );
+    return await response.json();
+  };
+
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
-    const data = await response.json();
+    // 1. Try full address
+    let data = await fetchCoordinates(address);
+    
+    // 2. If not found and contains commas, try stripping the first part (often a specific number or room)
+    if ((!data || data.length === 0) && address.includes(',')) {
+      const parts = address.split(',');
+      if (parts.length > 1) {
+        const fallbackAddress = parts.slice(1).join(',').trim();
+        data = await fetchCoordinates(fallbackAddress);
+      }
+    }
+
+    // 3. If still not found, try a very basic street/city search if formatted like "Street, City - State"
+    if ((!data || data.length === 0) && address.includes('-')) {
+      const parts = address.split('-');
+      if (parts.length > 0) {
+        data = await fetchCoordinates(parts[0].trim());
+      }
+    }
     
     if (data && data.length > 0) {
       return {
@@ -63,10 +93,13 @@ export const getCoordinatesFromAddress = async (address: string): Promise<Servic
         address: data[0].display_name
       };
     }
-    throw new Error('Endereço não encontrado');
+    throw new Error('Endereço não encontrado. Tente um formato mais simples (Rua, Cidade, Estado).');
   } catch (error) {
     console.error('Erro ao geocodificar endereço:', error);
-    throw error;
+    if (error instanceof Error && error.message.includes('Endereço não encontrado')) {
+      throw error;
+    }
+    throw new Error('Erro de conexão ao buscar endereço. Verifique sua internet.');
   }
 };
 

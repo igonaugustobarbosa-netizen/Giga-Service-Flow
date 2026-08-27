@@ -13,7 +13,8 @@ import {
   Square,
   FileText,
   Users,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -65,6 +66,7 @@ export default function WorkOrderForm() {
     estimatedKm: 0,
     kmDriven: 0,
     remainingKm: 0,
+    dailyKmOverride: 0,
     kmRate: 0,
     laborHours: 0,
     totalWorkedHours: 0,
@@ -202,14 +204,8 @@ export default function WorkOrderForm() {
               const nextNumberFromBudget = await getWorkOrderNumberFromBudget(budget.orderNumber, budget.id);
               
               const supplier = suppliersData.find(s => s.id === budget.supplierId);
-              let estKm = budget.kmDriven || 0;
+              const estKm = budget.kmDriven || calculateDisplacement(budget.customerId, budget.supplierId) || 0;
               
-              // Use new calculation logic
-              const calculatedKm = calculateDisplacement(budget.customerId, budget.supplierId);
-              if (calculatedKm > 0) {
-                estKm = calculatedKm;
-              }
-
               initialWOData = {
                 ...initialWOData,
                 workOrderNumber: nextNumberFromBudget,
@@ -267,6 +263,32 @@ export default function WorkOrderForm() {
     }
   }, [formData.budgetId, budgets.length, suppliers.length]); // Changed from userData to userData?.id to avoid unnecessary re-runs
 
+  useEffect(() => {
+    // Sincronizar KM se houver sessões (correção para OS antigas ou mudança no valor manual/deslocamento)
+    if (formData.workSessions?.length) {
+      const sessionKm = formData.dailyKmOverride && formData.dailyKmOverride > 0 
+        ? formData.dailyKmOverride 
+        : calculateDisplacement(formData.customerId || '', formData.supplierId);
+      
+      const totalKm = Number((formData.workSessions.length * sessionKm).toFixed(2));
+      
+      // Only update if the value is different to avoid infinite loops
+      if (formData.kmDriven !== totalKm) {
+        setFormData(prev => ({
+          ...prev,
+          kmDriven: totalKm,
+          remainingKm: Number(((prev.estimatedKm || 0) - totalKm).toFixed(2))
+        }));
+      }
+    } else if (formData.kmDriven !== 0) {
+      setFormData(prev => ({
+        ...prev,
+        kmDriven: 0,
+        remainingKm: prev.estimatedKm || 0
+      }));
+    }
+  }, [formData.workSessions?.length, formData.customerId, formData.supplierId, formData.dailyKmOverride, formData.estimatedKm]);
+
   const handleBudgetChange = async (budgetId: string) => {
     const budget = budgets.find(b => b.id === budgetId);
     if (budget) {
@@ -276,7 +298,7 @@ export default function WorkOrderForm() {
       const supplier = suppliers.find(s => s.id === budget.supplierId);
       const supplierName = supplier?.name || (budget as any).supplierNameSnapshot || '';
 
-      const estKm = calculateDisplacement(budget.customerId, budget.supplierId) || budget.kmDriven || 0;
+      const estKm = budget.kmDriven || calculateDisplacement(budget.customerId, budget.supplierId) || 0;
 
       setFormData(prev => ({
         ...prev,
@@ -365,10 +387,12 @@ export default function WorkOrderForm() {
     const estimated = formData.laborHours || 0;
     const remaining = Number((estimated - totalWorked).toFixed(2));
     
-    // Auto KM calculation
-    const additionalKm = calculateDisplacement(formData.customerId || '', formData.supplierId);
+    // Auto KM calculation - prioritizing override
+    const sessionKm = formData.dailyKmOverride && formData.dailyKmOverride > 0 
+      ? formData.dailyKmOverride 
+      : calculateDisplacement(formData.customerId || '', formData.supplierId);
     
-    const newKmTotal = Number(((formData.kmDriven || 0) + additionalKm).toFixed(2));
+    const newKmTotal = Number((newSessions.length * sessionKm).toFixed(2));
     const newKmRemaining = Number(((formData.estimatedKm || 0) - newKmTotal).toFixed(2));
 
     setFormData(prev => ({ 
@@ -381,8 +405,8 @@ export default function WorkOrderForm() {
       currentStartTime: null 
     }));
     
-    if (additionalKm > 0) {
-      toast.success(`Trabalho finalizado! +${diffHours}h e +${additionalKm}km registrados.`);
+    if (sessionKm > 0) {
+      toast.success(`Trabalho finalizado! +${diffHours}h e percurso de ${sessionKm}km registrado.`);
     } else {
       toast.success(`Trabalho finalizado! Adicionadas ${diffHours} horas.`);
     }
@@ -484,10 +508,12 @@ export default function WorkOrderForm() {
         sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
       const est = prev.laborHours || 0;
 
-      // Auto KM calculation for manual session
-      const additionalKm = calculateDisplacement(prev.customerId || '', prev.supplierId);
+      // Auto KM calculation for manual session - Based on total sessions count
+      const sessionKm = prev.dailyKmOverride && prev.dailyKmOverride > 0 
+        ? prev.dailyKmOverride 
+        : calculateDisplacement(prev.customerId || '', prev.supplierId);
 
-      const newKmTotal = Number(((prev.kmDriven || 0) + additionalKm).toFixed(2));
+      const newKmTotal = Number((newSessions.length * sessionKm).toFixed(2));
       const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
 
       return {
@@ -776,7 +802,7 @@ export default function WorkOrderForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>KM Estimado</Label>
+                  <Label>KM Real (Orc.)</Label>
                   <Input 
                     type="number" 
                     value={formData.estimatedKm || 0}
@@ -784,12 +810,14 @@ export default function WorkOrderForm() {
                       const val = Number(e.target.value);
                       setFormData(prev => ({ 
                         ...prev, 
-                        estimatedKm: val,
-                        remainingKm: Number((val - (prev.kmDriven || 0)).toFixed(2))
+                        estimatedKm: val
                       }));
                     }}
                     className="font-mono"
                   />
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Valor total contratado no orçamento.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Data Executada</Label>
@@ -802,6 +830,30 @@ export default function WorkOrderForm() {
                       onChange={(e) => setFormData(prev => ({ ...prev, scheduledDate: e.target.value }))}
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-indigo-500" /> KM por Sessão (Manual)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="number" 
+                      step="0.1"
+                      placeholder="Ex: 30"
+                      value={formData.dailyKmOverride || ''} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, dailyKmOverride: Number(e.target.value) }))}
+                      className="font-mono"
+                    />
+                    <div className="flex items-center px-3 bg-slate-100 rounded-md text-xs font-medium text-slate-500 border border-slate-200">
+                      km/dia
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Se preenchido, ignora o cálculo automático ({calculateDisplacement(formData.customerId || '', formData.supplierId)} km).
+                  </p>
                 </div>
               </div>
 
@@ -898,30 +950,42 @@ export default function WorkOrderForm() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-100/50 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 p-4 bg-slate-100/50 rounded-xl border border-slate-200">
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Real</Label>
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Real (Orc.)</Label>
                   <div className="text-xl font-mono font-bold text-indigo-600">
+                    {formData.estimatedKm || 0} <span className="text-xs text-slate-400">km</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Diário (Acum.)</Label>
+                  <div className="text-xl font-mono font-bold text-amber-600">
                     {formData.kmDriven || 0} <span className="text-xs text-slate-400">km</span>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
-                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingKm) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {formData.remainingKm || 0} <span className="text-xs opacity-50">km</span>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
+                    <div className={`text-xl font-mono font-bold ${((formData.estimatedKm || 0) - (formData.kmDriven || 0)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {Number(((formData.estimatedKm || 0) - (formData.kmDriven || 0)).toFixed(2))} <span className="text-xs opacity-50">km</span>
+                    </div>
+                    <p className="text-[8px] text-slate-400">
+                      (Real - Acum.)
+                    </p>
                   </div>
-                </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-slate-500">Total Man-Hours</Label>
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Total Horas</Label>
                   <div className="text-xl font-mono font-bold text-indigo-600">
                     {formData.totalWorkedHours || 0} <span className="text-xs text-slate-400">h</span>
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Horas Restante</Label>
-                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingHours) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {formData.remainingHours || 0} <span className="text-xs opacity-50">h</span>
+                  <div className={`text-xl font-mono font-bold ${((formData.laborHours || 0) - (formData.totalWorkedHours || 0)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {Number(((formData.laborHours || 0) - (formData.totalWorkedHours || 0)).toFixed(2))} <span className="text-xs opacity-50">h</span>
                   </div>
+                  <p className="text-[8px] text-slate-400">
+                    (Orc. - Total)
+                  </p>
                 </div>
               </div>
 

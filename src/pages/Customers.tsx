@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Customer } from '../types';
+import { Customer, ServiceLocation } from '../types';
+import { useAuth } from '../components/AuthGuard';
+import { logActivity } from '../services/activityService';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -21,11 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { handleFirestoreError, OperationType } from '../lib/utils';
-import { getCurrentLocation } from '../services/locationService';
-import { ServiceLocation } from '../types';
-import { useAuth } from '../components/AuthGuard';
-import { where } from 'firebase/firestore';
-import { logActivity } from '../services/activityService';
+import { getCoordinatesFromAddress, getCurrentLocation } from '../services/locationService';
+import { toast } from 'sonner';
 
 export default function Customers() {
   const { userData, isAdmin } = useAuth();
@@ -59,7 +58,10 @@ export default function Customers() {
     taxId: '',
     contactName: '',
     contactPhone: '',
-    location: null as ServiceLocation | null
+    location: {
+      latitude: 0,
+      longitude: 0
+    } as ServiceLocation
   });
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export default function Customers() {
         taxId: customer.taxId || '',
         contactName: customer.contactName || '',
         contactPhone: customer.contactPhone || '',
-        location: customer.location || null
+        location: customer.location || { latitude: 0, longitude: 0 }
       });
     } else {
       setEditingCustomer(null);
@@ -101,7 +103,7 @@ export default function Customers() {
         taxId: '', 
         contactName: '', 
         contactPhone: '', 
-        location: null 
+        location: { latitude: 0, longitude: 0 }
       });
     }
     setIsDialogOpen(true);
@@ -180,9 +182,25 @@ export default function Customers() {
         location,
         address: location.address || prev.address
       }));
-    } catch (error) {
+      toast.success('Localização atual obtida com sucesso!');
+    } catch (error: any) {
       console.error('Erro ao obter localização:', error);
-      alert('Não foi possível obter a localização atual.');
+      toast.error(error.message || 'Erro ao obter localização atual.');
+    }
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!formData.address) {
+      toast.error('Preencha o endereço primeiro.');
+      return;
+    }
+    try {
+      const location = await getCoordinatesFromAddress(formData.address);
+      setFormData(prev => ({ ...prev, location }));
+      toast.success('Endereço geocodificado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao geocodificar:', error);
+      toast.error(error.message || 'Erro ao buscar coordenadas para este endereço.');
     }
   };
 
@@ -308,7 +326,7 @@ export default function Customers() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingCustomer ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           </DialogHeader>
@@ -386,17 +404,63 @@ export default function Customers() {
                   type="button" 
                   variant="outline" 
                   size="icon" 
+                  onClick={handleGeocodeAddress}
+                  title="Buscar coordenadas deste endereço"
+                >
+                  <Search className="w-4 h-4" />
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="icon" 
                   onClick={handleGetLocation}
-                  title="Obter localização atual"
+                  title="Obter localização atual (GPS)"
                 >
                   <MapPin className="w-4 h-4" />
                 </Button>
               </div>
-              {formData.location && (
-                <p className="text-[10px] text-muted-foreground">
-                  Coordenadas: {formData.location.latitude.toFixed(6)}, {formData.location.longitude.toFixed(6)}
-                </p>
-              )}
+            </div>
+
+            <div className="p-3 border rounded-lg bg-slate-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-primary font-bold text-[10px] uppercase">
+                  <MapPin className="w-3 h-3" /> Coordenadas (Usado p/ cálculo de KM)
+                </Label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground uppercase">Latitude</Label>
+                  <Input 
+                    type="number" 
+                    step="any"
+                    value={formData.location?.latitude || ''} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      location: { 
+                        ...(formData.location || { latitude: 0, longitude: 0 }), 
+                        latitude: Number(e.target.value) 
+                      }
+                    })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground uppercase">Longitude</Label>
+                  <Input 
+                    type="number" 
+                    step="any"
+                    value={formData.location?.longitude || ''} 
+                    onChange={e => setFormData({
+                      ...formData, 
+                      location: { 
+                        ...(formData.location || { latitude: 0, longitude: 0 }), 
+                        longitude: Number(e.target.value) 
+                      }
+                    })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>

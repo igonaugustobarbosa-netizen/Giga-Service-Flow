@@ -153,6 +153,7 @@ export interface WorkOrder {
   laborHours: number; // This will be treated as Estimated Hours
   totalWorkedHours?: number;
   remainingHours?: number;
+  dailyKmOverride?: number;
   currentStartTime?: string | null;
   workSessions?: WorkSession[];
   status: WorkOrderStatus;
