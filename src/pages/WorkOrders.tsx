@@ -302,17 +302,34 @@ export default function WorkOrders() {
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t flex items-center justify-between">
-                    <div className="flex gap-4">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        KM: <span className="text-foreground">{wo.kmDriven}</span>
+                  <div className="pt-4 border-t space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">KM (Real / Acum. / Saldo)</p>
+                        <div className="flex items-center gap-2 font-mono text-xs">
+                          <span className="text-slate-500">{wo.estimatedKm || 0}</span>
+                          <span className="text-slate-300">/</span>
+                          <span className="text-amber-600 font-bold">{wo.kmDriven || 0}</span>
+                          <span className="text-slate-300">/</span>
+                          <span className={`font-bold ${((wo.estimatedKm || 0) - (wo.kmDriven || 0)) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {Number(((wo.estimatedKm || 0) - (wo.kmDriven || 0)).toFixed(2))}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Horas: <span className="text-indigo-600 font-bold">{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
+                      <div className="space-y-1 text-right">
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Horas (Total / Saldo)</p>
+                        <div className="flex items-center justify-end gap-2 font-mono text-xs text-indigo-600 font-bold">
+                          <span>{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
+                          <span className="text-slate-300">/</span>
+                          <span className={`${((wo.laborHours || 0) - (wo.totalWorkedHours || 0)) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {Number(((wo.laborHours || 0) - (wo.totalWorkedHours || 0)).toFixed(2))}h
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    
                     <Link to={`/work-orders/${wo.id}/edit`}>
-                      <Button variant="ghost" size="sm" className="gap-1.5 text-primary h-8 px-2 hover:bg-primary/5">
+                      <Button variant="ghost" size="sm" className="w-full gap-1.5 text-primary h-8 px-2 hover:bg-primary/5 border border-primary/10">
                         Ver Detalhes <ChevronRight className="w-3.5 h-3.5" />
                       </Button>
                     </Link>

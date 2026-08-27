@@ -140,6 +140,17 @@ export default function WorkOrderForm() {
         setCustomers(customersData);
         setTechnicians(techniciansData);
         setSuppliers(suppliersData);
+
+        // Auto-select current user if they are a technician and none selected
+        if (!id || id === 'new') {
+          const currentUserAsTech = techniciansData.find(t => t.email === userData.email);
+          if (currentUserAsTech) {
+            setFormData(prev => ({
+              ...prev,
+              technicianIds: prev.technicianIds?.length ? prev.technicianIds : [currentUserAsTech.id]
+            }));
+          }
+        }
         
         let settingsData: Settings | null = null;
         if (settingsSnap.exists()) {
@@ -157,9 +168,6 @@ export default function WorkOrderForm() {
           if (woSnap.exists()) {
             const data = woSnap.data() as WorkOrder;
             
-            const totalWorked = data.totalWorkedHours || 0;
-            const remaining = data.remainingHours ?? Number(((data.laborHours || 0) - totalWorked).toFixed(2));
-            
             const supplierFromList = suppliersData.find(s => s.id === data.supplierId);
             let supplierName = data.supplierNameSnapshot || supplierFromList?.name || '';
 
@@ -171,16 +179,27 @@ export default function WorkOrderForm() {
               }
             }
 
+            // Recalculate totals to ensure sync
+            const sessions = data.workSessions || [];
+            const totalWorked = Number(sessions.reduce((sum, s) => 
+              sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+            
+            const sessionKm = data.dailyKmOverride && data.dailyKmOverride > 0 
+              ? data.dailyKmOverride 
+              : calculateDisplacement(data.customerId || '', data.supplierId);
+            
+            const totalKm = Number((sessions.length * sessionKm).toFixed(2));
+
             setFormData({
               ...data,
               supplierNameSnapshot: supplierName,
               totalWorkedHours: totalWorked,
-              remainingHours: remaining,
+              remainingHours: Number(((data.laborHours || 0) - totalWorked).toFixed(2)),
               estimatedKm: data.estimatedKm || 0,
-              kmDriven: data.kmDriven || 0,
-              remainingKm: data.remainingKm || Number(((data.estimatedKm || 0) - (data.kmDriven || 0)).toFixed(2)),
+              kmDriven: totalKm,
+              remainingKm: Number(((data.estimatedKm || 0) - totalKm).toFixed(2)),
               currentStartTime: data.currentStartTime ?? null,
-              workSessions: data.workSessions || [],
+              workSessions: sessions,
               technicianIds: data.technicianIds || [],
               technicianDetails: data.technicianDetails || []
             });
@@ -915,6 +934,11 @@ export default function WorkOrderForm() {
                       Add
                     </Button>
                   </div>
+                  {(!formData.technicianIds || formData.technicianIds.length === 0) && (
+                    <p className="text-[10px] text-destructive font-bold animate-pulse">
+                      ⚠️ Selecione ao menos um técnico na lista abaixo para as horas serem contabilizadas!
+                    </p>
+                  )}
 
                   <div className="flex items-center gap-2 pt-2 border-t">
                     {!formData.currentStartTime ? (

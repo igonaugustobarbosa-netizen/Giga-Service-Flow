@@ -48,7 +48,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           
           if (userDoc.exists()) {
-            setUserData(userDoc.data() as User);
+            const currentData = userDoc.data() as User;
+            // Repair logic: if tenantId is the same as uid, it might be a corrupted profile from previous bug
+            if (currentData.tenantId === firebaseUser.uid && currentData.role !== 'admin') {
+              const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
+              const querySnapshot = await getDocs(q);
+              // Find a record that might have the correct tenantId (pre-registered by admin)
+              const correctDoc = querySnapshot.docs.find(d => d.id !== firebaseUser.uid && d.data().tenantId !== d.id);
+              if (correctDoc) {
+                const updatedData = { ...currentData, tenantId: correctDoc.data().tenantId };
+                // Using setDoc to update to avoid issues with missing fields
+                await setDoc(doc(db, 'users', firebaseUser.uid), updatedData);
+                setUserData(updatedData);
+              } else {
+                setUserData(currentData);
+              }
+            } else {
+              setUserData(currentData);
+            }
           } else {
             // 2. If not found by UID, try to find by email (admin pre-registered)
             const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
@@ -62,7 +79,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               const newUserData: User = {
                 ...preRegisteredData,
                 id: firebaseUser.uid,
-                tenantId: preRegisteredData.role === 'admin' ? 'global' : firebaseUser.uid,
+                tenantId: preRegisteredData.tenantId || (preRegisteredData.role === 'admin' ? 'global' : firebaseUser.uid),
                 name: firebaseUser.displayName || preRegisteredData.name || '',
                 updatedAt: new Date().toISOString()
               } as any;
