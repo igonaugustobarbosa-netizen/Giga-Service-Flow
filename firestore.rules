@@ -65,7 +65,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isAdmin() || 
+        (resource != null && resource.data.email == request.auth.token.email)
+      );
       allow create: if isAuthenticated() && (isAdmin() || request.resource.data.tenantId == getTenantId());
       allow update: if isAuthenticated() && (isAdmin() || (request.auth.uid == userId && request.resource.data.role == resource.data.role && request.resource.data.tenantId == resource.data.tenantId));
       allow delete: if isAdmin();

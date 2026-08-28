@@ -347,7 +347,7 @@ export default function WorkOrderForm() {
         remainingKm: prev.estimatedKm || 0
       }));
     }
-  }, [formData.workSessions?.length, formData.customerId, formData.supplierId, formData.dailyKmOverride, formData.estimatedKm, customers, suppliers]);
+  }, [formData.workSessions?.length, formData.customerId, formData.supplierId, formData.dailyKmOverride, formData.estimatedKm]);
 
   const handleBudgetChange = async (budgetId: string) => {
     const budget = budgets.find(b => b.id === budgetId);
