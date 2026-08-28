@@ -61,16 +61,10 @@ export default function WorkOrders() {
 
     const tenantId = userData.tenantId;
     
-    // Fetch Settings once
-    const fetchSettings = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'settings', tenantId));
-        if (snap.exists()) setSettings(snap.data() as Settings);
-      } catch (err) {
-        console.error('Error loading settings:', err);
-      }
-    };
-    fetchSettings();
+    // Fetch Settings
+    getDoc(doc(db, 'settings', tenantId)).then(snap => {
+      if (snap.exists()) setSettings(snap.data() as Settings);
+    });
 
     const q = isAdmin
       ? query(collection(db, 'workOrders'), orderBy('createdAt', 'desc'))

@@ -38,13 +38,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const authValue = React.useMemo(() => ({ 
-    user, 
-    userData, 
-    loading, 
-    isAdmin: userData?.role === 'admin' 
-  }), [user, userData, loading]);
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -326,7 +319,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={authValue}>
+    <AuthContext.Provider value={{ user, userData, loading, isAdmin: userData?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );
