@@ -56,28 +56,29 @@ export default function Dashboard() {
   const [isSearchingOS, setIsSearchingOS] = useState(false);
 
   const findLostOS = async () => {
+    if (!isAdmin) return;
     setIsSearchingOS(true);
     setOsTrackerResult([]);
+    const unsubscribers: (() => void)[] = [];
     try {
-      const collections = ['workOrders', 'serviceOrders'];
-      const results: any[] = [];
+      const collections = ['workOrders', 'serviceOrders', 'proposals'];
       
       for (const colName of collections) {
         const ref = collection(db, colName);
-        const q = query(ref); // No filter to find everything
-        const snap = await onSnapshot(q, (snapshot) => {
+        const q = query(ref);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
           const docs = snapshot.docs.map(doc => ({ 
             id: doc.id, 
             collection: colName,
             ...doc.data() 
           }));
           
-          const found = docs.filter((d: any) => 
-            (d.workOrderNumber?.includes('091')) || 
-            (d.orderNumber?.includes('091')) ||
-            (d.workOrderNumber?.includes('91')) || 
-            (d.orderNumber?.includes('91'))
-          );
+          const found = docs.filter((d: any) => {
+            const num = String(d.workOrderNumber || d.orderNumber || d.proposalNumber || '').toLowerCase();
+            const target = '091';
+            const targetAlt = '91';
+            return num.includes(target) || num.includes(targetAlt);
+          });
           
           if (found.length > 0) {
             setOsTrackerResult(prev => {
@@ -88,18 +89,30 @@ export default function Dashboard() {
               return combined;
             });
           }
+        }, (err) => {
+          console.error(`Tracker error in ${colName}:`, err);
         });
+        unsubscribers.push(unsubscribe);
       }
     } catch (err) {
       console.error('Tracker error:', err);
     } finally {
       setIsSearchingOS(false);
     }
+    return () => unsubscribers.forEach(unsub => unsub());
   };
 
   useEffect(() => {
-    findLostOS();
-  }, []);
+    let cleanup: (() => void) | undefined;
+    if (isAdmin) {
+      findLostOS().then(cb => {
+        if (typeof cb === 'function') cleanup = cb;
+      });
+    }
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [isAdmin]);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
@@ -329,23 +342,40 @@ export default function Dashboard() {
               {osTrackerResult.map((os) => (
                 <div key={os.id} className="p-3 bg-background rounded-lg border text-xs space-y-1">
                   <p><strong>ID:</strong> {os.id}</p>
-                  <p><strong>Número:</strong> {os.workOrderNumber || os.orderNumber}</p>
+                  <p><strong>Número:</strong> {os.workOrderNumber || os.orderNumber || os.proposalNumber}</p>
                   <p><strong>Coleção:</strong> {os.collection}</p>
-                  <p><strong>Empresa (Tenant):</strong> {os.tenantId}</p>
+                  <p><strong>Empresa (Tenant):</strong> {os.tenantId || 'Sem Empresa'}</p>
+                  <p><strong>Técnicos:</strong> {os.technicianIds?.join(', ') || 'Nenhum'}</p>
                   <p><strong>Status:</strong> {os.status}</p>
-                  <Button 
-                    size="sm" 
-                    className="mt-2 w-full h-7 text-[10px]"
-                    onClick={async () => {
-                      const { updateDoc, doc } = await import('firebase/firestore');
-                      await updateDoc(doc(db, os.collection, os.id), {
-                        tenantId: userData.tenantId
-                      });
-                      toast.success('Vínculo corrigido!');
-                    }}
-                  >
-                    Vincular a Giga Elétrica
-                  </Button>
+                  <div className="flex flex-col gap-1 mt-2">
+                    <Button 
+                      size="sm" 
+                      className="w-full h-7 text-[10px] bg-emerald-600 hover:bg-emerald-700"
+                      onClick={async () => {
+                        const { updateDoc, doc, arrayUnion } = await import('firebase/firestore');
+                        try {
+                          console.log('Linking OS:', os.id, 'to tenant:', userData.tenantId);
+                          const updates: any = {
+                            tenantId: userData.tenantId
+                          };
+                          
+                          // Add current user as technician if it's a work order
+                          if (os.collection === 'workOrders' || os.collection === 'serviceOrders') {
+                            updates.technicianIds = arrayUnion(userData.id);
+                          }
+
+                          await updateDoc(doc(db, os.collection, os.id), updates);
+                          toast.success('Vínculo e Atribuição concluídos com sucesso!');
+                          setTimeout(() => findLostOS(), 1000); // Refresh after delay
+                        } catch (err) {
+                          console.error('Link error:', err);
+                          toast.error('Erro técnico ao vincular OS');
+                        }
+                      }}
+                    >
+                      Forçar Vínculo e Me Atribuir
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

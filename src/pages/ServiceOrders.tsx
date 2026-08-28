@@ -105,15 +105,42 @@ export default function ServiceOrders() {
       ? query(ordersRef, orderBy('createdAt', 'desc'))
       : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('createdAt', 'desc'));
 
-    const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
-      setOrders(data);
+    const qAssigned = isAdmin ? null : query(
+      ordersRef,
+      where('technicianIds', 'array-contains', userData.id),
+      orderBy('createdAt', 'desc')
+    );
+
+    const handleSnapshot = (snapshot: any) => {
+      const docs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as ServiceOrder));
+      setOrders(prev => {
+        const combined = [...prev];
+        docs.forEach((newDoc: ServiceOrder) => {
+          if (!combined.find(d => d.id === newDoc.id)) {
+            combined.push(newDoc);
+          }
+        });
+        return combined.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+      });
       setLoading(false);
-    }, (error) => {
+    };
+
+    const unsubscribeOrders = onSnapshot(qOrders, handleSnapshot, (error) => {
       console.error('Erro ao carregar orçamentos:', error);
       setLoading(false);
-      toast.error('Erro ao carregar lista de orçamentos. Verifique as permissões.');
+      toast.error('Erro ao carregar lista de orçamentos.');
     });
+
+    let unsubscribeAssigned: () => void = () => {};
+    if (qAssigned) {
+      unsubscribeAssigned = onSnapshot(qAssigned, handleSnapshot, (error) => {
+        console.error('Error loading assigned orders:', error);
+      });
+    }
 
     const qCustomers = isAdmin
       ? query(customersRef)
@@ -139,6 +166,7 @@ export default function ServiceOrders() {
 
     return () => {
       unsubscribeOrders();
+      unsubscribeAssigned();
       unsubscribeCustomers();
       unsubscribeSuppliers();
     };
