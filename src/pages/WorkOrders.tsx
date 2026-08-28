@@ -21,7 +21,8 @@ import { Badge } from '../components/ui/Badge';
 import { collection, query, where, orderBy, onSnapshot, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthGuard';
-import { WorkOrder, WorkOrderStatus, Customer, Technician, Settings } from '../types';
+import { calculateDistance } from '../services/locationService';
+import { WorkOrder, WorkOrderStatus, Customer, Technician, Settings, Supplier } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -35,6 +36,7 @@ export default function WorkOrders() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -56,6 +58,27 @@ export default function WorkOrders() {
     workOrder: null
   });
 
+  const calculateDisplacement = (customerId: string, supplierId?: string): number => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer?.location) return 0;
+
+    let originLocation = settings?.companyLocation;
+
+    if (supplierId) {
+      const supplier = suppliers.find(s => s.id === supplierId);
+      if (supplier?.location && supplier.location.latitude !== 0) {
+        originLocation = supplier.location;
+      }
+    }
+
+    if (originLocation && originLocation.latitude !== 0) {
+      const dist = calculateDistance(originLocation, customer.location);
+      return Number((dist * 2).toFixed(2));
+    }
+
+    return 0;
+  };
+
   useEffect(() => {
     if (!userData?.tenantId) return;
 
@@ -70,7 +93,7 @@ export default function WorkOrders() {
       ? query(collection(db, 'workOrders'), orderBy('createdAt', 'desc'))
       : query(
           collection(db, 'workOrders'),
-          where('tenantId', '==', tenantId),
+          where('tenantId', 'in', [tenantId, userData.id]),
           orderBy('createdAt', 'desc')
         );
 
@@ -79,7 +102,34 @@ export default function WorkOrders() {
       setLoading(false);
     }, (error) => {
       console.error('Error loading work orders:', error);
-      setLoading(false);
+      // Fallback if 'in' query fails due to missing index
+      if (error instanceof Error && error.message.includes('index')) {
+        const qFallback = query(
+          collection(db, 'workOrders'),
+          where('tenantId', '==', tenantId),
+          orderBy('createdAt', 'desc')
+        );
+        onSnapshot(qFallback, (snapshot) => {
+          setWorkOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder)));
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const qSuppliers = isAdmin
+      ? query(collection(db, 'suppliers'), orderBy('name', 'asc'))
+      : query(
+          collection(db, 'suppliers'),
+          where('tenantId', 'in', [tenantId, userData.id]),
+          orderBy('name', 'asc')
+        );
+
+    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
+      setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+    }, (error) => {
+      console.error('Error loading suppliers:', error);
     });
 
     const qCust = isAdmin
@@ -114,6 +164,7 @@ export default function WorkOrders() {
       unsubscribe();
       unsubscribeCust();
       unsubscribeTech();
+      unsubscribeSuppliers();
     };
   }, [userData, isAdmin]);
 
@@ -246,6 +297,20 @@ export default function WorkOrders() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrders.map((wo) => {
             const customer = customers.find(c => c.id === wo.customerId);
+            
+            // Recalculate totals on the fly to ensure they are always correct in the list
+            const sessions = wo.workSessions || [];
+            const totalWorked = Number(sessions.reduce((sum, s) => 
+              sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+            
+            const sessionKm = wo.dailyKmOverride && wo.dailyKmOverride > 0 
+              ? wo.dailyKmOverride 
+              : calculateDisplacement(wo.customerId || '', wo.supplierId);
+            
+            const totalKm = Number((sessions.length * sessionKm).toFixed(2));
+            const remainingKm = Number(((wo.estimatedKm || 0) - totalKm).toFixed(2));
+            const remainingHours = Number(((wo.laborHours || 0) - totalWorked).toFixed(2));
+
             return (
               <Card key={wo.id} className="group border-none shadow-sm hover:shadow-md transition-all">
                 <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
@@ -309,20 +374,20 @@ export default function WorkOrders() {
                         <div className="flex items-center gap-2 font-mono text-xs">
                           <span className="text-slate-500">{wo.estimatedKm || 0}</span>
                           <span className="text-slate-300">/</span>
-                          <span className="text-amber-600 font-bold">{wo.kmDriven || 0}</span>
+                          <span className="text-amber-600 font-bold">{totalKm}</span>
                           <span className="text-slate-300">/</span>
-                          <span className={`font-bold ${((wo.estimatedKm || 0) - (wo.kmDriven || 0)) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {Number(((wo.estimatedKm || 0) - (wo.kmDriven || 0)).toFixed(2))}
+                          <span className={`font-bold ${remainingKm < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {remainingKm}
                           </span>
                         </div>
                       </div>
                       <div className="space-y-1 text-right">
                         <p className="text-[10px] text-muted-foreground font-bold uppercase">Horas (Total / Saldo)</p>
                         <div className="flex items-center justify-end gap-2 font-mono text-xs text-indigo-600 font-bold">
-                          <span>{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
+                          <span>{totalWorked.toFixed(2)}h</span>
                           <span className="text-slate-300">/</span>
-                          <span className={`${((wo.laborHours || 0) - (wo.totalWorkedHours || 0)) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {Number(((wo.laborHours || 0) - (wo.totalWorkedHours || 0)).toFixed(2))}h
+                          <span className={`${remainingHours < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {remainingHours}h
                           </span>
                         </div>
                       </div>
