@@ -68,6 +68,33 @@ export default function ServiceOrders() {
   });
 
   useEffect(() => {
+    if (!userData || !searchTerm || searchTerm.length < 2) return;
+
+    const variations = [searchTerm.trim(), searchTerm.trim().replace(/^0+/, '')];
+    const qGlobal = query(
+      collection(db, 'serviceOrders'),
+      where('orderNumber', 'in', variations)
+    );
+
+    const unsubscribeGlobal = onSnapshot(qGlobal, (snapshot) => {
+      const globalDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
+      if (globalDocs.length > 0) {
+        setOrders(prev => {
+          const combined = [...prev];
+          globalDocs.forEach(newDoc => {
+            if (!combined.find(d => d.id === newDoc.id)) {
+              combined.push(newDoc);
+            }
+          });
+          return combined;
+        });
+      }
+    });
+
+    return () => unsubscribeGlobal();
+  }, [userData, searchTerm]);
+
+  useEffect(() => {
     if (!userData) return;
 
     const ordersRef = collection(db, 'serviceOrders');

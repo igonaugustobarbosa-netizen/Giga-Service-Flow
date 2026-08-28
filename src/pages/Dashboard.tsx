@@ -29,6 +29,7 @@ import { Badge } from '../components/ui/Badge';
 import { cn, parseDateSafely } from '../lib/utils';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
+import { toast } from 'sonner';
 import { 
   BarChart, 
   Bar, 
@@ -51,6 +52,54 @@ export default function Dashboard() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [osTrackerResult, setOsTrackerResult] = useState<any[]>([]);
+  const [isSearchingOS, setIsSearchingOS] = useState(false);
+
+  const findLostOS = async () => {
+    setIsSearchingOS(true);
+    setOsTrackerResult([]);
+    try {
+      const collections = ['workOrders', 'serviceOrders'];
+      const results: any[] = [];
+      
+      for (const colName of collections) {
+        const ref = collection(db, colName);
+        const q = query(ref); // No filter to find everything
+        const snap = await onSnapshot(q, (snapshot) => {
+          const docs = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            collection: colName,
+            ...doc.data() 
+          }));
+          
+          const found = docs.filter((d: any) => 
+            (d.workOrderNumber?.includes('091')) || 
+            (d.orderNumber?.includes('091')) ||
+            (d.workOrderNumber?.includes('91')) || 
+            (d.orderNumber?.includes('91'))
+          );
+          
+          if (found.length > 0) {
+            setOsTrackerResult(prev => {
+              const combined = [...prev];
+              found.forEach(f => {
+                if (!combined.find(c => c.id === f.id)) combined.push(f);
+              });
+              return combined;
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Tracker error:', err);
+    } finally {
+      setIsSearchingOS(false);
+    }
+  };
+
+  useEffect(() => {
+    findLostOS();
+  }, []);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
@@ -266,6 +315,43 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {osTrackerResult.length > 0 && (
+        <Card className="border-2 border-primary bg-primary/5 animate-pulse">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Rastreador de OS: 091 Encontrada!
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {osTrackerResult.map((os) => (
+                <div key={os.id} className="p-3 bg-background rounded-lg border text-xs space-y-1">
+                  <p><strong>ID:</strong> {os.id}</p>
+                  <p><strong>Número:</strong> {os.workOrderNumber || os.orderNumber}</p>
+                  <p><strong>Coleção:</strong> {os.collection}</p>
+                  <p><strong>Empresa (Tenant):</strong> {os.tenantId}</p>
+                  <p><strong>Status:</strong> {os.status}</p>
+                  <Button 
+                    size="sm" 
+                    className="mt-2 w-full h-7 text-[10px]"
+                    onClick={async () => {
+                      const { updateDoc, doc } = await import('firebase/firestore');
+                      await updateDoc(doc(db, os.collection, os.id), {
+                        tenantId: userData.tenantId
+                      });
+                      toast.success('Vínculo corrigido!');
+                    }}
+                  >
+                    Vincular a Giga Elétrica
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         {stats.map((stat, i) => {

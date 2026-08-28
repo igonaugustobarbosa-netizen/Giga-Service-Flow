@@ -83,10 +83,13 @@ export default function WorkOrders() {
     if (!userData?.tenantId || !searchTerm) return;
 
     // Global search for specific OS numbers if search term looks like one (e.g. 091/1)
-    if (searchTerm.includes('/') || searchTerm.length >= 3) {
+    if (searchTerm.includes('/') || searchTerm.length >= 2) {
+      const cleanTerm = searchTerm.trim();
+      const variations = [cleanTerm, cleanTerm.replace(/^0+/, '')];
+
       const qGlobal = query(
         collection(db, 'workOrders'),
-        where('workOrderNumber', '==', searchTerm.trim())
+        where('workOrderNumber', 'in', variations)
       );
       
       const unsubscribeGlobal = onSnapshot(qGlobal, (snapshot) => {
