@@ -80,6 +80,35 @@ export default function WorkOrders() {
   };
 
   useEffect(() => {
+    if (!userData?.tenantId || !searchTerm) return;
+
+    // Global search for specific OS numbers if search term looks like one (e.g. 091/1)
+    if (searchTerm.includes('/') || searchTerm.length >= 3) {
+      const qGlobal = query(
+        collection(db, 'workOrders'),
+        where('workOrderNumber', '==', searchTerm.trim())
+      );
+      
+      const unsubscribeGlobal = onSnapshot(qGlobal, (snapshot) => {
+        const globalDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder));
+        if (globalDocs.length > 0) {
+          setWorkOrders(prev => {
+            const combined = [...prev];
+            globalDocs.forEach(newDoc => {
+              if (!combined.find(d => d.id === newDoc.id)) {
+                combined.push(newDoc);
+              }
+            });
+            return combined;
+          });
+        }
+      });
+      
+      return () => unsubscribeGlobal();
+    }
+  }, [userData, searchTerm]);
+
+  useEffect(() => {
     if (!userData?.tenantId) return;
 
     const tenantId = userData.tenantId;
@@ -97,10 +126,32 @@ export default function WorkOrders() {
           orderBy('createdAt', 'desc')
         );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setWorkOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder)));
+    // Secondary query for technicians to see OSs assigned to them specifically
+    const qAssigned = isAdmin ? null : query(
+      collection(db, 'workOrders'),
+      where('technicianIds', 'array-contains', userData.id),
+      orderBy('createdAt', 'desc')
+    );
+
+    const handleSnapshot = (snapshot: any) => {
+      const docs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as WorkOrder));
+      setWorkOrders(prev => {
+        const combined = [...prev];
+        docs.forEach((newDoc: WorkOrder) => {
+          if (!combined.find(d => d.id === newDoc.id)) {
+            combined.push(newDoc);
+          }
+        });
+        return combined.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+      });
       setLoading(false);
-    }, (error) => {
+    };
+
+    const unsubscribe = onSnapshot(q, handleSnapshot, (error) => {
       console.error('Error loading work orders:', error);
       // Fallback if 'in' query fails due to missing index
       if (error instanceof Error && error.message.includes('index')) {
@@ -109,14 +160,18 @@ export default function WorkOrders() {
           where('tenantId', '==', tenantId),
           orderBy('createdAt', 'desc')
         );
-        onSnapshot(qFallback, (snapshot) => {
-          setWorkOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder)));
-          setLoading(false);
-        });
+        onSnapshot(qFallback, handleSnapshot);
       } else {
         setLoading(false);
       }
     });
+
+    let unsubscribeAssigned: () => void = () => {};
+    if (qAssigned) {
+      unsubscribeAssigned = onSnapshot(qAssigned, handleSnapshot, (error) => {
+        console.error('Error loading assigned work orders:', error);
+      });
+    }
 
     const qSuppliers = isAdmin
       ? query(collection(db, 'suppliers'), orderBy('name', 'asc'))
@@ -150,7 +205,7 @@ export default function WorkOrders() {
       ? query(collection(db, 'technicians'), orderBy('name', 'asc'))
       : query(
           collection(db, 'technicians'),
-          where('tenantId', '==', tenantId),
+          where('tenantId', 'in', [tenantId, userData.id]),
           orderBy('name', 'asc')
         );
 
@@ -162,6 +217,7 @@ export default function WorkOrders() {
 
     return () => {
       unsubscribe();
+      unsubscribeAssigned();
       unsubscribeCust();
       unsubscribeTech();
       unsubscribeSuppliers();

@@ -76,7 +76,7 @@ export default function ServiceOrders() {
 
     const qOrders = isAdmin
       ? query(ordersRef, orderBy('createdAt', 'desc'))
-      : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'));
+      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('createdAt', 'desc'));
 
     const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));

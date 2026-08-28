@@ -70,7 +70,7 @@ export default function Customers() {
     const customersRef = collection(db, 'customers');
     const q = isAdmin
       ? query(customersRef, orderBy('name', 'asc'))
-      : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name', 'asc'));
+      : query(customersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('name', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));

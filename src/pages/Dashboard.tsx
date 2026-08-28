@@ -68,7 +68,7 @@ export default function Dashboard() {
     // Query for recent orders (limit 10)
     const qRecent = isAdmin 
       ? query(ordersRef, orderBy('createdAt', 'desc'), limit(10))
-      : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'), limit(10));
+      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('createdAt', 'desc'), limit(10));
 
     const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
@@ -82,7 +82,7 @@ export default function Dashboard() {
     // Query for all orders (for stats)
     const qAll = isAdmin
       ? query(ordersRef)
-      : query(ordersRef, where('tenantId', '==', userData.tenantId));
+      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]));
 
     const unsubscribeAll = onSnapshot(qAll, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
