@@ -15,7 +15,7 @@ export interface User {
   password?: string;
   role: 'admin' | 'user';
   tenantId: string;
-  createdAt: any;
+  createdAt: string;
 }
 
 export interface Customer {
@@ -29,8 +29,6 @@ export interface Customer {
   contactPhone?: string;
   location?: ServiceLocation;
   tenantId: string;
-  createdAt?: any;
-  updatedAt?: any;
 }
 
 export interface Technician {
@@ -44,8 +42,6 @@ export interface Technician {
   location?: ServiceLocation;
   signature?: string;
   tenantId: string;
-  createdAt?: any;
-  updatedAt?: any;
 }
 
 export interface TechnicianWork {
@@ -69,8 +65,6 @@ export interface Supplier {
   signature?: string;
   location?: ServiceLocation;
   tenantId: string;
-  createdAt?: any;
-  updatedAt?: any;
 }
 
 export interface Part {
@@ -104,8 +98,8 @@ export interface ServiceOrder {
   discountPercent?: number;
   discountValue?: number;
   executionDate?: string;
-  createdAt: any;
-  updatedAt: any;
+  createdAt: string;
+  updatedAt: string;
   tenantId: string;
   // Snapshots for contract generation
   companyNameSnapshot?: string;
@@ -164,8 +158,8 @@ export interface WorkOrder {
   workSessions?: WorkSession[];
   status: WorkOrderStatus;
   scheduledDate: string;
-  createdAt: any;
-  updatedAt: any;
+  createdAt: string;
+  updatedAt: string;
   tenantId: string;
 }
 
@@ -177,6 +171,6 @@ export interface Activity {
   entityName: string;
   userId: string;
   userName: string;
-  timestamp: any;
+  timestamp: string;
   tenantId: string;
 }

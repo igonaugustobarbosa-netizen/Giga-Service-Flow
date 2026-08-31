@@ -22,14 +22,13 @@ import {
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
 import { cn, parseDateSafely } from '../lib/utils';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
-import { toast } from 'sonner';
 import { 
   BarChart, 
   Bar, 
@@ -69,7 +68,7 @@ export default function Dashboard() {
     // Query for recent orders (limit 10)
     const qRecent = isAdmin 
       ? query(ordersRef, orderBy('createdAt', 'desc'), limit(10))
-      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('createdAt', 'desc'), limit(10));
+      : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'), limit(10));
 
     const unsubscribeRecent = onSnapshot(qRecent, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
@@ -83,7 +82,7 @@ export default function Dashboard() {
     // Query for all orders (for stats)
     const qAll = isAdmin
       ? query(ordersRef)
-      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]));
+      : query(ordersRef, where('tenantId', '==', userData.tenantId));
 
     const unsubscribeAll = onSnapshot(qAll, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));

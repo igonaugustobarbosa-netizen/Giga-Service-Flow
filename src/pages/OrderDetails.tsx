@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -259,7 +259,7 @@ export default function OrderDetails() {
     try {
       await updateDoc(doc(db, 'serviceOrders', id), {
         status,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       });
 
       if (order && userData) {

@@ -21,8 +21,7 @@ import { Badge } from '../components/ui/Badge';
 import { collection, query, where, orderBy, onSnapshot, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthGuard';
-import { calculateDistance } from '../services/locationService';
-import { WorkOrder, WorkOrderStatus, Customer, Technician, Settings, Supplier } from '../types';
+import { WorkOrder, WorkOrderStatus, Customer, Technician, Settings } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -36,7 +35,6 @@ export default function WorkOrders() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -58,59 +56,6 @@ export default function WorkOrders() {
     workOrder: null
   });
 
-  const calculateDisplacement = (customerId: string, supplierId?: string): number => {
-    const customer = customers.find(c => c.id === customerId);
-    if (!customer?.location) return 0;
-
-    let originLocation = settings?.companyLocation;
-
-    if (supplierId) {
-      const supplier = suppliers.find(s => s.id === supplierId);
-      if (supplier?.location && supplier.location.latitude !== 0) {
-        originLocation = supplier.location;
-      }
-    }
-
-    if (originLocation && originLocation.latitude !== 0) {
-      const dist = calculateDistance(originLocation, customer.location);
-      return Number((dist * 2).toFixed(2));
-    }
-
-    return 0;
-  };
-
-  useEffect(() => {
-    if (!userData?.tenantId || !searchTerm) return;
-
-    // Global search for specific OS numbers if search term looks like one (e.g. 091/1)
-    if (searchTerm.includes('/') || searchTerm.length >= 2) {
-      const cleanTerm = searchTerm.trim();
-      const variations = [cleanTerm, cleanTerm.replace(/^0+/, '')];
-
-      const qGlobal = query(
-        collection(db, 'workOrders'),
-        where('workOrderNumber', 'in', variations)
-      );
-      
-      const unsubscribeGlobal = onSnapshot(qGlobal, (snapshot) => {
-        const globalDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder));
-        if (globalDocs.length > 0) {
-          setWorkOrders(prev => {
-            const combined = [...prev];
-            globalDocs.forEach(newDoc => {
-              if (!combined.find(d => d.id === newDoc.id)) {
-                combined.push(newDoc);
-              }
-            });
-            return combined;
-          });
-        }
-      });
-      
-      return () => unsubscribeGlobal();
-    }
-  }, [userData, searchTerm]);
-
   useEffect(() => {
     if (!userData?.tenantId) return;
 
@@ -125,69 +70,16 @@ export default function WorkOrders() {
       ? query(collection(db, 'workOrders'), orderBy('createdAt', 'desc'))
       : query(
           collection(db, 'workOrders'),
-          where('tenantId', 'in', [tenantId, userData.id]),
-          orderBy('createdAt', 'desc')
-        );
-
-    // Secondary query for technicians to see OSs assigned to them specifically
-    const qAssigned = isAdmin ? null : query(
-      collection(db, 'workOrders'),
-      where('technicianIds', 'array-contains', userData.id),
-      orderBy('createdAt', 'desc')
-    );
-
-    const handleSnapshot = (snapshot: any) => {
-      const docs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as WorkOrder));
-      setWorkOrders(prev => {
-        const combined = [...prev];
-        docs.forEach((newDoc: WorkOrder) => {
-          if (!combined.find(d => d.id === newDoc.id)) {
-            combined.push(newDoc);
-          }
-        });
-        return combined.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA;
-        });
-      });
-      setLoading(false);
-    };
-
-    const unsubscribe = onSnapshot(q, handleSnapshot, (error) => {
-      console.error('Error loading work orders:', error);
-      // Fallback if 'in' query fails due to missing index
-      if (error instanceof Error && error.message.includes('index')) {
-        const qFallback = query(
-          collection(db, 'workOrders'),
           where('tenantId', '==', tenantId),
           orderBy('createdAt', 'desc')
         );
-        onSnapshot(qFallback, handleSnapshot);
-      } else {
-        setLoading(false);
-      }
-    });
 
-    let unsubscribeAssigned: () => void = () => {};
-    if (qAssigned) {
-      unsubscribeAssigned = onSnapshot(qAssigned, handleSnapshot, (error) => {
-        console.error('Error loading assigned work orders:', error);
-      });
-    }
-
-    const qSuppliers = isAdmin
-      ? query(collection(db, 'suppliers'), orderBy('name', 'asc'))
-      : query(
-          collection(db, 'suppliers'),
-          where('tenantId', 'in', [tenantId, userData.id]),
-          orderBy('name', 'asc')
-        );
-
-    const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
-      setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setWorkOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder)));
+      setLoading(false);
     }, (error) => {
-      console.error('Error loading suppliers:', error);
+      console.error('Error loading work orders:', error);
+      setLoading(false);
     });
 
     const qCust = isAdmin
@@ -208,7 +100,7 @@ export default function WorkOrders() {
       ? query(collection(db, 'technicians'), orderBy('name', 'asc'))
       : query(
           collection(db, 'technicians'),
-          where('tenantId', 'in', [tenantId, userData.id]),
+          where('tenantId', '==', tenantId),
           orderBy('name', 'asc')
         );
 
@@ -220,10 +112,8 @@ export default function WorkOrders() {
 
     return () => {
       unsubscribe();
-      unsubscribeAssigned();
       unsubscribeCust();
       unsubscribeTech();
-      unsubscribeSuppliers();
     };
   }, [userData, isAdmin]);
 
@@ -356,20 +246,6 @@ export default function WorkOrders() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrders.map((wo) => {
             const customer = customers.find(c => c.id === wo.customerId);
-            
-            // Recalculate totals on the fly to ensure they are always correct in the list
-            const sessions = wo.workSessions || [];
-            const totalWorked = Number(sessions.reduce((sum, s) => 
-              sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-            
-            const sessionKm = wo.dailyKmOverride && wo.dailyKmOverride > 0 
-              ? wo.dailyKmOverride 
-              : calculateDisplacement(wo.customerId || '', wo.supplierId);
-            
-            const totalKm = Number((sessions.length * sessionKm).toFixed(2));
-            const remainingKm = Number(((wo.estimatedKm || 0) - totalKm).toFixed(2));
-            const remainingHours = Number(((wo.laborHours || 0) - totalWorked).toFixed(2));
-
             return (
               <Card key={wo.id} className="group border-none shadow-sm hover:shadow-md transition-all">
                 <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
@@ -426,34 +302,17 @@ export default function WorkOrders() {
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">KM (Real / Acum. / Saldo)</p>
-                        <div className="flex items-center gap-2 font-mono text-xs">
-                          <span className="text-slate-500">{wo.estimatedKm || 0}</span>
-                          <span className="text-slate-300">/</span>
-                          <span className="text-amber-600 font-bold">{totalKm}</span>
-                          <span className="text-slate-300">/</span>
-                          <span className={`font-bold ${remainingKm < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {remainingKm}
-                          </span>
-                        </div>
+                  <div className="pt-4 border-t flex items-center justify-between">
+                    <div className="flex gap-4">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        KM: <span className="text-foreground">{wo.kmDriven}</span>
                       </div>
-                      <div className="space-y-1 text-right">
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Horas (Total / Saldo)</p>
-                        <div className="flex items-center justify-end gap-2 font-mono text-xs text-indigo-600 font-bold">
-                          <span>{totalWorked.toFixed(2)}h</span>
-                          <span className="text-slate-300">/</span>
-                          <span className={`${remainingHours < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {remainingHours}h
-                          </span>
-                        </div>
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Horas: <span className="text-indigo-600 font-bold">{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
                       </div>
                     </div>
-                    
                     <Link to={`/work-orders/${wo.id}/edit`}>
-                      <Button variant="ghost" size="sm" className="w-full gap-1.5 text-primary h-8 px-2 hover:bg-primary/5 border border-primary/10">
+                      <Button variant="ghost" size="sm" className="gap-1.5 text-primary h-8 px-2 hover:bg-primary/5">
                         Ver Detalhes <ChevronRight className="w-3.5 h-3.5" />
                       </Button>
                     </Link>

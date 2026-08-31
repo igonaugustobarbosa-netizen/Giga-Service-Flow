@@ -13,8 +13,7 @@ import {
   Square,
   FileText,
   Users,
-  Trash2,
-  MapPin
+  Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -32,8 +31,7 @@ import {
   query, 
   where, 
   orderBy,
-  runTransaction,
-  serverTimestamp
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthGuard';
@@ -141,17 +139,6 @@ export default function WorkOrderForm() {
         setCustomers(customersData);
         setTechnicians(techniciansData);
         setSuppliers(suppliersData);
-
-        // Auto-select current user if they are a technician and none selected
-        if (!id || id === 'new') {
-          const currentUserAsTech = techniciansData.find(t => t.email === userData.email);
-          if (currentUserAsTech) {
-            setFormData(prev => ({
-              ...prev,
-              technicianIds: prev.technicianIds?.length ? prev.technicianIds : [currentUserAsTech.id]
-            }));
-          }
-        }
         
         let settingsData: Settings | null = null;
         if (settingsSnap.exists()) {
@@ -169,6 +156,9 @@ export default function WorkOrderForm() {
           if (woSnap.exists()) {
             const data = woSnap.data() as WorkOrder;
             
+            const totalWorked = data.totalWorkedHours || 0;
+            const remaining = data.remainingHours ?? Number(((data.laborHours || 0) - totalWorked).toFixed(2));
+            
             const supplierFromList = suppliersData.find(s => s.id === data.supplierId);
             let supplierName = data.supplierNameSnapshot || supplierFromList?.name || '';
 
@@ -180,27 +170,16 @@ export default function WorkOrderForm() {
               }
             }
 
-            // Recalculate totals to ensure sync
-            const sessions = data.workSessions || [];
-            const totalWorked = Number(sessions.reduce((sum, s) => 
-              sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-            
-            const sessionKm = data.dailyKmOverride && data.dailyKmOverride > 0 
-              ? data.dailyKmOverride 
-              : calculateDisplacement(data.customerId || '', data.supplierId);
-            
-            const totalKm = Number((sessions.length * sessionKm).toFixed(2));
-
             setFormData({
               ...data,
               supplierNameSnapshot: supplierName,
               totalWorkedHours: totalWorked,
-              remainingHours: Number(((data.laborHours || 0) - totalWorked).toFixed(2)),
+              remainingHours: remaining,
               estimatedKm: data.estimatedKm || 0,
-              kmDriven: totalKm,
-              remainingKm: Number(((data.estimatedKm || 0) - totalKm).toFixed(2)),
+              kmDriven: data.kmDriven || 0,
+              remainingKm: data.remainingKm || Number(((data.estimatedKm || 0) - (data.kmDriven || 0)).toFixed(2)),
               currentStartTime: data.currentStartTime ?? null,
-              workSessions: sessions,
+              workSessions: data.workSessions || [],
               technicianIds: data.technicianIds || [],
               technicianDetails: data.technicianDetails || []
             });
@@ -623,11 +602,11 @@ export default function WorkOrderForm() {
 
     setLoading(true);
     try {
-      // Create a clean data object
-      const woData = {
+      // Create a clean data object and remove any undefined fields to prevent Firestore errors
+      const woData = JSON.parse(JSON.stringify({
         ...formData,
         tenantId: userData.tenantId,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date().toISOString(),
         // Ensure critical fields are never undefined
         currentStartTime: formData.currentStartTime ?? null,
         workSessions: formData.workSessions || [],
@@ -635,7 +614,7 @@ export default function WorkOrderForm() {
         totalWorkedHours: formData.totalWorkedHours || 0,
         remainingHours: formData.remainingHours || 0,
         laborHours: formData.laborHours || 0
-      };
+      }));
 
       if (id && id !== 'new') {
         await updateDoc(doc(db, 'workOrders', id), woData);
@@ -679,7 +658,7 @@ export default function WorkOrderForm() {
             ...woData,
             id: newWoRef.id,
             workOrderNumber: woNumber,
-            createdAt: serverTimestamp(),
+            createdAt: new Date().toISOString(),
           });
         });
         
@@ -822,7 +801,7 @@ export default function WorkOrderForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>KM Real (Orc.)</Label>
+                  <Label>KM Estimado</Label>
                   <Input 
                     type="number" 
                     value={formData.estimatedKm || 0}
@@ -830,14 +809,12 @@ export default function WorkOrderForm() {
                       const val = Number(e.target.value);
                       setFormData(prev => ({ 
                         ...prev, 
-                        estimatedKm: val
+                        estimatedKm: val,
+                        remainingKm: Number((val - (prev.kmDriven || 0)).toFixed(2))
                       }));
                     }}
                     className="font-mono"
                   />
-                  <p className="text-[10px] text-muted-foreground italic">
-                    Valor total contratado no orçamento.
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Data Executada</Label>
@@ -935,11 +912,6 @@ export default function WorkOrderForm() {
                       Add
                     </Button>
                   </div>
-                  {(!formData.technicianIds || formData.technicianIds.length === 0) && (
-                    <p className="text-[10px] text-destructive font-bold animate-pulse">
-                      ⚠️ Selecione ao menos um técnico na lista abaixo para as horas serem contabilizadas!
-                    </p>
-                  )}
 
                   <div className="flex items-center gap-2 pt-2 border-t">
                     {!formData.currentStartTime ? (
@@ -988,15 +960,12 @@ export default function WorkOrderForm() {
                     {formData.kmDriven || 0} <span className="text-xs text-slate-400">km</span>
                   </div>
                 </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
-                    <div className={`text-xl font-mono font-bold ${((formData.estimatedKm || 0) - (formData.kmDriven || 0)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {Number(((formData.estimatedKm || 0) - (formData.kmDriven || 0)).toFixed(2))} <span className="text-xs opacity-50">km</span>
-                    </div>
-                    <p className="text-[8px] text-slate-400">
-                      (Real - Acum.)
-                    </p>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
+                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingKm) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formData.remainingKm || 0} <span className="text-xs opacity-50">km</span>
                   </div>
+                </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Total Horas</Label>
                   <div className="text-xl font-mono font-bold text-indigo-600">
@@ -1005,12 +974,9 @@ export default function WorkOrderForm() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Horas Restante</Label>
-                  <div className={`text-xl font-mono font-bold ${((formData.laborHours || 0) - (formData.totalWorkedHours || 0)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {Number(((formData.laborHours || 0) - (formData.totalWorkedHours || 0)).toFixed(2))} <span className="text-xs opacity-50">h</span>
+                  <div className={`text-xl font-mono font-bold ${Number(formData.remainingHours) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formData.remainingHours || 0} <span className="text-xs opacity-50">h</span>
                   </div>
-                  <p className="text-[8px] text-slate-400">
-                    (Orc. - Total)
-                  </p>
                 </div>
               </div>
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, setDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -76,9 +76,6 @@ export default function UserManagement() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
       setUsers(data);
       setLoading(false);
-    }, (error) => {
-      console.error('Erro ao carregar usuários:', error);
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [currentUser, isAdmin]);
@@ -124,7 +121,7 @@ export default function UserManagement() {
           ...formData,
           username: sanitizedUsername,
           email: internalEmail,
-          updatedAt: serverTimestamp()
+          updatedAt: new Date().toISOString()
         };
         
         // Don't update password if it's empty (meaning we want to keep the old one)
@@ -170,7 +167,7 @@ export default function UserManagement() {
           password: formData.password,
           role: formData.role,
           tenantId: formData.role === 'admin' ? 'global' : (isAdmin ? uid : currentUser!.tenantId),
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString()
         } as any;
 
         await setDoc(doc(db, 'users', uid), userData);
@@ -295,10 +292,10 @@ export default function UserManagement() {
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-bold text-xl shrink-0">
-                      {(user.name || '').charAt(0) || (user.username || user.email || '').charAt(0)}
+                      {user.name.charAt(0) || (user.username || user.email).charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="text-lg font-bold truncate">{user.name || 'Usuário sem nome'}</CardTitle>
+                      <CardTitle className="text-lg font-bold truncate">{user.name || 'Pendente'}</CardTitle>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Shield className="w-3 h-3" />
                         <span className="capitalize">{user.role}</span>

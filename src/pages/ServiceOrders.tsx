@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -68,33 +68,6 @@ export default function ServiceOrders() {
   });
 
   useEffect(() => {
-    if (!userData || !searchTerm || searchTerm.length < 2) return;
-
-    const variations = [searchTerm.trim(), searchTerm.trim().replace(/^0+/, '')];
-    const qGlobal = query(
-      collection(db, 'serviceOrders'),
-      where('orderNumber', 'in', variations)
-    );
-
-    const unsubscribeGlobal = onSnapshot(qGlobal, (snapshot) => {
-      const globalDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
-      if (globalDocs.length > 0) {
-        setOrders(prev => {
-          const combined = [...prev];
-          globalDocs.forEach(newDoc => {
-            if (!combined.find(d => d.id === newDoc.id)) {
-              combined.push(newDoc);
-            }
-          });
-          return combined;
-        });
-      }
-    });
-
-    return () => unsubscribeGlobal();
-  }, [userData, searchTerm]);
-
-  useEffect(() => {
     if (!userData) return;
 
     const ordersRef = collection(db, 'serviceOrders');
@@ -103,44 +76,17 @@ export default function ServiceOrders() {
 
     const qOrders = isAdmin
       ? query(ordersRef, orderBy('createdAt', 'desc'))
-      : query(ordersRef, where('tenantId', 'in', [userData.tenantId, userData.id]), orderBy('createdAt', 'desc'));
+      : query(ordersRef, where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'));
 
-    const qAssigned = isAdmin ? null : query(
-      ordersRef,
-      where('technicianIds', 'array-contains', userData.id),
-      orderBy('createdAt', 'desc')
-    );
-
-    const handleSnapshot = (snapshot: any) => {
-      const docs = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as ServiceOrder));
-      setOrders(prev => {
-        const combined = [...prev];
-        docs.forEach((newDoc: ServiceOrder) => {
-          if (!combined.find(d => d.id === newDoc.id)) {
-            combined.push(newDoc);
-          }
-        });
-        return combined.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA;
-        });
-      });
+    const unsubscribeOrders = onSnapshot(qOrders, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
+      setOrders(data);
       setLoading(false);
-    };
-
-    const unsubscribeOrders = onSnapshot(qOrders, handleSnapshot, (error) => {
+    }, (error) => {
       console.error('Erro ao carregar orçamentos:', error);
       setLoading(false);
-      toast.error('Erro ao carregar lista de orçamentos.');
+      toast.error('Erro ao carregar lista de orçamentos. Verifique as permissões.');
     });
-
-    let unsubscribeAssigned: () => void = () => {};
-    if (qAssigned) {
-      unsubscribeAssigned = onSnapshot(qAssigned, handleSnapshot, (error) => {
-        console.error('Error loading assigned orders:', error);
-      });
-    }
 
     const qCustomers = isAdmin
       ? query(customersRef)
@@ -166,7 +112,6 @@ export default function ServiceOrders() {
 
     return () => {
       unsubscribeOrders();
-      unsubscribeAssigned();
       unsubscribeCustomers();
       unsubscribeSuppliers();
     };
@@ -213,7 +158,7 @@ export default function ServiceOrders() {
       const order = orders.find(o => o.id === closeOrderDialog.orderId);
       await updateDoc(doc(db, 'serviceOrders', closeOrderDialog.orderId), {
         status,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       });
       
       if (order && userData) {

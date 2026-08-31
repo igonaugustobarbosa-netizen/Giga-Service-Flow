@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -82,10 +82,6 @@ export default function Suppliers() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier));
       setSuppliers(data);
       setLoading(false);
-    }, (error) => {
-      console.error('Erro ao carregar fornecedores:', error);
-      setLoading(false);
-      toast.error('Erro ao carregar lista de fornecedores.');
     });
     return () => unsubscribe();
   }, [userData, isAdmin]);
@@ -162,10 +158,7 @@ export default function Suppliers() {
 
     try {
       if (editingSupplier) {
-        await updateDoc(doc(db, 'suppliers', editingSupplier.id), {
-          ...submissionData,
-          updatedAt: serverTimestamp()
-        });
+        await updateDoc(doc(db, 'suppliers', editingSupplier.id), submissionData);
         logActivity({
           type: 'update',
           entity: 'supplier',
@@ -178,9 +171,7 @@ export default function Suppliers() {
       } else {
         const docRef = await addDoc(collection(db, 'suppliers'), {
           ...submissionData,
-          tenantId: userData.tenantId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          tenantId: userData.tenantId
         });
         logActivity({
           type: 'create',

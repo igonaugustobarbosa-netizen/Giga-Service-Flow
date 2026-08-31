@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
 import { Button } from './ui/Button';
@@ -48,24 +48,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           
           if (userDoc.exists()) {
-            const currentData = userDoc.data() as User;
-            // Repair logic: if tenantId is the same as uid, it might be a corrupted profile from previous bug
-            if (currentData.tenantId === firebaseUser.uid && currentData.role !== 'admin') {
-              const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
-              const querySnapshot = await getDocs(q);
-              // Find a record that might have the correct tenantId (pre-registered by admin)
-              const correctDoc = querySnapshot.docs.find(d => d.id !== firebaseUser.uid && d.data().tenantId !== d.id);
-              if (correctDoc) {
-                const updatedData = { ...currentData, tenantId: correctDoc.data().tenantId };
-                // Using setDoc to update to avoid issues with missing fields
-                await setDoc(doc(db, 'users', firebaseUser.uid), updatedData);
-                setUserData(updatedData);
-              } else {
-                setUserData(currentData);
-              }
-            } else {
-              setUserData(currentData);
-            }
+            setUserData(userDoc.data() as User);
           } else {
             // 2. If not found by UID, try to find by email (admin pre-registered)
             const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
@@ -79,9 +62,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               const newUserData: User = {
                 ...preRegisteredData,
                 id: firebaseUser.uid,
-                tenantId: preRegisteredData.tenantId || (preRegisteredData.role === 'admin' ? 'global' : firebaseUser.uid),
+                tenantId: preRegisteredData.role === 'admin' ? 'global' : firebaseUser.uid,
                 name: firebaseUser.displayName || preRegisteredData.name || '',
-                updatedAt: serverTimestamp()
+                updatedAt: new Date().toISOString()
               } as any;
 
               await setDoc(doc(db, 'users', firebaseUser.uid), newUserData);
@@ -99,7 +82,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 name: firebaseUser.displayName || 'Admin',
                 role: 'admin',
                 tenantId: 'global',
-                createdAt: serverTimestamp()
+                createdAt: new Date().toISOString()
               };
               await setDoc(doc(db, 'users', firebaseUser.uid), adminData);
               setUserData(adminData);

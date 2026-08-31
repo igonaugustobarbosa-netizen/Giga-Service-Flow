@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Technician, Supplier, Part, ServiceStatus, PaymentMethod, Settings } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -362,8 +362,8 @@ export default function OrderForm() {
         servicePhotos: (formData.servicePhotos && formData.servicePhotos.length > 0) ? formData.servicePhotos : [],
         beforePhotos: formData.beforePhotos || [],
         afterPhotos: formData.afterPhotos || [],
-        executionDate: formData.executionDate || serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        executionDate: formData.executionDate || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         // Snapshots for contract generation
         companyNameSnapshot: formData.companyNameSnapshot || settings.companyName || '',
         companyTaxIdSnapshot: formData.companyTaxIdSnapshot || settings.companyTaxId || '',
@@ -405,10 +405,7 @@ export default function OrderForm() {
             tenantId: userData.tenantId
           };
           
-          transaction.set(newOrderRef, {
-            ...newOrderData,
-            createdAt: serverTimestamp(),
-          });
+          transaction.set(newOrderRef, newOrderData);
           transaction.set(settingsRef, { lastOrderNumber: nextNumber }, { merge: true });
 
           logActivity({
