@@ -134,17 +134,19 @@ export const generateWorkOrderPDF = (
     
     autoTable(doc, {
       startY: currentY + 5,
-      head: [['Início', 'Fim', 'Duração', 'Procedimento']],
+      head: [['Início', 'Fim', 'Duração', 'Status', 'Procedimento']],
       body: wo.workSessions.map(session => [
         format(new Date(session.startTime), "dd/MM/yyyy HH:mm"),
         format(new Date(session.endTime), "dd/MM/yyyy HH:mm"),
         `${session.duration}h`,
+        session.billed ? 'COBRADO' : 'PENDENTE',
         session.description || '-'
       ]),
       foot: [[
         'TOTAL TRABALHADO',
         '',
         `${wo.totalWorkedHours || 0}h`,
+        '',
         ''
       ]],
       theme: 'striped',

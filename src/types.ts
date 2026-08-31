@@ -133,6 +133,7 @@ export interface WorkSession {
   duration: number; // hours
   technicianIds: string[];
   description?: string;
+  billed?: boolean;
 }
 
 export interface WorkOrder {

@@ -14,7 +14,8 @@ import {
   FileText,
   Users,
   Trash2,
-  MapPin
+  MapPin,
+  Banknote
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -558,6 +559,14 @@ export default function WorkOrderForm() {
     });
   };
 
+  const toggleBilled = (index: number) => {
+    setFormData(prev => {
+      const newSessions = [...(prev.workSessions || [])];
+      newSessions[index] = { ...newSessions[index], billed: !newSessions[index].billed };
+      return { ...prev, workSessions: newSessions };
+    });
+  };
+
   const handleFinishOS = async () => {
     if (!id || id === 'new') {
       toast.error('Salve a OS antes de finalizá-la.');
@@ -980,6 +989,12 @@ export default function WorkOrderForm() {
                     {formData.remainingHours || 0} <span className="text-xs opacity-50">h</span>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Sessões Cobradas</Label>
+                  <div className="text-xl font-mono font-bold text-emerald-600">
+                    {formData.workSessions?.filter(s => s.billed).length || 0} <span className="text-xs opacity-50">/{formData.workSessions?.length || 0}</span>
+                  </div>
+                </div>
               </div>
 
               {formData.technicianDetails && formData.technicianDetails.length > 0 && (
@@ -1135,6 +1150,19 @@ export default function WorkOrderForm() {
                                 }}
                               />
                             </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                "h-8 w-8 transition-colors",
+                                session.billed ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
+                              )}
+                              onClick={() => toggleBilled(index)}
+                              title={session.billed ? "Marcar como não cobrado" : "Marcar como cobrado"}
+                            >
+                              <Banknote className="w-4 h-4" />
+                            </Button>
                             <Button
                               type="button"
                               variant="ghost"
