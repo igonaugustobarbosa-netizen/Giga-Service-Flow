@@ -20,11 +20,13 @@ import UserManagement from './pages/UserManagement';
 import ScrollToTop from './components/ui/ScrollToTop';
 
 import { Toaster } from 'sonner';
+import ConnectivityStatus from './components/ui/ConnectivityStatus';
 
 export default function App() {
   return (
     <Router>
       <ScrollToTop />
+      <ConnectivityStatus />
       <Toaster position="top-right" richColors />
       <AuthGuard>
         <Layout>

@@ -32,7 +32,8 @@ import {
   query, 
   where, 
   orderBy,
-  runTransaction
+  runTransaction,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthGuard';
@@ -622,11 +623,11 @@ export default function WorkOrderForm() {
 
     setLoading(true);
     try {
-      // Create a clean data object and remove any undefined fields to prevent Firestore errors
-      const woData = JSON.parse(JSON.stringify({
+      // Create a clean data object
+      const woData = {
         ...formData,
         tenantId: userData.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: serverTimestamp(),
         // Ensure critical fields are never undefined
         currentStartTime: formData.currentStartTime ?? null,
         workSessions: formData.workSessions || [],
@@ -634,7 +635,7 @@ export default function WorkOrderForm() {
         totalWorkedHours: formData.totalWorkedHours || 0,
         remainingHours: formData.remainingHours || 0,
         laborHours: formData.laborHours || 0
-      }));
+      };
 
       if (id && id !== 'new') {
         await updateDoc(doc(db, 'workOrders', id), woData);
@@ -678,7 +679,7 @@ export default function WorkOrderForm() {
             ...woData,
             id: newWoRef.id,
             workOrderNumber: woNumber,
-            createdAt: new Date().toISOString(),
+            createdAt: serverTimestamp(),
           });
         });
         

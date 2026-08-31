@@ -15,7 +15,7 @@ export interface User {
   password?: string;
   role: 'admin' | 'user';
   tenantId: string;
-  createdAt: string;
+  createdAt: any;
 }
 
 export interface Customer {
@@ -98,8 +98,8 @@ export interface ServiceOrder {
   discountPercent?: number;
   discountValue?: number;
   executionDate?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: any;
+  updatedAt: any;
   tenantId: string;
   // Snapshots for contract generation
   companyNameSnapshot?: string;
@@ -158,8 +158,8 @@ export interface WorkOrder {
   workSessions?: WorkSession[];
   status: WorkOrderStatus;
   scheduledDate: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: any;
+  updatedAt: any;
   tenantId: string;
 }
 
@@ -171,6 +171,6 @@ export interface Activity {
   entityName: string;
   userId: string;
   userName: string;
-  timestamp: string;
+  timestamp: any;
   tenantId: string;
 }

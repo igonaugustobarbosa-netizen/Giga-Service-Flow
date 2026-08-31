@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -213,7 +213,7 @@ export default function ServiceOrders() {
       const order = orders.find(o => o.id === closeOrderDialog.orderId);
       await updateDoc(doc(db, 'serviceOrders', closeOrderDialog.orderId), {
         status,
-        updatedAt: new Date().toISOString()
+        updatedAt: serverTimestamp()
       });
       
       if (order && userData) {

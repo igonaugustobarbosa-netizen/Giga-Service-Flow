@@ -352,11 +352,12 @@ export default function Dashboard() {
                       size="sm" 
                       className="w-full h-7 text-[10px] bg-emerald-600 hover:bg-emerald-700"
                       onClick={async () => {
-                        const { updateDoc, doc, arrayUnion } = await import('firebase/firestore');
+                        const { updateDoc, doc, arrayUnion, serverTimestamp } = await import('firebase/firestore');
                         try {
                           console.log('Linking OS:', os.id, 'to tenant:', userData.tenantId);
                           const updates: any = {
-                            tenantId: userData.tenantId
+                            tenantId: userData.tenantId,
+                            updatedAt: serverTimestamp()
                           };
                           
                           // Add current user as technician if it's a work order
