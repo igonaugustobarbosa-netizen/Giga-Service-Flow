@@ -22,7 +22,7 @@ import {
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { generateReportPDF } from '../services/reportService';
 import { motion } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, parseDateSafely } from '../lib/utils';
 import { useAuth } from '../components/AuthGuard';
 
 export default function Reports() {
@@ -368,7 +368,7 @@ export default function Reports() {
                           className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                         >
                           <td className="p-4 font-mono text-xs">{order.orderNumber || order.id.substring(0, 8)}</td>
-                          <td className="p-4">{format(new Date(dateToDisplay), 'dd/MM/yy')}</td>
+                          <td className="p-4">{format(parseDateSafely(dateToDisplay), 'dd/MM/yy')}</td>
                           <td className="p-4 font-medium">{customer?.name || 'N/A'}</td>
                           <td className="p-4">
                             <span className={cn(

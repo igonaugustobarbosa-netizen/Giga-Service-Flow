@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../components/AuthGuard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn, parseDateSafely } from '../lib/utils';
 import { generateTechnicalReport } from '../services/technicalReportService';
 import { generateTechnicalReportWord } from '../services/wordService';
 import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
@@ -240,7 +241,7 @@ export default function TechnicalReports() {
                         <span className="font-semibold line-clamp-1">{order.description}</span>
                         <div className={`flex items-center gap-2 text-[10px] mt-1 ${selectedOrderId === order.id ? "text-white/70" : "text-muted-foreground"}`}>
                           <Calendar className="w-3 h-3" />
-                          {format(new Date(order.createdAt.replace('Z', '')), 'dd/MM/yyyy')}
+                          {format(parseDateSafely(order.createdAt), 'dd/MM/yyyy')}
                         </div>
                       </div>
                     </button>
@@ -306,7 +307,7 @@ export default function TechnicalReports() {
                           <div>
                             <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Execução</p>
                             <p className="font-bold text-lg">
-                              {format(new Date((selectedOrder.executionDate || selectedOrder.createdAt).replace('Z', '')), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                              {format(parseDateSafely(selectedOrder.executionDate || selectedOrder.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                             </p>
                           </div>
                         </div>

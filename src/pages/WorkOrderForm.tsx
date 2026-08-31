@@ -13,7 +13,8 @@ import {
   Square,
   FileText,
   Users,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -22,6 +23,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { toast } from 'sonner';
+import { cn, parseDateSafely } from '../lib/utils';
 import { 
   collection, 
   doc, 
@@ -942,7 +944,7 @@ export default function WorkOrderForm() {
                 {formData.currentStartTime && (
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
                     <Clock className="w-3 h-3" />
-                    Sessão iniciada em tempo real: {format(new Date(formData.currentStartTime), "HH:mm")}
+                    Sessão iniciada em tempo real: {format(parseDateSafely(formData.currentStartTime), "HH:mm")}
                   </p>
                 )}
               </div>
@@ -1088,11 +1090,11 @@ export default function WorkOrderForm() {
                           <div className="flex gap-4">
                             <div className="flex flex-col">
                               <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
-                              <span>{format(new Date(session.startTime), "dd/MM/yy HH:mm")}</span>
+                              <span>{format(parseDateSafely(session.startTime), "dd/MM/yy HH:mm")}</span>
                             </div>
                             <div className="flex flex-col">
                               <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
-                              <span>{format(new Date(session.endTime), "dd/MM/yy HH:mm")}</span>
+                              <span>{format(parseDateSafely(session.endTime), "dd/MM/yy HH:mm")}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { generateWorkOrderPDF } from '../services/workOrderPDFService';
+import { cn, parseDateSafely } from '../lib/utils';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { logActivity } from '../services/activityService';
 
@@ -256,7 +257,7 @@ export default function WorkOrders() {
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5" />
-                      {wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd 'de' MMMM, HH:mm", { locale: ptBR }) : 'Não informada'}
+                      {wo.scheduledDate ? format(parseDateSafely(wo.scheduledDate), "dd 'de' MMMM, HH:mm", { locale: ptBR }) : 'Não informada'}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

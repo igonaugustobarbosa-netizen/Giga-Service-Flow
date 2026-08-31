@@ -468,15 +468,7 @@ export default function OrderDetails() {
                   <div className="text-sm">
                     <p className="text-muted-foreground">Data da Abertura</p>
                     <p className="font-bold">
-                      {order.createdAt ? (() => {
-                        try {
-                          // Strip 'Z' to force local time interpretation and avoid day shift
-                          const dateStr = order.createdAt.includes('Z') ? order.createdAt.replace('Z', '') : order.createdAt;
-                          return format(new Date(dateStr), 'dd/MM/yyyy HH:mm', { locale: ptBR });
-                        } catch (e) {
-                          return 'Data inválida';
-                        }
-                      })() : 'Não informada'}
+                      {format(parseDateSafely(order.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                     </p>
                   </div>
                 </div>

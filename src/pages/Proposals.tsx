@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn, parseDateSafely } from '../lib/utils';
 import { generateCommercialProposalPDF } from '../services/pdfProposalService';
 import { generateCommercialProposalWord } from '../services/wordService';
 import { DocumentFormatDialog } from '../components/DocumentFormatDialog';
@@ -316,7 +317,7 @@ export default function Proposals() {
                         <p className="font-medium text-foreground truncate">{proposal.customerNameSnapshot || 'Cliente não identificado'}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {format(new Date(proposal.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                          {format(parseDateSafely(proposal.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                         </p>
                       </div>
                     </div>
