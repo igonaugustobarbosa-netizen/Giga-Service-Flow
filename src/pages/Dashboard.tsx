@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, orderBy, limit, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Supplier, Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -17,8 +17,10 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  User
+  User,
+  ShieldAlert
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Link } from 'react-router-dom';
@@ -26,7 +28,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
-import { cn, parseDateSafely } from '../lib/utils';
+import { cn, parseDateSafely, handleFirestoreError, OperationType } from '../lib/utils';
 import { getActiveFollowUp, sendWhatsAppMessage, formatFollowUpMessage } from '../services/followUpService';
 import { MessageSquare, Bell } from 'lucide-react';
 import { 
@@ -170,6 +172,68 @@ export default function Dashboard() {
   });
 
   const { workedDays: selectedMonthDays, workedHours: selectedMonthHours } = getWorkedStats(filteredOrders, selectedDate);
+
+  const handleMigrate00091 = async () => {
+    try {
+      // 1. Find user "giga eletrica"
+      const usersRef = collection(db, 'users');
+      // Case insensitive search is hard in Firestore, so we try a few variations
+      const userSnaps = await Promise.all([
+        getDocs(query(usersRef, where('name', '==', 'Giga Elétrica'))),
+        getDocs(query(usersRef, where('name', '==', 'Giga Eletrica'))),
+        getDocs(query(usersRef, where('username', '==', 'giga.eletrica'))),
+        getDocs(query(usersRef, where('username', '==', 'gigaeletrica')))
+      ]);
+      
+      let targetUser = null;
+      for (const snap of userSnaps) {
+        if (!snap.empty) {
+          targetUser = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+          break;
+        }
+      }
+      
+      if (!targetUser) {
+        // Last resort: search for all users and filter in memory if it's small enough, 
+        // or just ask user for exact login
+        const allUsersSnap = await getDocs(query(usersRef));
+        targetUser = allUsersSnap.docs.find(d => 
+          d.data().name?.toLowerCase().includes('giga') || 
+          d.data().username?.toLowerCase().includes('giga')
+        )?.data();
+      }
+
+      if (!targetUser) {
+        toast.error('Usuário "giga eletrica" não encontrado.');
+        return;
+      }
+
+      // 2. Find serviceOrder "00091"
+      const ordersRef = collection(db, 'serviceOrders');
+      const qOrder = query(ordersRef, where('orderNumber', '==', '00091'));
+      const orderSnap = await getDocs(qOrder);
+      
+      if (orderSnap.empty) {
+        toast.error('Orçamento "00091" não encontrado.');
+        return;
+      }
+
+      const orderDoc = orderSnap.docs[0];
+      const orderData = orderDoc.data();
+      
+      // 3. Update tenantId
+      await updateDoc(doc(db, 'serviceOrders', orderDoc.id), {
+        tenantId: targetUser.tenantId,
+        updatedAt: new Date().toISOString()
+      });
+
+      toast.success(`Orçamento 00091 (ID: ${orderDoc.id}) migrado com sucesso para ${targetUser.name} (Tenant: ${targetUser.tenantId})!`);
+      console.log('Migração concluída:', { orderId: orderDoc.id, oldTenant: orderData.tenantId, newTenant: targetUser.tenantId });
+    } catch (error) {
+      console.error('Erro na migração:', error);
+      toast.error('Erro ao processar migração.');
+    }
+  };
 
   const chartData = [
     { name: 'Pagas', value: calculateTotal('paid', filteredOrders), color: '#10b981', isMoney: true },
@@ -516,6 +580,27 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {userData?.email === 'igonaugustobarbosa@gmail.com' && (
+        <div className="mt-12 p-6 border-2 border-dashed border-primary/20 rounded-2xl bg-primary/5">
+          <h2 className="text-xl font-bold mb-2 flex items-center gap-2 text-primary">
+            <ShieldAlert className="w-6 h-6" />
+            Ferramentas de Super Admin
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Ações especiais para manutenção de dados. Utilize com cautela.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <Button 
+              variant="default" 
+              className="bg-primary hover:bg-primary/90 h-12 px-6 rounded-xl shadow-md"
+              onClick={handleMigrate00091}
+            >
+              Vincular Orçamento 00091 à Giga Elétrica
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
