@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer, ServiceLocation } from '../types';
 import { useAuth } from '../components/AuthGuard';
@@ -76,6 +76,10 @@ export default function Customers() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(data);
       setLoading(false);
+    }, (error) => {
+      console.error('Erro ao carregar clientes:', error);
+      setLoading(false);
+      toast.error('Erro ao carregar lista de clientes.');
     });
     return () => unsubscribe();
   }, [userData, isAdmin]);
@@ -115,7 +119,10 @@ export default function Customers() {
 
     try {
       if (editingCustomer) {
-        await updateDoc(doc(db, 'customers', editingCustomer.id), formData);
+        await updateDoc(doc(db, 'customers', editingCustomer.id), {
+          ...formData,
+          updatedAt: serverTimestamp()
+        });
         logActivity({
           type: 'update',
           entity: 'customer',
@@ -128,7 +135,9 @@ export default function Customers() {
       } else {
         const docRef = await addDoc(collection(db, 'customers'), {
           ...formData,
-          tenantId: userData.tenantId
+          tenantId: userData.tenantId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
         logActivity({
           type: 'create',

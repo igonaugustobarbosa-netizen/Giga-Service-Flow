@@ -14,11 +14,11 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 if (typeof window !== 'undefined') {
   enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
-      // Multiple tabs open, persistence can only be enabled in one tab at a a time.
       console.warn('Firestore persistence failed: multiple tabs open');
     } else if (err.code === 'unimplemented') {
-      // The current browser doesn't support all of the features required to enable persistence
       console.warn('Firestore persistence failed: browser not supported');
+    } else {
+      console.error('Firestore persistence error:', err);
     }
   });
 }

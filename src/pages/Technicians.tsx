@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -131,7 +131,10 @@ export default function Technicians() {
 
     try {
       if (editingTechnician) {
-        await updateDoc(doc(db, 'technicians', editingTechnician.id), submissionData);
+        await updateDoc(doc(db, 'technicians', editingTechnician.id), {
+          ...submissionData,
+          updatedAt: serverTimestamp()
+        });
         logActivity({
           type: 'update',
           entity: 'technician',
@@ -144,7 +147,9 @@ export default function Technicians() {
       } else {
         const docRef = await addDoc(collection(db, 'technicians'), {
           ...submissionData,
-          tenantId: userData.tenantId
+          tenantId: userData.tenantId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
         logActivity({
           type: 'create',

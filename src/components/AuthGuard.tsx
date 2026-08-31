@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
 import { Button } from './ui/Button';
@@ -81,7 +81,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 id: firebaseUser.uid,
                 tenantId: preRegisteredData.tenantId || (preRegisteredData.role === 'admin' ? 'global' : firebaseUser.uid),
                 name: firebaseUser.displayName || preRegisteredData.name || '',
-                updatedAt: new Date().toISOString()
+                updatedAt: serverTimestamp()
               } as any;
 
               await setDoc(doc(db, 'users', firebaseUser.uid), newUserData);
@@ -99,7 +99,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 name: firebaseUser.displayName || 'Admin',
                 role: 'admin',
                 tenantId: 'global',
-                createdAt: new Date().toISOString()
+                createdAt: serverTimestamp()
               };
               await setDoc(doc(db, 'users', firebaseUser.uid), adminData);
               setUserData(adminData);

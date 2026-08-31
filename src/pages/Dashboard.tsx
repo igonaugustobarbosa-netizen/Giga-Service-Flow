@@ -22,7 +22,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '../components/ui/Badge';
@@ -52,67 +52,6 @@ export default function Dashboard() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [osTrackerResult, setOsTrackerResult] = useState<any[]>([]);
-  const [isSearchingOS, setIsSearchingOS] = useState(false);
-
-  const findLostOS = async () => {
-    if (!isAdmin) return;
-    setIsSearchingOS(true);
-    setOsTrackerResult([]);
-    const unsubscribers: (() => void)[] = [];
-    try {
-      const collections = ['workOrders', 'serviceOrders', 'proposals'];
-      
-      for (const colName of collections) {
-        const ref = collection(db, colName);
-        const q = query(ref);
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          const docs = snapshot.docs.map(doc => ({ 
-            id: doc.id, 
-            collection: colName,
-            ...doc.data() 
-          }));
-          
-          const found = docs.filter((d: any) => {
-            const num = String(d.workOrderNumber || d.orderNumber || d.proposalNumber || '').toLowerCase();
-            const target = '091';
-            const targetAlt = '91';
-            return num.includes(target) || num.includes(targetAlt);
-          });
-          
-          if (found.length > 0) {
-            setOsTrackerResult(prev => {
-              const combined = [...prev];
-              found.forEach(f => {
-                if (!combined.find(c => c.id === f.id)) combined.push(f);
-              });
-              return combined;
-            });
-          }
-        }, (err) => {
-          console.error(`Tracker error in ${colName}:`, err);
-        });
-        unsubscribers.push(unsubscribe);
-      }
-    } catch (err) {
-      console.error('Tracker error:', err);
-    } finally {
-      setIsSearchingOS(false);
-    }
-    return () => unsubscribers.forEach(unsub => unsub());
-  };
-
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    if (isAdmin) {
-      findLostOS().then(cb => {
-        if (typeof cb === 'function') cleanup = cb;
-      });
-    }
-    return () => {
-      if (cleanup) cleanup();
-    };
-  }, [isAdmin]);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
@@ -328,61 +267,6 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
-
-      {osTrackerResult.length > 0 && (
-        <Card className="border-2 border-primary bg-primary/5 animate-pulse">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              Rastreador de OS: 091 Encontrada!
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {osTrackerResult.map((os) => (
-                <div key={os.id} className="p-3 bg-background rounded-lg border text-xs space-y-1">
-                  <p><strong>ID:</strong> {os.id}</p>
-                  <p><strong>Número:</strong> {os.workOrderNumber || os.orderNumber || os.proposalNumber}</p>
-                  <p><strong>Coleção:</strong> {os.collection}</p>
-                  <p><strong>Empresa (Tenant):</strong> {os.tenantId || 'Sem Empresa'}</p>
-                  <p><strong>Técnicos:</strong> {os.technicianIds?.join(', ') || 'Nenhum'}</p>
-                  <p><strong>Status:</strong> {os.status}</p>
-                  <div className="flex flex-col gap-1 mt-2">
-                    <Button 
-                      size="sm" 
-                      className="w-full h-7 text-[10px] bg-emerald-600 hover:bg-emerald-700"
-                      onClick={async () => {
-                        const { updateDoc, doc, arrayUnion, serverTimestamp } = await import('firebase/firestore');
-                        try {
-                          console.log('Linking OS:', os.id, 'to tenant:', userData.tenantId);
-                          const updates: any = {
-                            tenantId: userData.tenantId,
-                            updatedAt: serverTimestamp()
-                          };
-                          
-                          // Add current user as technician if it's a work order
-                          if (os.collection === 'workOrders' || os.collection === 'serviceOrders') {
-                            updates.technicianIds = arrayUnion(userData.id);
-                          }
-
-                          await updateDoc(doc(db, os.collection, os.id), updates);
-                          toast.success('Vínculo e Atribuição concluídos com sucesso!');
-                          setTimeout(() => findLostOS(), 1000); // Refresh after delay
-                        } catch (err) {
-                          console.error('Link error:', err);
-                          toast.error('Erro técnico ao vincular OS');
-                        }
-                      }}
-                    >
-                      Forçar Vínculo e Me Atribuir
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         {stats.map((stat, i) => {

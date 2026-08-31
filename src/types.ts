@@ -29,6 +29,8 @@ export interface Customer {
   contactPhone?: string;
   location?: ServiceLocation;
   tenantId: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Technician {
@@ -42,6 +44,8 @@ export interface Technician {
   location?: ServiceLocation;
   signature?: string;
   tenantId: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface TechnicianWork {
@@ -65,6 +69,8 @@ export interface Supplier {
   signature?: string;
   location?: ServiceLocation;
   tenantId: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Part {
