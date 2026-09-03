@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, query, orderBy, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, getDocs, onSnapshot, query, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Technician, Supplier, Part, ServiceStatus, PaymentMethod, Settings } from '../types';
+import { ServiceOrder, WorkOrder, Customer, Technician, Supplier, Part, ServiceStatus, PaymentMethod, Settings } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -170,11 +170,16 @@ export default function OrderForm() {
     // Calculate technician costs
     const techLaborTotal = (formData.technicianDetails || []).reduce((acc, t) => acc + (Number(t.hours) * Number(t.laborRate)), 0);
     const techKmTotal = (formData.technicianDetails || []).reduce((acc, t) => acc + (Number(t.km) * Number(t.kmValue)), 0);
+    const techHoursTotal = (formData.technicianDetails || []).reduce((acc, t) => acc + Number(t.hours), 0);
     
     // Legacy support: if no technician details, use the aggregate fields
     const laborTotal = (formData.technicianDetails && formData.technicianDetails.length > 0) 
       ? techLaborTotal 
       : (Number(formData.laborCost) || 0);
+
+    const hoursTotal = (formData.technicianDetails && formData.technicianDetails.length > 0)
+      ? techHoursTotal
+      : (Number(formData.hoursWorked) || 0);
       
     const kmTotal = (formData.technicianDetails && formData.technicianDetails.length > 0)
       ? techKmTotal
@@ -187,11 +192,12 @@ export default function OrderForm() {
     
     setFormData(prev => {
       // Avoid unnecessary updates to prevent potential loops
-      if (prev.totalValue === total && prev.discountValue === discountVal) return prev;
+      if (prev.totalValue === total && prev.discountValue === discountVal && prev.hoursWorked === hoursTotal) return prev;
       return { 
         ...prev, 
         totalValue: total,
-        discountValue: discountVal
+        discountValue: discountVal,
+        hoursWorked: hoursTotal
       };
     });
   }, [formData.parts, formData.laborCost, formData.kmDriven, formData.kmValue, formData.discountPercent, formData.technicianDetails]);
@@ -346,7 +352,7 @@ export default function OrderForm() {
         hoursWorked: techHours,
         laborCost: techLaborCost,
         kmDriven: techKm,
-        kmValue: hasTechDetails ? 0 : (Number(formData.kmValue) || 0), // When using details, kmValue aggregate is 0 as it's per technician
+        kmValue: Number(formData.kmValue) || 0, // Keep the aggregate kmValue as the standard rate
         technicianDetails: techDetails.map(t => ({
           ...t,
           hours: Number(t.hours) || 0,
@@ -375,6 +381,56 @@ export default function OrderForm() {
 
       if (id) {
         await updateDoc(doc(db, 'serviceOrders', id), dataToSave);
+        
+        // SYNC: Update all linked Work Orders with the new labor details
+        try {
+          const workOrdersRef = collection(db, 'workOrders');
+          const q = query(workOrdersRef, where('budgetId', '==', id));
+          const woSnap = await getDocs(q);
+          
+          if (!woSnap.empty) {
+            const updatePromises = woSnap.docs.map(woDoc => {
+              const wo = woDoc.data() as WorkOrder;
+              // Only sync if the OS is not closed? Usually yes, to avoid messing up history.
+              // But if the user corrected an error in the budget, they likely want it reflected everywhere.
+              if (wo.status === 'closed') return Promise.resolve();
+
+              const newLaborHours = dataToSave.hoursWorked || 0;
+              const totalWorked = wo.totalWorkedHours || 0;
+              const newRemainingHours = Number((newLaborHours - totalWorked).toFixed(2));
+
+              // Calculate KM total value for the OS based on the new budget data
+              let newKmTotalValue = 0;
+              if (dataToSave.technicianDetails && dataToSave.technicianDetails.length > 0) {
+                newKmTotalValue = dataToSave.technicianDetails.reduce((acc, td) => acc + (td.km * td.kmValue), 0);
+              } else {
+                newKmTotalValue = (dataToSave.kmDriven || 0) * (dataToSave.kmValue || 0);
+              }
+
+              return updateDoc(doc(db, 'workOrders', woDoc.id), {
+                technicianIds: dataToSave.technicianIds || [],
+                technicianDetails: dataToSave.technicianDetails || [],
+                laborHours: newLaborHours,
+                remainingHours: newRemainingHours,
+                kmRate: dataToSave.kmValue || 0,
+                kmTotalValue: newKmTotalValue,
+                totalValue: dataToSave.totalValue || 0,
+                description: dataToSave.description || wo.description,
+                customerId: dataToSave.customerId || wo.customerId,
+                customerNameSnapshot: dataToSave.customerNameSnapshot || wo.customerNameSnapshot,
+                supplierId: dataToSave.supplierId || wo.supplierId,
+                supplierNameSnapshot: dataToSave.supplierNameSnapshot || wo.supplierNameSnapshot,
+                updatedAt: new Date().toISOString()
+              });
+            });
+            await Promise.all(updatePromises);
+            toast.info(`${woSnap.size} Ordem(ns) de Serviço vinculada(s) atualizada(s).`);
+          }
+        } catch (syncError) {
+          console.error('Error syncing work orders:', syncError);
+          toast.error('O orçamento foi salvo, mas houve um erro ao sincronizar as OSs vinculadas.');
+        }
+
         logActivity({
           type: 'update',
           entity: 'order',

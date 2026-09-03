@@ -149,6 +149,7 @@ export interface WorkOrder {
   description: string;
   kmDriven: number; // This will be treated as Actual KM
   kmRate?: number;
+  kmTotalValue?: number;
   estimatedKm?: number;
   remainingKm?: number;
   laborHours: number; // This will be treated as Estimated Hours
@@ -158,6 +159,7 @@ export interface WorkOrder {
   currentStartTime?: string | null;
   workSessions?: WorkSession[];
   status: WorkOrderStatus;
+  totalValue: number;
   scheduledDate: string;
   createdAt: string;
   updatedAt: string;

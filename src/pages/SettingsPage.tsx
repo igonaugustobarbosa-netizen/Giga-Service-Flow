@@ -246,6 +246,34 @@ export default function SettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">O próximo número gerado para OS será este valor + 1.</p>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="kmValue" className="flex items-center gap-2">
+                      <Truck className="w-4 h-4" /> Valor por KM (R$)
+                    </Label>
+                    <Input 
+                      id="kmValue" 
+                      type="number" 
+                      step="0.01"
+                      value={settings.kmValue || ''} 
+                      onChange={e => setSettings({...settings, kmValue: Number(e.target.value)})} 
+                    />
+                    <p className="text-[10px] text-muted-foreground">Valor padrão cobrado por quilômetro rodado.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="laborHourValue" className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" /> Valor Hora Técnica (R$)
+                    </Label>
+                    <Input 
+                      id="laborHourValue" 
+                      type="number" 
+                      step="0.01"
+                      value={settings.laborHourValue || ''} 
+                      onChange={e => setSettings({...settings, laborHourValue: Number(e.target.value)})} 
+                    />
+                    <p className="text-[10px] text-muted-foreground">Valor padrão da hora técnica de trabalho.</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

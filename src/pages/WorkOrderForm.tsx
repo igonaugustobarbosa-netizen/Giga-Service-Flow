@@ -23,6 +23,7 @@ import { Label } from '../components/ui/Label';
 import { Textarea } from '../components/ui/Textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
+import { Badge } from '../components/ui/Badge';
 import { toast } from 'sonner';
 import { cn, parseDateSafely } from '../lib/utils';
 import { 
@@ -273,12 +274,20 @@ export default function WorkOrderForm() {
         : calculateDisplacement(formData.customerId || '', formData.supplierId);
       
       const totalKm = Number((formData.workSessions.length * sessionKm).toFixed(2));
+      const kmRate = formData.kmRate || settings?.kmValue || 0;
+      const totalKmValue = Number((totalKm * kmRate).toFixed(2));
+      
+      // Update kmRate in form if it was missing but settings had it
+      if (!formData.kmRate && settings?.kmValue) {
+        setFormData(prev => ({ ...prev, kmRate: settings.kmValue }));
+      }
       
       // Only update if the value is different to avoid infinite loops
-      if (formData.kmDriven !== totalKm) {
+      if (formData.kmDriven !== totalKm || formData.kmTotalValue !== totalKmValue) {
         setFormData(prev => ({
           ...prev,
           kmDriven: totalKm,
+          kmTotalValue: totalKmValue,
           remainingKm: Number(((prev.estimatedKm || 0) - totalKm).toFixed(2))
         }));
       }
@@ -286,10 +295,11 @@ export default function WorkOrderForm() {
       setFormData(prev => ({
         ...prev,
         kmDriven: 0,
+        kmTotalValue: 0,
         remainingKm: prev.estimatedKm || 0
       }));
     }
-  }, [formData.workSessions?.length, formData.customerId, formData.supplierId, formData.dailyKmOverride, formData.estimatedKm]);
+  }, [formData.workSessions?.length, formData.customerId, formData.supplierId, formData.dailyKmOverride, formData.estimatedKm, formData.kmRate, settings?.kmValue]);
 
   const handleBudgetChange = async (budgetId: string) => {
     const budget = budgets.find(b => b.id === budgetId);
@@ -314,8 +324,9 @@ export default function WorkOrderForm() {
         description: budget.description,
         estimatedKm: estKm,
         kmDriven: 0,
+        kmTotalValue: 0,
         remainingKm: estKm,
-        kmRate: budget.kmValue || 0,
+        kmRate: budget.kmValue || settings?.kmValue || 0,
         laborHours: totalHours,
         totalWorkedHours: 0,
         remainingHours: totalHours,
@@ -517,6 +528,8 @@ export default function WorkOrderForm() {
 
       const newKmTotal = Number((newSessions.length * sessionKm).toFixed(2));
       const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
+      const kmRate = prev.kmRate || settings?.kmValue || 0;
+      const newKmTotalValue = Number((newKmTotal * kmRate).toFixed(2));
 
       return {
         ...prev,
@@ -524,6 +537,7 @@ export default function WorkOrderForm() {
         totalWorkedHours: totalWorked,
         remainingHours: Number((est - totalWorked).toFixed(2)),
         kmDriven: newKmTotal,
+        kmTotalValue: newKmTotalValue,
         remainingKm: newKmRemaining
       };
     });
@@ -545,8 +559,12 @@ export default function WorkOrderForm() {
       const est = prev.laborHours || 0;
 
       // Re-calculate KM based on remaining sessions
-      const sessionKm = calculateDisplacement(prev.customerId || '', prev.supplierId);
+      const sessionKm = prev.dailyKmOverride && prev.dailyKmOverride > 0 
+        ? prev.dailyKmOverride 
+        : calculateDisplacement(prev.customerId || '', prev.supplierId);
       const totalKm = Number((newSessions.length * sessionKm).toFixed(2));
+      const kmRate = prev.kmRate || settings?.kmValue || 0;
+      const totalKmValue = Number((totalKm * kmRate).toFixed(2));
       
       return {
         ...prev,
@@ -554,6 +572,7 @@ export default function WorkOrderForm() {
         totalWorkedHours: totalWorked,
         remainingHours: Number((est - totalWorked).toFixed(2)),
         kmDriven: totalKm,
+        kmTotalValue: totalKmValue,
         remainingKm: Number(((prev.estimatedKm || 0) - totalKm).toFixed(2))
       };
     });
@@ -613,11 +632,17 @@ export default function WorkOrderForm() {
 
     setLoading(true);
     try {
+      // Calculate total value (KM + Labor)
+      const laborValue = formData.technicianDetails?.reduce((sum, t) => sum + (t.hours * t.laborRate), 0) || 0;
+      const kmValue = formData.kmTotalValue || 0;
+      const totalValue = Number((laborValue + kmValue).toFixed(2));
+
       // Create a clean data object and remove any undefined fields to prevent Firestore errors
       const woData = JSON.parse(JSON.stringify({
         ...formData,
         tenantId: userData.tenantId,
         updatedAt: new Date().toISOString(),
+        totalValue,
         // Ensure critical fields are never undefined
         currentStartTime: formData.currentStartTime ?? null,
         workSessions: formData.workSessions || [],
@@ -799,6 +824,7 @@ export default function WorkOrderForm() {
                 </div>
               </div>
 
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Horas Estimadas</Label>
@@ -861,6 +887,22 @@ export default function WorkOrderForm() {
                   </div>
                   <p className="text-[10px] text-muted-foreground italic">
                     Se preenchido, ignora o cálculo automático ({calculateDisplacement(formData.customerId || '', formData.supplierId)} km).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Banknote className="w-4 h-4 text-emerald-500" /> Valor por KM (R$)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    placeholder="Ex: 1.50"
+                    value={formData.kmRate ?? (settings?.kmValue || '')} 
+                    onChange={(e) => setFormData(prev => ({ ...prev, kmRate: Number(e.target.value) }))}
+                    className="font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Valor cobrado por quilômetro. Padrão: R$ {(settings?.kmValue || 0).toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -966,10 +1008,35 @@ export default function WorkOrderForm() {
                   </div>
                 </div>
                 <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Valor KM</Label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-slate-400">R$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="w-12 text-lg font-mono font-bold text-slate-700 bg-transparent border-b border-slate-200 focus:outline-none focus:border-indigo-500"
+                      value={formData.kmRate === 0 ? '' : formData.kmRate?.toString().replace('.', ',')}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(',', '.');
+                        const num = parseFloat(val);
+                        if (!isNaN(num) || val === '') {
+                          setFormData(prev => ({ ...prev, kmRate: val === '' ? 0 : num }));
+                        }
+                      }}
+                      placeholder="1,50"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">KM Diário (Acum.)</Label>
                   <div className="text-xl font-mono font-bold text-amber-600">
                     {formData.kmDriven || 0} <span className="text-xs text-slate-400">km</span>
                   </div>
+                  {formData.kmTotalValue && formData.kmTotalValue > 0 && (
+                    <div className="text-xs font-bold text-emerald-600 mt-1">
+                      R$ {formData.kmTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">KM Restante</Label>
@@ -1058,33 +1125,61 @@ export default function WorkOrderForm() {
                 <div className="space-y-4 pt-4 border-t border-border">
                   <div className="space-y-3">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Total de Horas por Técnico
+                      <Users className="w-4 h-4 text-indigo-500" />
+                      Status de Mão de Obra por Técnico
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {(() => {
                         const techHoursMap: Record<string, number> = {};
-                        formData.workSessions.forEach(session => {
+                        formData.workSessions?.forEach(session => {
                           session.technicianIds?.forEach(techId => {
-                            techHoursMap[techId] = (techHoursMap[techId] || 0) + session.duration;
+                            techHoursMap[techId] = (techHoursMap[techId] || 0) + (session.duration || 0);
                           });
                         });
 
-                        return Object.entries(techHoursMap).map(([id, hours]) => {
+                        // Use technicianDetails from the OS to get estimated hours and rates
+                        const allTechIds = Array.from(new Set([
+                          ...(formData.technicianIds || []),
+                          ...Object.keys(techHoursMap)
+                        ]));
+
+                        return allTechIds.map(id => {
                           const tech = technicians.find(t => t.id === id);
-                          const hourlyRate = tech?.defaultLaborHourValue || 0;
-                          const totalValue = hours * hourlyRate;
+                          const worked = techHoursMap[id] || 0;
+                          
+                          // Get negotiated rate and estimated hours from OS details
+                          const detail = formData.technicianDetails?.find(d => d.technicianId === id);
+                          const estimated = detail?.hours || 0;
+                          const hourlyRate = detail?.laborRate || tech?.defaultLaborHourValue || 0;
+                          
+                          const remaining = Number((estimated - worked).toFixed(2));
+                          const totalValueWorked = worked * hourlyRate;
+
                           return (
-                            <div key={id} className="flex items-center justify-between p-2 bg-muted/30 rounded border border-border text-xs">
-                              <div className="flex flex-col">
-                                <span className="font-medium">{tech?.name || 'Técnico'}</span>
-                                {hourlyRate > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">Valor/hora: R$ {hourlyRate.toFixed(2)}</span>
-                                )}
+                            <div key={id} className="flex flex-col p-3 bg-white rounded-xl border border-border shadow-sm text-xs gap-2">
+                              <div className="flex items-start justify-between border-b pb-2">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-700">{tech?.name || 'Técnico'}</span>
+                                  <span className="text-[10px] text-muted-foreground">R$ {hourlyRate.toFixed(2)}/h</span>
+                                </div>
+                                <Badge variant={remaining < 0 ? 'destructive' : worked > 0 ? 'secondary' : 'outline'} className="text-[10px] h-5">
+                                  {remaining < 0 ? 'Extra' : worked >= estimated && estimated > 0 ? 'Concluído' : 'Em curso'}
+                                </Badge>
                               </div>
-                              <div className="flex flex-col items-end">
-                                <span className="font-bold text-indigo-600">{hours.toFixed(2)}h</span>
-                                <span className="font-bold text-green-600">R$ {totalValue.toFixed(2)}</span>
+                              
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex flex-col bg-slate-50 p-2 rounded">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400">Trabalhado</span>
+                                  <span className="font-bold text-indigo-600 text-sm">{worked.toFixed(2)}h</span>
+                                  <span className="text-[10px] text-green-600 font-medium">R$ {totalValueWorked.toFixed(2)}</span>
+                                </div>
+                                <div className="flex flex-col bg-slate-50 p-2 rounded">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400">Saldo/Estimado</span>
+                                  <span className={`font-bold text-sm ${remaining < 0 ? 'text-red-500' : 'text-slate-600'}`}>
+                                    {remaining.toFixed(2)}h
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">de {estimated.toFixed(2)}h</span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -1210,10 +1305,32 @@ export default function WorkOrderForm() {
                         checked={formData.technicianIds?.includes(tech.id)}
                         onChange={(e) => {
                           const ids = formData.technicianIds || [];
+                          const details = [...(formData.technicianDetails || [])];
+                          
                           if (e.target.checked) {
-                            setFormData(prev => ({ ...prev, technicianIds: [...ids, tech.id] }));
+                            const newIds = [...ids, tech.id];
+                            // Add to details if not already there
+                            if (!details.some(d => d.technicianId === tech.id)) {
+                              details.push({
+                                technicianId: tech.id,
+                                name: tech.name,
+                                hours: 0,
+                                laborRate: tech.defaultLaborHourValue || settings?.laborHourValue || 0,
+                                km: 0,
+                                kmValue: tech.defaultKmValue || settings?.kmValue || 0
+                              });
+                            }
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              technicianIds: newIds,
+                              technicianDetails: details
+                            }));
                           } else {
-                            setFormData(prev => ({ ...prev, technicianIds: ids.filter(id => id !== tech.id) }));
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              technicianIds: ids.filter(id => id !== tech.id),
+                              technicianDetails: details.filter(d => d.technicianId !== tech.id)
+                            }));
                           }
                         }}
                       />

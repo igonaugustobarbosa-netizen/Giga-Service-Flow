@@ -305,11 +305,14 @@ export default function WorkOrders() {
 
                   <div className="pt-4 border-t flex items-center justify-between">
                     <div className="flex gap-4">
-                      <div className="text-xs font-medium text-muted-foreground">
-                        KM: <span className="text-foreground">{wo.kmDriven}</span>
+                      <div className="text-xs font-medium text-muted-foreground flex flex-col">
+                        <span>KM: <span className="text-foreground">{wo.kmDriven}</span></span>
+                        {wo.kmTotalValue && wo.kmTotalValue > 0 && (
+                          <span className="text-emerald-600 font-bold">R$ {wo.kmTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        )}
                       </div>
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Horas: <span className="text-indigo-600 font-bold">{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span>
+                      <div className="text-xs font-medium text-muted-foreground flex flex-col">
+                        <span>Horas: <span className="text-indigo-600 font-bold">{wo.totalWorkedHours?.toFixed(2) || '0.00'}h</span></span>
                       </div>
                     </div>
                     <Link to={`/work-orders/${wo.id}/edit`}>
