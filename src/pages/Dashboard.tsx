@@ -459,7 +459,7 @@ export default function Dashboard() {
       }
     }
 
-    return { hours, laborValue, kmValue, igonKmValue, kmDistance, igonKmDistance, totalValue: laborValue + kmValue };
+    return { hours, laborValue, kmValue, igonKmValue, kmDistance, igonKmDistance, totalValue: laborValue + kmValue + igonKmValue };
   };
 
   const getWorkOrderTotalValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).totalValue;
@@ -928,17 +928,17 @@ export default function Dashboard() {
               <p className="text-sm font-bold text-indigo-600">R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderLaborValue(wo), 0).toFixed(2)}</p>
             </Card>
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Acumulado Diário</p>
-              <p className="text-sm font-bold text-amber-600">R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderKmValue(wo), 0).toFixed(2)}</p>
-            </Card>
-            <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Igon (Valor)</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Igon (Diário)</p>
               <p className="text-sm font-bold text-rose-600">
                 R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonKmValue(wo), 0).toFixed(2)}
                 <span className="text-[10px] ml-1 opacity-70 font-normal">
                   ({filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonKmDistance(wo), 0)} km)
                 </span>
               </p>
+            </Card>
+            <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Equipe (Acumulado)</p>
+              <p className="text-sm font-bold text-amber-600">R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderKmValue(wo), 0).toFixed(2)}</p>
             </Card>
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">Hrs. Totais</p>

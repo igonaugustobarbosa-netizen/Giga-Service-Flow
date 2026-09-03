@@ -90,8 +90,10 @@ export const generateWorkOrderReportPDF = (
   const colOs = margin + 2;
   const colData = margin + 18;
   const colCliente = margin + 38;
-  const colStatus = margin + 95;
-  const colCobranca = margin + 125;
+  const colStatus = margin + 85;
+  const colCobranca = margin + 105;
+  const colHrs = margin + 130;
+  const colKmIgon = margin + 150;
   const colValor = pageWidth - margin - 2;
 
   doc.text('Nº OS', colOs, y + 6.5);
@@ -99,6 +101,8 @@ export const generateWorkOrderReportPDF = (
   doc.text('Cliente', colCliente, y + 6.5);
   doc.text('Status', colStatus, y + 6.5);
   doc.text('Cobrança', colCobranca, y + 6.5);
+  doc.text('Hrs.', colHrs, y + 6.5);
+  doc.text('KM Igon', colKmIgon, y + 6.5);
   doc.text('Valor (R$)', colValor, y + 6.5, { align: 'right' });
 
   y += tableHeaderHeight;
@@ -127,6 +131,8 @@ export const generateWorkOrderReportPDF = (
       doc.text('Cliente', colCliente, 20);
       doc.text('Status', colStatus, 20);
       doc.text('Cobrança', colCobranca, 20);
+      doc.text('Hrs.', colHrs, 20);
+      doc.text('KM Igon', colKmIgon, 20);
       doc.text('Valor (R$)', colValor, 20, { align: 'right' });
       y = 28;
     }
@@ -243,7 +249,7 @@ export const generateWorkOrderReportPDF = (
       workedHours = calcSessionHours(sessionsToSum);
       const rate = order.technicianDetails?.find(td => td.technicianId === filters.technicianId)?.laborRate || 
                    technicians.find(t => t.id === filters.technicianId)?.defaultLaborHourValue || 0;
-      orderValue = (workedHours * rate) + kmValueToInclude;
+      orderValue = (workedHours * rate) + kmValueToInclude + igonKmValueToInclude;
     } else {
       // For all techs, sum up their individual labor portions
       orderValue = sessionsToSum.reduce((acc, s) => {
@@ -254,7 +260,7 @@ export const generateWorkOrderReportPDF = (
           return sAcc + (h * r);
         }, 0);
         return acc + sessionLabor;
-      }, 0) + kmValueToInclude;
+      }, 0) + kmValueToInclude + igonKmValueToInclude;
     }
 
     // Collect summary for technicians
@@ -299,6 +305,8 @@ export const generateWorkOrderReportPDF = (
     
     doc.setTextColor(31, 41, 55);
     doc.text(billingLabel, colCobranca, y);
+    doc.text(`${workedHours.toFixed(1)}h`, colHrs, y);
+    doc.text(igonKmValueToInclude > 0 ? `R$ ${igonKmValueToInclude.toFixed(2)}` : '-', colKmIgon, y);
 
     doc.setFont('helvetica', 'bold');
     doc.text(orderValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), colValor, y, { align: 'right' });
@@ -368,8 +376,8 @@ export const generateWorkOrderReportPDF = (
   doc.setFont('helvetica', 'bold');
   
   const labelY1 = y + 8;
-  const labelY2 = y + 16;
-  const labelY3 = y + 26;
+  const labelY2 = y + 18;
+  const labelY3 = y + 30;
 
   doc.text(`TOTAL DE OS:`, margin + 5, labelY1);
   doc.setFont('helvetica', 'normal');
@@ -381,7 +389,7 @@ export const generateWorkOrderReportPDF = (
   doc.text(`R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 90, labelY1);
   
   doc.setFont('helvetica', 'bold');
-  doc.text(`KM DIÁRIO:`, margin + 130, labelY1);
+  doc.text(`KM EQUIPE:`, margin + 125, labelY1);
   doc.setFont('helvetica', 'normal');
   doc.text(`R$ ${totalKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 155, labelY1);
   
@@ -396,9 +404,9 @@ export const generateWorkOrderReportPDF = (
   doc.text(`R$ ${totalPendingValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 90, labelY2);
 
   doc.setFont('helvetica', 'bold');
-  doc.text(`KM IGON:`, margin + 130, labelY2);
+  doc.text(`KM IGON (DIÁRIO):`, margin + 125, labelY2);
   doc.setFont('helvetica', 'normal');
-  doc.text(`R$ ${totalIgonKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 155, labelY2);
+  doc.text(`R$ ${totalIgonKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 165, labelY2);
   
   doc.setFontSize(14);
   doc.setTextColor(79, 70, 229);
