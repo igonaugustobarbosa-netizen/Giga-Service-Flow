@@ -71,9 +71,9 @@ export const parseDateSafely = (dateValue: any): Date => {
 
   try {
     const dateStr = String(dateValue);
-    // Strip 'Z' to avoid day jumps if we want to stay in local time interpretation
-    const cleanStr = dateStr.includes('Z') ? dateStr.replace('Z', '') : dateStr;
-    const date = new Date(cleanStr);
+    // Respect the timezone if present (especially 'Z' for UTC). 
+    // Stripping 'Z' was causing a 3-hour shift in regions like Brazil (UTC-3).
+    const date = new Date(dateStr);
     return isNaN(date.getTime()) ? new Date() : date;
   } catch (e) {
     return new Date();

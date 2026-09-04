@@ -329,6 +329,22 @@ export default function Dashboard() {
     
     const hours = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
 
+    // Calculate actual executed KM based on unique days worked for consistency
+    const uniqueDays = new Set((wo.workSessions || []).map(s => {
+      try {
+        return format(new Date(s.startTime), 'yyyy-MM-dd');
+      } catch (e) {
+        return 'invalid-date';
+      }
+    })).size;
+    
+    const sessionKm = wo.dailyKmOverride && wo.dailyKmOverride > 0 
+      ? wo.dailyKmOverride 
+      : (wo.kmDriven && wo.workSessions?.length ? (wo.kmDriven / wo.workSessions.length) : (wo.estimatedKm || 0));
+    
+    const actualKmDriven = Number((uniqueDays * sessionKm).toFixed(2));
+    const actualKmValue = Number((actualKmDriven * (wo.kmRate || settings?.kmValue || 0)).toFixed(2));
+
     const laborValue = sessions.reduce((acc, s) => {
       const uniqueTechIds = Array.from(new Set(s.technicianIds || []));
       
@@ -359,9 +375,10 @@ export default function Dashboard() {
     
     // For KM, if there's only one technician, they are the owner.
     // If there are multiple and no split, the first one is the owner for reporting purposes.
-    const isOwnerOfKm = !isTechFilter || 
-                        (wo.technicianDetails?.some(td => td.technicianId === reportFilters.technicianId && td.km > 0)) ||
-                        (wo.technicianIds?.[0] === reportFilters.technicianId && (!wo.technicianDetails || wo.technicianDetails.length === 0));
+    const kmRecipientDetail = wo.technicianDetails?.find(td => td.receivesKm);
+    const effectiveKmRecipientId = kmRecipientDetail ? kmRecipientDetail.technicianId : wo.technicianIds?.[0];
+
+    const isOwnerOfKm = !isTechFilter || (reportFilters.technicianId === effectiveKmRecipientId);
 
     const techHasWorked = !isTechFilter || wo.workSessions?.some(s => s.technicianIds?.includes(reportFilters.technicianId));
     const anySessionsBilled = wo.workSessions && wo.workSessions.some(s => s.billed);
@@ -392,18 +409,12 @@ export default function Dashboard() {
           baseKmValue = techDetail.km * techDetail.kmValue;
           baseKmDistance = techDetail.km;
         } else if (isOwnerOfKm) {
-          // Proportional attribution of KM based on participation if no specific detail exists
-          // This avoids "elevated values" where a tech gets KM for sessions they didn't participate in
-          const allSessions = wo.workSessions || [];
-          const techSessionsCount = allSessions.filter(s => s.technicianIds?.includes(reportFilters.technicianId)).length;
-          const proportion = allSessions.length > 0 ? techSessionsCount / allSessions.length : 0;
+          // Give 100% of the calculated KM to the designated recipient
+          const totalKmVal = actualKmValue || wo.kmTotalValue || 0;
+          const totalDistance = actualKmDriven || wo.kmDriven || 0;
           
-          const calculatedTotalKmVal = (wo.kmDriven || 0) * (wo.kmRate || settings?.kmValue || 0);
-          const totalKmVal = calculatedTotalKmVal > 0 ? calculatedTotalKmVal : (wo.kmTotalValue || 0);
-          const totalDistance = wo.kmDriven || 0;
-          
-          baseKmValue = totalKmVal * proportion;
-          baseKmDistance = totalDistance * proportion;
+          baseKmValue = totalKmVal;
+          baseKmDistance = totalDistance;
         }
       } else {
         // Sum of all KM if no tech filter (Total report)
@@ -427,9 +438,8 @@ export default function Dashboard() {
           const primaryTech = technicians.find(t => t.id === primaryTechId);
           const isIgonPrimary = primaryTech?.name?.toLowerCase().includes('igon');
 
-          const calculatedVal = (wo.kmDriven || 0) * (wo.kmRate || settings?.kmValue || 0);
-          const totalKmVal = calculatedVal > 0 ? calculatedVal : (wo.kmTotalValue || 0);
-          const totalDistance = wo.kmDriven || 0;
+          const totalKmVal = actualKmValue || wo.kmTotalValue || 0;
+          const totalDistance = actualKmDriven || wo.kmDriven || 0;
 
           if (isIgonPrimary) {
             baseIgonKmValue = totalKmVal;

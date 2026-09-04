@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WorkOrder, Customer, Technician } from '../types';
@@ -30,7 +31,7 @@ export const generateWorkOrderReportPDF = (
   const companyName = 'Giga Elétrica';
 
   // Header
-  doc.setFillColor(49, 46, 129); // Indigo-900 for a more premium look
+  doc.setFillColor(49, 46, 129); // Indigo-900
   doc.rect(0, 0, pageWidth, 40, 'F');
   
   doc.setFontSize(22);
@@ -47,18 +48,18 @@ export const generateWorkOrderReportPDF = (
   doc.setFontSize(9);
   doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin, 31, { align: 'right' });
 
-  y = 52;
+  y = 50;
 
   // Filters Summary
   doc.setFontSize(10);
   doc.setTextColor(70, 70, 70);
   doc.setFont('helvetica', 'bold');
   doc.text('FILTROS APLICADOS', margin, y);
-  y += 5;
+  y += 6;
   
   const filterTexts = [];
-  if (filters.status !== 'all') filterTexts.push(`Status: ${filters.status}`);
-  if (filters.billingStatus !== 'all') filterTexts.push(`Cobrança: ${filters.billingStatus}`);
+  if (filters.status !== 'all') filterTexts.push(`Status: ${filters.status === 'open' ? 'Aberta' : filters.status === 'in-progress' ? 'Em Andamento' : 'Encerrada'}`);
+  if (filters.billingStatus !== 'all') filterTexts.push(`Cobrança: ${filters.billingStatus === 'billed' ? 'Cobrado' : 'Pendente'}`);
   if (filters.customerId !== 'all') {
     const c = customers.find(c => c.id === filters.customerId);
     if (c) filterTexts.push(`Cliente: ${c.name}`);
@@ -72,42 +73,13 @@ export const generateWorkOrderReportPDF = (
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
   if (filterTexts.length > 0) {
-    doc.text(filterTexts.join('  •  '), margin, y);
-    y += 12;
+    const splitFilters = doc.splitTextToSize(filterTexts.join('  •  '), pageWidth - 2 * margin);
+    doc.text(splitFilters, margin, y);
+    y += (splitFilters.length * 4) + 6;
   } else {
     doc.text('Todos os registros selecionados', margin, y);
-    y += 12;
+    y += 10;
   }
-
-  // Table Header
-  const tableHeaderHeight = 10;
-  doc.setFillColor(79, 70, 229); // Indigo-600
-  doc.rect(margin, y, pageWidth - (margin * 2), tableHeaderHeight, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
-  
-  const colOs = margin + 2;
-  const colData = margin + 18;
-  const colCliente = margin + 38;
-  const colStatus = margin + 85;
-  const colCobranca = margin + 105;
-  const colHrs = margin + 130;
-  const colKmIgon = margin + 150;
-  const colValor = pageWidth - margin - 2;
-
-  doc.text('Nº OS', colOs, y + 6.5);
-  doc.text('Data', colData, y + 6.5);
-  doc.text('Cliente', colCliente, y + 6.5);
-  doc.text('Status', colStatus, y + 6.5);
-  doc.text('Cobrança', colCobranca, y + 6.5);
-  doc.text('Hrs.', colHrs, y + 6.5);
-  doc.text('KM Igon', colKmIgon, y + 6.5);
-  doc.text('Valor (R$)', colValor, y + 6.5, { align: 'right' });
-
-  y += tableHeaderHeight;
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
 
   let totalValue = 0;
   let totalKmValue = 0;
@@ -118,44 +90,14 @@ export const generateWorkOrderReportPDF = (
 
   const techSummary: Record<string, { name: string; hours: number; laborValue: number; kmValue: number }> = {};
 
-  orders.forEach((order, index) => {
-    if (y > 275) {
-      doc.addPage();
-      // Draw a small header on new page
-      doc.setFillColor(79, 70, 229);
-      doc.rect(margin, 15, pageWidth - (margin * 2), 8, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text('Nº OS', colOs, 20);
-      doc.text('Data', colData, 20);
-      doc.text('Cliente', colCliente, 20);
-      doc.text('Status', colStatus, 20);
-      doc.text('Cobrança', colCobranca, 20);
-      doc.text('Hrs.', colHrs, 20);
-      doc.text('KM Igon', colKmIgon, 20);
-      doc.text('Valor (R$)', colValor, 20, { align: 'right' });
-      y = 28;
-    }
-
-    // Zebra striping
-    if (index % 2 === 0) {
-      doc.setFillColor(249, 250, 251);
-      doc.rect(margin, y - 5, pageWidth - (margin * 2), 8, 'F');
-    }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(31, 41, 55); // Gray-800
-    doc.setFontSize(8);
-
+  const tableBody = orders.map((order) => {
     const customerName = order.customerNameSnapshot || customers.find(c => c.id === order.customerId)?.name || 'N/A';
-    const dateStr = format(new Date(order.scheduledDate.replace('Z', '')), 'dd/MM/yy');
+    const dateStr = format(new Date(order.scheduledDate), 'dd/MM/yy');
     const statusLabel = 
       order.status === 'open' ? 'Aberta' : 
       order.status === 'in-progress' ? 'Em Andamento' : 
       'Encerrada';
     
-    let orderHours = 0;
-    let orderValue = 0;
     const billedSessions = order.workSessions?.filter(s => s.billed) || [];
     const pendingSessions = order.workSessions?.filter(s => !s.billed) || [];
     const totalSessions = order.workSessions?.length || 0;
@@ -163,10 +105,8 @@ export const generateWorkOrderReportPDF = (
     const billingLabel = `${billedCount}/${totalSessions}`;
     const isPending = pendingSessions.length > 0 || totalSessions === 0;
 
-    // Helper to calculate session hours
     const calcSessionHours = (sessions: any[]) => sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
 
-    // Calculate specific values based on filters
     let workedHours = 0;
     if (filters.billingStatus === 'billed') {
       workedHours = calcSessionHours(billedSessions);
@@ -176,9 +116,6 @@ export const generateWorkOrderReportPDF = (
       workedHours = calcSessionHours(order.workSessions || []);
     }
 
-    const orderTotalHours = order.totalWorkedHours || 0;
-
-    // Filter sessions by technician if applicable
     const sessionsToSum = (filters.billingStatus === 'billed' ? billedSessions : 
                           filters.billingStatus === 'pending' ? pendingSessions : 
                           (order.workSessions || []))
@@ -188,46 +125,41 @@ export const generateWorkOrderReportPDF = (
     const anySessionsBilledReport = order.workSessions && order.workSessions.some(s => s.billed);
     const noSessionsBilledReport = !order.workSessions || order.workSessions.length === 0 || !order.workSessions.some(s => s.billed);
 
-    // Calculate base KM value based on tech details or legacy fields
+    // KM Calculation
+    const uniqueDays = new Set((order.workSessions || []).map(s => {
+      try {
+        return format(new Date(s.startTime), 'yyyy-MM-dd');
+      } catch (e) {
+        return 'invalid-date';
+      }
+    })).size;
+    
+    const baseDailyKm = order.dailyKmOverride || (order.kmDriven && order.workSessions?.length ? (order.kmDriven / order.workSessions.length) : 0);
+    const estimatedDailyKmValue = (uniqueDays * baseDailyKm * (order.kmRate || 0));
+    const actualKmValue = order.kmTotalValue || estimatedDailyKmValue;
+
     let baseKmValueReport = 0;
     let baseIgonKmValueReport = 0;
-    if (filters.technicianId !== 'all') {
-      const tech = technicians.find(t => t.id === filters.technicianId);
-      const isIgon = tech?.name?.toLowerCase().includes('igon');
-      
-      const techDetail = order.technicianDetails?.find(td => td.technicianId === filters.technicianId);
-      const val = techDetail ? techDetail.km * techDetail.kmValue : (order.kmTotalValue || ((order.kmDriven || 0) * (order.kmRate || 0)));
+    
+    const kmRecipientDetail = order.technicianDetails?.find(td => td.receivesKm);
+    const effectiveKmRecipientId = kmRecipientDetail ? kmRecipientDetail.technicianId : order.technicianIds?.[0];
+    const kmRecipientTech = technicians.find(t => t.id === effectiveKmRecipientId);
+    const isIgonRecipient = kmRecipientTech?.name?.toLowerCase().includes('igon');
 
-      if (isIgon) {
-        baseIgonKmValueReport = val;
-        baseKmValueReport = 0;
+    if (filters.technicianId !== 'all') {
+      const isRecipient = filters.technicianId === effectiveKmRecipientId;
+      const val = actualKmValue;
+      if (isRecipient) {
+        if (isIgonRecipient) { baseIgonKmValueReport = val; baseKmValueReport = 0; }
+        else { baseKmValueReport = val; baseIgonKmValueReport = 0; }
       } else {
-        baseKmValueReport = val;
         baseIgonKmValueReport = 0;
+        baseKmValueReport = 0;
       }
     } else {
-      if (order.technicianDetails && order.technicianDetails.length > 0) {
-        order.technicianDetails.forEach(td => {
-          const tech = technicians.find(t => t.id === td.technicianId);
-          const isIgon = tech?.name?.toLowerCase().includes('igon');
-          const val = td.km * td.kmValue;
-          if (isIgon) baseIgonKmValueReport += val;
-          else baseKmValueReport += val;
-        });
-      } else {
-        const primaryTechId = order.technicianIds?.[0];
-        const primaryTech = technicians.find(t => t.id === primaryTechId);
-        const isIgonPrimary = primaryTech?.name?.toLowerCase().includes('igon');
-        
-        const val = order.kmTotalValue || ((order.kmDriven || 0) * (order.kmRate || 0));
-        if (isIgonPrimary) {
-          baseIgonKmValueReport = val;
-          baseKmValueReport = 0;
-        } else {
-          baseKmValueReport = val;
-          baseIgonKmValueReport = 0;
-        }
-      }
+      const val = actualKmValue;
+      if (isIgonRecipient) { baseIgonKmValueReport = val; baseKmValueReport = 0; }
+      else { baseKmValueReport = val; baseIgonKmValueReport = 0; }
     }
 
     let kmValueToInclude = 0;
@@ -245,13 +177,13 @@ export const generateWorkOrderReportPDF = (
       }
     }
 
+    let orderValue = 0;
     if (filters.technicianId !== 'all') {
       workedHours = calcSessionHours(sessionsToSum);
       const rate = order.technicianDetails?.find(td => td.technicianId === filters.technicianId)?.laborRate || 
                    technicians.find(t => t.id === filters.technicianId)?.defaultLaborHourValue || 0;
       orderValue = (workedHours * rate) + kmValueToInclude + igonKmValueToInclude;
     } else {
-      // For all techs, sum up their individual labor portions
       orderValue = sessionsToSum.reduce((acc, s) => {
         const h = s.duration || 0;
         const sessionLabor = (s.technicianIds || []).reduce((sAcc: number, tId: string) => {
@@ -263,11 +195,9 @@ export const generateWorkOrderReportPDF = (
       }, 0) + kmValueToInclude + igonKmValueToInclude;
     }
 
-    // Collect summary for technicians
+    // Update tech summary
     order.technicianDetails?.forEach(td => {
-      // Only summarize if no filter or matches filter
       if (filters.technicianId !== 'all' && td.technicianId !== filters.technicianId) return;
-
       const t = technicians.find(tech => tech.id === td.technicianId);
       if (t) {
         if (!techSummary[td.technicianId]) {
@@ -277,39 +207,15 @@ export const generateWorkOrderReportPDF = (
         const h = calcSessionHours(techSessions);
         techSummary[td.technicianId].hours += h;
         techSummary[td.technicianId].laborValue += (h * td.laborRate);
-        
-        // Attribute KM to primary technician in the summary to avoid double counting for 'all' report
-        // But if filtering by tech, always attribute to that tech if they are in the OS
         const isPrimary = order.technicianIds && order.technicianIds[0] === td.technicianId;
+        const isRecipient = td.receivesKm || (filters.technicianId === 'all' && !order.technicianDetails?.some(d => d.receivesKm) && isPrimary);
         const isIgon = t.name?.toLowerCase().includes('igon');
-        
-        if (filters.technicianId !== 'all' || isPrimary) {
-          if (isIgon) {
-            techSummary[td.technicianId].kmValue += igonKmValueToInclude;
-          } else {
-            techSummary[td.technicianId].kmValue += kmValueToInclude;
-          }
+        if (filters.technicianId !== 'all' ? (td.technicianId === effectiveKmRecipientId) : isRecipient) {
+          if (isIgon) techSummary[td.technicianId].kmValue += igonKmValueToInclude;
+          else techSummary[td.technicianId].kmValue += kmValueToInclude;
         }
       }
     });
-    
-    doc.text(order.workOrderNumber, colOs, y);
-    doc.text(dateStr, colData, y);
-    doc.text(customerName.substring(0, 32), colCliente, y);
-    
-    // Status color
-    if (order.status === 'open') doc.setTextColor(79, 70, 229);
-    else if (order.status === 'in-progress') doc.setTextColor(245, 158, 11);
-    else doc.setTextColor(16, 185, 129);
-    doc.text(statusLabel, colStatus, y);
-    
-    doc.setTextColor(31, 41, 55);
-    doc.text(billingLabel, colCobranca, y);
-    doc.text(`${workedHours.toFixed(1)}h`, colHrs, y);
-    doc.text(igonKmValueToInclude > 0 ? `R$ ${igonKmValueToInclude.toFixed(2)}` : '-', colKmIgon, y);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text(orderValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), colValor, y, { align: 'right' });
 
     const laborOnlyValue = orderValue - kmValueToInclude - igonKmValueToInclude;
     totalValue += laborOnlyValue;
@@ -318,13 +224,51 @@ export const generateWorkOrderReportPDF = (
     if (isPending) totalPendingValue += laborOnlyValue;
     totalKm += order.kmDriven || 0;
     totalHours += workedHours;
-    y += 8;
+
+    return [
+      order.workOrderNumber,
+      dateStr,
+      customerName,
+      statusLabel,
+      billingLabel,
+      `${workedHours.toFixed(1)}h`,
+      igonKmValueToInclude > 0 ? `R$ ${igonKmValueToInclude.toFixed(2)}` : '-',
+      orderValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    ];
   });
 
-  y += 10;
+  autoTable(doc, {
+    startY: y,
+    head: [['Nº OS', 'Data', 'Cliente', 'Status', 'Cobrança', 'Hrs.', 'KM Igon', 'Valor (R$)']],
+    body: tableBody,
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], fontSize: 8 },
+    styles: { fontSize: 7, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: 15 },
+      1: { cellWidth: 15 },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 15 },
+      5: { cellWidth: 12 },
+      6: { cellWidth: 20 },
+      7: { halign: 'right', cellWidth: 25 }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 3) {
+        const val = data.cell.raw as string;
+        if (val === 'Aberta') data.cell.styles.textColor = [79, 70, 229];
+        else if (val === 'Em Andamento') data.cell.styles.textColor = [245, 158, 11];
+        else if (val === 'Encerrada') data.cell.styles.textColor = [16, 185, 129];
+      }
+    }
+  });
 
+  y = (doc as any).lastAutoTable.finalY + 15;
+
+  // Tech Summary Table
   if (Object.keys(techSummary).length > 0) {
-    if (y > 230) { doc.addPage(); y = 20; }
+    if (y + 30 > pageHeight - margin) { doc.addPage(); y = margin; }
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -332,89 +276,86 @@ export const generateWorkOrderReportPDF = (
     doc.text('RESUMO POR TÉCNICO', margin, y);
     y += 6;
     
-    doc.setDrawColor(229, 231, 235);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
-    
-    doc.setFontSize(9);
-    Object.values(techSummary).forEach((s: any, idx) => {
-      if (idx % 2 === 0) {
-        doc.setFillColor(249, 250, 251);
-        doc.rect(margin, y - 4, pageWidth - (margin * 2), 6, 'F');
-      }
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text(s.name, margin + 2, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${s.hours.toFixed(1)}h`, margin + 65, y);
-      doc.text(`MO: R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 85, y);
-      doc.text(`KM: R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 125, y);
-      
+    const techTableBody = Object.values(techSummary).map((s: any) => {
       const total = s.laborValue + (s.kmValue || 0);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 2, y, { align: 'right' });
-      y += 6;
+      return [
+        s.name,
+        `${s.hours.toFixed(1)}h`,
+        `R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ];
     });
-    y += 12;
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Técnico', 'Horas', 'Mão de Obra', 'KM', 'Total']],
+      body: techTableBody,
+      theme: 'striped',
+      headStyles: { fillColor: [55, 65, 81], fontSize: 9 },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        4: { halign: 'right', fontStyle: 'bold' }
+      }
+    });
+    
+    y = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  if (y > 230) {
-    doc.addPage();
-    y = 20;
-  }
+  // Final Summary Card
+  if (y + 50 > pageHeight - margin) { doc.addPage(); y = margin; }
 
-  // Summary Card
-  const summaryBoxHeight = 35;
-  doc.setFillColor(243, 244, 246); // Gray-100
+  const summaryBoxHeight = 40;
+  doc.setFillColor(243, 244, 246);
   doc.rect(margin, y, pageWidth - (margin * 2), summaryBoxHeight, 'F');
   doc.setDrawColor(79, 70, 229);
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.8);
   doc.line(margin, y, margin, y + summaryBoxHeight);
   
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(55, 65, 81);
-  doc.setFont('helvetica', 'bold');
   
-  const labelY1 = y + 8;
-  const labelY2 = y + 18;
-  const labelY3 = y + 30;
+  const col1 = margin + 5;
+  const col2 = margin + 65;
+  const col3 = margin + 125;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL DE OS:', col1, y + 10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${orders.length}`, col1 + 25, y + 10);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('VALOR MO:', col2, y + 10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, col2 + 25, y + 10);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('KM EQUIPE:', col3, y + 10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`R$ ${totalKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, col3 + 25, y + 10);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('HRS. TRAB:', col1, y + 20);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${totalHours.toFixed(1)}h`, col1 + 25, y + 20);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('PENDENTE:', col2, y + 20);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`R$ ${totalPendingValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, col2 + 25, y + 20);
 
-  doc.text(`TOTAL DE OS:`, margin + 5, labelY1);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${orders.length}`, margin + 35, labelY1);
-  
   doc.setFont('helvetica', 'bold');
-  doc.text(`VALOR MO:`, margin + 65, labelY1);
+  doc.text('KM IGON (DIÁRIO):', col3, y + 20);
   doc.setFont('helvetica', 'normal');
-  doc.text(`R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 90, labelY1);
-  
-  doc.setFont('helvetica', 'bold');
-  doc.text(`KM EQUIPE:`, margin + 125, labelY1);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`R$ ${totalKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 155, labelY1);
-  
-  doc.setFont('helvetica', 'bold');
-  doc.text(`HRS. TRAB:`, margin + 5, labelY2);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${totalHours.toFixed(1)}h`, margin + 35, labelY2);
-  
-  doc.setFont('helvetica', 'bold');
-  doc.text(`PENDENTE:`, margin + 65, labelY2);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`R$ ${totalPendingValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 90, labelY2);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text(`KM IGON (DIÁRIO):`, margin + 125, labelY2);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`R$ ${totalIgonKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + 165, labelY2);
+  doc.text(`R$ ${totalIgonKmValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, col3 + 35, y + 20);
   
   doc.setFontSize(14);
   doc.setTextColor(79, 70, 229);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOTAL GERAL:', margin + 5, labelY3);
-  doc.text(`R$ ${(totalValue + totalKmValue + totalIgonKmValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 5, labelY3, { align: 'right' });
+  doc.text('TOTAL GERAL:', col1, y + 32);
+  doc.text(`R$ ${(totalValue + totalKmValue + totalIgonKmValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 5, y + 32, { align: 'right' });
 
-  // Final Footer
+  // Add Page Numbers
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);

@@ -111,14 +111,28 @@ export const generateWorkOrderPDF = (
   doc.setTextColor(31, 41, 55);
   const serviceInfoY = separatorY + 10;
   doc.text('DESCRIÇÃO DO SERVIÇO', margin, serviceInfoY);
+  
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(75, 85, 99);
-  const splitDescription = doc.splitTextToSize(wo.description, pageWidth - 2 * margin);
+  const splitDescription = doc.splitTextToSize(wo.description || 'Nenhuma descrição informada.', pageWidth - 2 * margin);
   doc.text(splitDescription, margin, serviceInfoY + 6);
   
-  let currentY = serviceInfoY + 6 + (splitDescription.length * 5) + 8;
+  let currentY = serviceInfoY + 6 + (splitDescription.length * 5) + 10;
   
+  // Calculate actual executed KM based on unique days worked
+  const uniqueDaysCount = new Set((wo.workSessions || []).map(s => {
+    try {
+      return format(new Date(s.startTime), 'yyyy-MM-dd');
+    } catch (e) {
+      return 'invalid-date';
+    }
+  })).size;
+  
+  const baseDailyKm = wo.dailyKmOverride || (wo.kmDriven && wo.workSessions?.length ? (wo.kmDriven / wo.workSessions.length) : (wo.estimatedKm || 0));
+  const actualKmDriven = Number((uniqueDaysCount * baseDailyKm).toFixed(2));
+  const actualKmValue = Number((actualKmDriven * (wo.kmRate || 0)).toFixed(2));
+
   // Details Table
   autoTable(doc, {
     startY: currentY,
@@ -126,26 +140,32 @@ export const generateWorkOrderPDF = (
     body: [[
       wo.scheduledDate ? format(new Date(wo.scheduledDate), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Não informada',
       wo.status === 'open' ? 'Aberta' : wo.status === 'in-progress' ? 'Em Andamento' : 'Encerrada',
-      `${wo.kmDriven || 0} km`,
-      `R$ ${(wo.kmTotalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      `${actualKmDriven || wo.kmDriven || 0} km`,
+      `R$ ${(actualKmValue || wo.kmTotalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
       `${wo.totalWorkedHours || 0}h`
     ]],
     theme: 'grid',
     headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-    styles: { fontSize: 8 }
+    styles: { fontSize: 8 },
+    margin: { left: margin, right: margin }
   });
   
-  currentY = (doc as any).lastAutoTable.finalY + 12;
+  currentY = (doc as any).lastAutoTable.finalY + 15;
 
   // Work Sessions History
   if (wo.workSessions && wo.workSessions.length > 0) {
+    if (currentY + 20 > pageHeight - margin) {
+      doc.addPage();
+      currentY = margin;
+    }
+
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(31, 41, 55);
     doc.text('HISTÓRICO DE SESSÕES DE TRABALHO', margin, currentY);
     
     autoTable(doc, {
-      startY: currentY + 4,
+      startY: currentY + 6,
       head: [['Início', 'Fim', 'Duração', 'Status', 'Procedimento']],
       body: wo.workSessions.map(session => [
         format(new Date(session.startTime), "dd/MM/yyyy HH:mm"),
@@ -164,10 +184,11 @@ export const generateWorkOrderPDF = (
       theme: 'striped',
       headStyles: { fillColor: [55, 65, 81] },
       footStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: 'bold' },
-      styles: { fontSize: 8 }
+      styles: { fontSize: 8 },
+      margin: { left: margin, right: margin }
     });
     
-    currentY = (doc as any).lastAutoTable.finalY + 12;
+    currentY = (doc as any).lastAutoTable.finalY + 15;
   }
 
   // Work Progress per Technician Summary (Status de Mão de Obra)
@@ -211,12 +232,17 @@ export const generateWorkOrderPDF = (
   });
 
   if (techProgressSummary.length > 0) {
+    if (currentY + 20 > pageHeight - margin) {
+      doc.addPage();
+      currentY = margin;
+    }
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('STATUS DE MÃO DE OBRA POR TÉCNICO', margin, currentY);
     
     autoTable(doc, {
-      startY: currentY + 5,
+      startY: currentY + 6,
       head: options.includeDetails 
         ? [['Técnico', 'Planejado', 'Trabalhado', 'Saldo', 'Vlr Hora', 'Total Pago']]
         : [['Técnico', 'Planejado', 'Trabalhado', 'Saldo']],
@@ -225,7 +251,9 @@ export const generateWorkOrderPDF = (
       headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
       columnStyles: {
         3: { fontStyle: 'bold' } // Highlight Saldo column
-      }
+      },
+      styles: { fontSize: 8 },
+      margin: { left: margin, right: margin }
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 15;
@@ -233,12 +261,17 @@ export const generateWorkOrderPDF = (
 
   // Technician Detailed Work (from Budget)
   if (options.includeDetails && wo.technicianDetails && wo.technicianDetails.length > 0) {
+    if (currentY + 20 > pageHeight - margin) {
+      doc.addPage();
+      currentY = margin;
+    }
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('DETALHAMENTO DE MÃO DE OBRA', margin, currentY);
     
     autoTable(doc, {
-      startY: currentY + 5,
+      startY: currentY + 6,
       head: [['Técnico', 'Horas', 'Vlr Hora', 'Total']],
       body: wo.technicianDetails.map(t => [
         t.name,
@@ -254,39 +287,59 @@ export const generateWorkOrderPDF = (
       ]],
       theme: 'striped',
       headStyles: { fillColor: [100, 100, 100] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      styles: { fontSize: 8 },
+      margin: { left: margin, right: margin }
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    if (currentY + 20 > pageHeight - margin) {
+      doc.addPage();
+      currentY = margin;
+    }
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('DETALHAMENTO DE DESLOCAMENTO', margin, currentY);
     
     autoTable(doc, {
-      startY: currentY + 5,
+      startY: currentY + 6,
       head: [['Técnico', 'KM', 'Vlr KM', 'Total']],
-      body: wo.technicianDetails.map(t => [
+      body: wo.technicianDetails.map(t => {
+      const isRecipient = t.receivesKm || (wo.technicianIds?.[0] === t.technicianId && !wo.technicianDetails?.some(d => d.receivesKm));
+      const kmToShow = isRecipient ? (actualKmDriven || t.km) : 0;
+      const kmValToShow = isRecipient ? (actualKmValue || (t.km * t.kmValue)) : 0;
+      
+      return [
         t.name,
-        `${t.km || 0} km`,
-        `R$ ${(t.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${((t.km || 0) * (t.kmValue || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]),
-      foot: [[
-        'TOTAL DESLOCAMENTO',
-        '',
-        '',
-        `R$ ${wo.technicianDetails.reduce((sum, t) => sum + ((t.km || 0) * (t.kmValue || 0)), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]],
+        `${kmToShow} km`,
+        `R$ ${(isRecipient ? (wo.kmRate || t.kmValue) : t.kmValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${kmValToShow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ];
+    }),
+    foot: [[
+      'TOTAL DESLOCAMENTO',
+      '',
+      '',
+      `R$ ${(actualKmValue || wo.technicianDetails.reduce((sum, t) => sum + ((t.km || 0) * (t.kmValue || 0)), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ]],
       theme: 'striped',
       headStyles: { fillColor: [100, 100, 100] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      styles: { fontSize: 8 },
+      margin: { left: margin, right: margin }
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 15;
   }
   
   // Technicians responsible (Original selection)
+  if (currentY + 20 > pageHeight - margin) {
+    doc.addPage();
+    currentY = margin;
+  }
+
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('TÉCNICOS RESPONSÁVEIS', margin, currentY);
@@ -296,17 +349,20 @@ export const generateWorkOrderPDF = (
     .map(id => technicians.find(t => t.id === id)?.name)
     .filter(Boolean)
     .join(', ');
-  doc.text(techNames || 'Nenhum técnico atribuído', margin, currentY + 5);
   
-  currentY += 25;
+  const splitTechNames = doc.splitTextToSize(techNames || 'Nenhum técnico atribuído', pageWidth - 2 * margin);
+  doc.text(splitTechNames, margin, currentY + 6);
+  
+  currentY += 6 + (splitTechNames.length * 5) + 15;
   
   // Signatures
-  if (currentY + 40 > 280) {
+  if (currentY + 50 > pageHeight - margin) {
     doc.addPage();
-    currentY = 20;
+    currentY = margin + 10;
   }
   
   doc.line(margin, currentY + 20, margin + 70, currentY + 20);
+  doc.setFontSize(9);
   doc.text('Assinatura do Técnico', margin + 35, currentY + 25, { align: 'center' });
   
   doc.line(pageWidth - margin - 70, currentY + 20, pageWidth - margin, currentY + 20);

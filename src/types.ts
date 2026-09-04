@@ -51,6 +51,7 @@ export interface TechnicianWork {
   laborRate: number;
   km: number;
   kmValue: number;
+  receivesKm?: boolean;
 }
 
 export interface Supplier {

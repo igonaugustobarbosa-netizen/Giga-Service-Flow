@@ -15,7 +15,8 @@ import {
   Users,
   Trash2,
   MapPin,
-  Banknote
+  Banknote,
+  Pencil
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -60,6 +61,14 @@ export default function WorkOrderForm() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [pdfConfirmDialog, setPdfConfirmDialog] = useState(false);
+  
+  // Edit session states
+  const [editingSessionIndex, setEditingSessionIndex] = useState<number | null>(null);
+  const [editSessionDate, setEditSessionDate] = useState<string>('');
+  const [editSessionStartTime, setEditSessionStartTime] = useState<string>('');
+  const [editSessionEndTime, setEditSessionEndTime] = useState<string>('');
+  const [editSessionDescription, setEditSessionDescription] = useState<string>('');
+  const [editSessionDuration, setEditSessionDuration] = useState<string>('');
   
   const [formData, setFormData] = useState<Partial<WorkOrder>>({
     workOrderNumber: '',
@@ -400,19 +409,23 @@ export default function WorkOrderForm() {
     const estimated = formData.laborHours || 0;
     const remaining = Number((estimated - totalWorked).toFixed(2));
     
-    // Auto KM calculation - prioritizing override
+    // Auto KM calculation - based on unique days worked
     const sessionKm = formData.dailyKmOverride && formData.dailyKmOverride > 0 
       ? formData.dailyKmOverride 
       : calculateDisplacement(formData.customerId || '', formData.supplierId);
     
-    const newKmTotal = Number((newSessions.length * sessionKm).toFixed(2));
+    const uniqueDays = new Set(newSessions.map(s => format(parseDateSafely(s.startTime), 'yyyy-MM-dd'))).size;
+    const newKmTotal = Number((uniqueDays * sessionKm).toFixed(2));
     const newKmRemaining = Number(((formData.estimatedKm || 0) - newKmTotal).toFixed(2));
+    const kmRate = formData.kmRate || settings?.kmValue || 0;
+    const newKmTotalValue = Number((newKmTotal * kmRate).toFixed(2));
 
     setFormData(prev => ({ 
       ...prev, 
       totalWorkedHours: totalWorked,
       remainingHours: remaining,
       kmDriven: newKmTotal,
+      kmTotalValue: newKmTotalValue,
       remainingKm: newKmRemaining,
       workSessions: newSessions,
       currentStartTime: null 
@@ -430,6 +443,91 @@ export default function WorkOrderForm() {
   const [manualSessionDescription, setManualSessionDescription] = useState<string>('');
   const [manualStartTime, setManualStartTime] = useState<string>('');
   const [manualEndTime, setManualEndTime] = useState<string>('');
+
+  const handleStartEditSession = (index: number) => {
+    const session = formData.workSessions?.[index];
+    if (!session) return;
+
+    const start = parseDateSafely(session.startTime);
+    const end = parseDateSafely(session.endTime);
+
+    setEditingSessionIndex(index);
+    setEditSessionDate(format(start, 'yyyy-MM-dd'));
+    setEditSessionStartTime(format(start, 'HH:mm'));
+    setEditSessionEndTime(format(end, 'HH:mm'));
+    setEditSessionDescription(session.description || '');
+    setEditSessionDuration(session.duration.toString().replace('.', ','));
+  };
+
+  const handleSaveEditedSession = () => {
+    if (editingSessionIndex === null || !formData.workSessions) return;
+
+    const [year, month, day] = editSessionDate.split('-').map(Number);
+    const [startH, startM] = editSessionStartTime.split(':').map(Number);
+    const [endH, endM] = editSessionEndTime.split(':').map(Number);
+
+    const start = new Date(year, month - 1, day, startH, startM);
+    const end = new Date(year, month - 1, day, endH, endM);
+    
+    // Check if end is before start (meaning it crossed midnight)
+    if (end < start) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    const duration = Number(editSessionDuration.replace(',', '.'));
+    
+    setFormData(prev => {
+      const newSessions = [...(prev.workSessions || [])];
+      newSessions[editingSessionIndex] = {
+        ...newSessions[editingSessionIndex],
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        duration,
+        description: editSessionDescription
+      };
+
+      const totalWorked = Number(newSessions.reduce((sum, s) => 
+        sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
+      const est = prev.laborHours || 0;
+
+      // Auto KM calculation - based on unique days worked
+      const sessionKm = prev.dailyKmOverride && prev.dailyKmOverride > 0 
+        ? prev.dailyKmOverride 
+        : calculateDisplacement(prev.customerId || '', prev.supplierId);
+
+      const uniqueDays = new Set(newSessions.map(s => format(parseDateSafely(s.startTime), 'yyyy-MM-dd'))).size;
+      const newKmTotal = Number((uniqueDays * sessionKm).toFixed(2));
+      const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
+      const kmRate = prev.kmRate || settings?.kmValue || 0;
+      const newKmTotalValue = Number((newKmTotal * kmRate).toFixed(2));
+
+      return {
+        ...prev,
+        workSessions: newSessions,
+        totalWorkedHours: totalWorked,
+        remainingHours: Number((est - totalWorked).toFixed(2)),
+        kmDriven: newKmTotal,
+        kmTotalValue: newKmTotalValue,
+        remainingKm: newKmRemaining
+      };
+    });
+
+    setEditingSessionIndex(null);
+    toast.success('Sessão atualizada com sucesso!');
+  };
+
+  useEffect(() => {
+    if (editSessionStartTime && editSessionEndTime && editingSessionIndex !== null) {
+      const [startH, startM] = editSessionStartTime.split(':').map(Number);
+      const [endH, endM] = editSessionEndTime.split(':').map(Number);
+      
+      let diffMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      if (diffMinutes < 0) diffMinutes += 24 * 60;
+      
+      const hours = Number((diffMinutes / 60).toFixed(2));
+      setEditSessionDuration(hours.toString().replace('.', ','));
+    }
+  }, [editSessionStartTime, editSessionEndTime, editingSessionIndex]);
 
   useEffect(() => {
     if (manualStartTime && manualEndTime) {
@@ -521,12 +619,13 @@ export default function WorkOrderForm() {
         sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
       const est = prev.laborHours || 0;
 
-      // Auto KM calculation for manual session - Based on total sessions count
+      // Auto KM calculation for manual session - Based on unique days worked
       const sessionKm = prev.dailyKmOverride && prev.dailyKmOverride > 0 
         ? prev.dailyKmOverride 
         : calculateDisplacement(prev.customerId || '', prev.supplierId);
 
-      const newKmTotal = Number((newSessions.length * sessionKm).toFixed(2));
+      const uniqueDaysCount = new Set(newSessions.map(s => format(parseDateSafely(s.startTime), 'yyyy-MM-dd'))).size;
+      const newKmTotal = Number((uniqueDaysCount * sessionKm).toFixed(2));
       const newKmRemaining = Number(((prev.estimatedKm || 0) - newKmTotal).toFixed(2));
       const kmRate = prev.kmRate || settings?.kmValue || 0;
       const newKmTotalValue = Number((newKmTotal * kmRate).toFixed(2));
@@ -558,11 +657,13 @@ export default function WorkOrderForm() {
         sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
       const est = prev.laborHours || 0;
 
-      // Re-calculate KM based on remaining sessions
+      // Re-calculate KM based on remaining unique days worked
       const sessionKm = prev.dailyKmOverride && prev.dailyKmOverride > 0 
         ? prev.dailyKmOverride 
         : calculateDisplacement(prev.customerId || '', prev.supplierId);
-      const totalKm = Number((newSessions.length * sessionKm).toFixed(2));
+        
+      const uniqueDays = new Set(newSessions.map(s => format(parseDateSafely(s.startTime), 'yyyy-MM-dd'))).size;
+      const totalKm = Number((uniqueDays * sessionKm).toFixed(2));
       const kmRate = prev.kmRate || settings?.kmValue || 0;
       const totalKmValue = Number((totalKm * kmRate).toFixed(2));
       
@@ -1196,84 +1297,138 @@ export default function WorkOrderForm() {
                   <div className="grid grid-cols-1 gap-2">
                     {formData.workSessions.map((session, index) => (
                       <div key={index} className="flex flex-col p-3 bg-muted/20 rounded-lg border border-border text-xs gap-2">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex gap-4">
-                            <div className="flex flex-col">
-                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
-                              <span>{format(parseDateSafely(session.startTime), "dd/MM/yy HH:mm")}</span>
+                        {editingSessionIndex === index ? (
+                          <div className="space-y-3 p-2 bg-white rounded-md border border-indigo-100 shadow-sm">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Data</Label>
+                                <Input 
+                                  type="date"
+                                  value={editSessionDate}
+                                  onChange={(e) => setEditSessionDate(e.target.value)}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Duração (h)</Label>
+                                <Input 
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={editSessionDuration}
+                                  onChange={(e) => setEditSessionDuration(e.target.value)}
+                                  className="h-8 text-xs font-bold text-indigo-600"
+                                />
+                              </div>
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
-                              <span>{format(parseDateSafely(session.endTime), "dd/MM/yy HH:mm")}</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Início</Label>
+                                <Input 
+                                  type="time"
+                                  value={editSessionStartTime}
+                                  onChange={(e) => setEditSessionStartTime(e.target.value)}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Fim</Label>
+                                <Input 
+                                  type="time"
+                                  value={editSessionEndTime}
+                                  onChange={(e) => setEditSessionEndTime(e.target.value)}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-col items-end">
-                              <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração (h)</span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                className="w-16 h-7 text-right font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:outline-none focus:border-indigo-500"
-                                value={session.duration}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const numericVal = val.replace(',', '.');
-                                  const newDur = Number(numericVal);
-                                  
-                                  if (!isNaN(newDur)) {
-                                    // Só sincroniza com o estado global se não estiver no meio de uma digitação decimal
-                                    if (!val.endsWith('.') && !val.endsWith(',')) {
-                                      setFormData(prev => {
-                                        const newSessions = [...(prev.workSessions || [])];
-                                        if (newSessions[index].duration === newDur) return prev;
-                                        
-                                        newSessions[index] = { ...newSessions[index], duration: newDur };
-                                        
-                                        const totalWorked = Number(newSessions.reduce((sum, s) => 
-                                          sum + (s.duration * (s.technicianIds?.length || 0)), 0).toFixed(2));
-                                        const est = prev.laborHours || 0;
-                                        
-                                        return {
-                                          ...prev,
-                                          workSessions: newSessions,
-                                          totalWorkedHours: totalWorked,
-                                          remainingHours: Number((est - totalWorked).toFixed(2))
-                                        };
-                                      });
-                                    }
-                                  }
-                                }}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold text-slate-500">Procedimento</Label>
+                              <Input 
+                                placeholder="Descrição do que foi feito..."
+                                value={editSessionDescription}
+                                onChange={(e) => setEditSessionDescription(e.target.value)}
+                                className="h-8 text-xs"
                               />
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                "h-8 w-8 transition-colors",
-                                session.billed ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
-                              )}
-                              onClick={() => toggleBilled(index)}
-                              title={session.billed ? "Marcar como não cobrado" : "Marcar como cobrado"}
-                            >
-                              <Banknote className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => removeSession(index)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[10px]"
+                                onClick={() => setEditingSessionIndex(null)}
+                              >
+                                Cancelar
+                              </Button>
+                              <Button 
+                                type="button" 
+                                size="sm" 
+                                className="h-7 text-[10px] bg-indigo-600 hover:bg-indigo-700"
+                                onClick={handleSaveEditedSession}
+                              >
+                                Salvar
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        {session.description && (
-                          <div className="pt-2 border-t border-border/50">
-                            <span className="text-muted-foreground font-medium">Procedimento:</span>
-                            <p className="mt-0.5 text-slate-700 italic">{session.description}</p>
-                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex gap-4">
+                                <div className="flex flex-col">
+                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
+                                  <span>{format(parseDateSafely(session.startTime), "dd/MM/yy HH:mm")}</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
+                                  <span>{format(parseDateSafely(session.endTime), "dd/MM/yy HH:mm")}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="flex flex-col items-end mr-2">
+                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração</span>
+                                  <span className="font-bold text-indigo-600">{session.duration.toFixed(2)}h</span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+                                  onClick={() => handleStartEditSession(index)}
+                                  title="Editar sessão"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    "h-8 w-8 transition-colors",
+                                    session.billed ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
+                                  )}
+                                  onClick={() => toggleBilled(index)}
+                                  title={session.billed ? "Marcar como não cobrado" : "Marcar como cobrado"}
+                                >
+                                  <Banknote className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => removeSession(index)}
+                                  title="Remover sessão"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            {session.description && (
+                              <div className="pt-2 border-t border-border/50">
+                                <span className="text-muted-foreground font-medium">Procedimento:</span>
+                                <p className="mt-0.5 text-slate-700 italic">{session.description}</p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     ))}
@@ -1296,49 +1451,87 @@ export default function WorkOrderForm() {
                     Nenhum técnico cadastrado.
                   </p>
                 ) : (
-                  technicians.map((tech) => (
-                    <div key={tech.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        id={`tech-${tech.id}`}
-                        className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        checked={formData.technicianIds?.includes(tech.id)}
-                        onChange={(e) => {
-                          const ids = formData.technicianIds || [];
-                          const details = [...(formData.technicianDetails || [])];
+                  technicians.map((tech) => {
+                    const isSelected = formData.technicianIds?.includes(tech.id);
+                    const techDetail = formData.technicianDetails?.find(d => d.technicianId === tech.id);
+                    
+                    return (
+                      <div key={tech.id} className="flex flex-col gap-2 p-2 rounded-lg border hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            id={`tech-${tech.id}`}
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const ids = formData.technicianIds || [];
+                              const details = [...(formData.technicianDetails || [])];
+                              
+                              if (e.target.checked) {
+                                const newIds = [...ids, tech.id];
+                                // Add to details if not already there
+                                if (!details.some(d => d.technicianId === tech.id)) {
+                                  details.push({
+                                    technicianId: tech.id,
+                                    name: tech.name,
+                                    hours: 0,
+                                    laborRate: tech.defaultLaborHourValue || settings?.laborHourValue || 0,
+                                    km: 0,
+                                    kmValue: tech.defaultKmValue || settings?.kmValue || 0,
+                                    receivesKm: details.length === 0 // Default to first tech receiving KM
+                                  });
+                                }
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  technicianIds: newIds,
+                                  technicianDetails: details
+                                }));
+                              } else {
+                                const newIds = ids.filter(id => id !== tech.id);
+                                const newDetails = details.filter(d => d.technicianId !== tech.id);
+                                
+                                // If we removed the tech who received KM, assign to the next available one if any
+                                if (techDetail?.receivesKm && newDetails.length > 0) {
+                                  newDetails[0].receivesKm = true;
+                                }
+                                
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  technicianIds: newIds,
+                                  technicianDetails: newDetails
+                                }));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`tech-${tech.id}`} className="flex-1 cursor-pointer font-medium">
+                            {tech.name}
+                          </Label>
                           
-                          if (e.target.checked) {
-                            const newIds = [...ids, tech.id];
-                            // Add to details if not already there
-                            if (!details.some(d => d.technicianId === tech.id)) {
-                              details.push({
-                                technicianId: tech.id,
-                                name: tech.name,
-                                hours: 0,
-                                laborRate: tech.defaultLaborHourValue || settings?.laborHourValue || 0,
-                                km: 0,
-                                kmValue: tech.defaultKmValue || settings?.kmValue || 0
-                              });
-                            }
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              technicianIds: newIds,
-                              technicianDetails: details
-                            }));
-                          } else {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              technicianIds: ids.filter(id => id !== tech.id),
-                              technicianDetails: details.filter(d => d.technicianId !== tech.id)
-                            }));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`tech-${tech.id}`} className="flex-1 cursor-pointer font-medium">
-                        {tech.name}
-                      </Label>
-                    </div>
-                  ))
+                          {isSelected && (
+                            <div className="flex items-center gap-2 px-2 py-1 bg-indigo-50 rounded-md border border-indigo-100">
+                              <input
+                                type="radio"
+                                id={`km-receives-${tech.id}`}
+                                name="km-receives-radio"
+                                className="w-3 h-3 text-indigo-600 focus:ring-indigo-500"
+                                checked={!!techDetail?.receivesKm}
+                                onChange={() => {
+                                  const newDetails = (formData.technicianDetails || []).map(d => ({
+                                    ...d,
+                                    receivesKm: d.technicianId === tech.id
+                                  }));
+                                  setFormData(prev => ({ ...prev, technicianDetails: newDetails }));
+                                }}
+                              />
+                              <Label htmlFor={`km-receives-${tech.id}`} className="text-[10px] font-bold text-indigo-700 cursor-pointer">
+                                RECEBE KM
+                              </Label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </CardContent>
