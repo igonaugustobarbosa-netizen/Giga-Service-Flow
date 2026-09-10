@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showTechFilter, setShowTechFilter] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
@@ -66,7 +67,8 @@ export default function Dashboard() {
     customerId: 'all',
     status: 'all',
     billingStatus: 'all', // all, billed, pending
-    technicianId: 'all'
+    technicianIds: ['all'],
+    groupByTech: false
   });
 
   const handlePrevMonth = () => setSelectedDate(subMonths(selectedDate, 1));
@@ -288,7 +290,8 @@ export default function Dashboard() {
   const filteredWorkOrders = allWorkOrders.filter(wo => {
     if (reportFilters.customerId !== 'all' && wo.customerId !== reportFilters.customerId) return false;
     if (reportFilters.status !== 'all' && wo.status !== reportFilters.status) return false;
-    if (reportFilters.technicianId !== 'all' && !wo.technicianIds?.includes(reportFilters.technicianId)) return false;
+    const isAllTechs = reportFilters.technicianIds.includes('all') || reportFilters.technicianIds.length === 0;
+    if (!isAllTechs && !wo.technicianIds?.some(tId => reportFilters.technicianIds.includes(tId))) return false;
     
     if (reportFilters.billingStatus !== 'all') {
       const hasBilled = wo.workSessions && wo.workSessions.some(s => s.billed);
@@ -313,12 +316,11 @@ export default function Dashboard() {
   const calculateWorkOrderMetrics = (wo: WorkOrder, billingFilter: 'all' | 'billed' | 'pending' = 'all') => {
     let sessions = wo.workSessions || [];
     
-    const isTechFilter = reportFilters.technicianId !== 'all';
-    const selectedTech = technicians.find(t => t.id === reportFilters.technicianId);
-    const isIgonSelected = selectedTech?.name?.toLowerCase().includes('igon');
+    const isAllTechs = reportFilters.technicianIds.includes('all') || reportFilters.technicianIds.length === 0;
+    const isTechFilter = !isAllTechs;
     
     if (isTechFilter) {
-      sessions = sessions.filter(s => s.technicianIds?.includes(reportFilters.technicianId));
+      sessions = sessions.filter(s => s.technicianIds?.some(tId => reportFilters.technicianIds.includes(tId)));
     }
     
     if (billingFilter === 'billed') {
@@ -349,13 +351,17 @@ export default function Dashboard() {
       const uniqueTechIds = Array.from(new Set(s.technicianIds || []));
       
       if (isTechFilter) {
-        // Double check the tech is actually in this session
-        if (!uniqueTechIds.includes(reportFilters.technicianId)) return acc;
+        // Double check if any of the filtered techs are in this session
+        const selectedTechsInSession = uniqueTechIds.filter(tId => reportFilters.technicianIds.includes(tId));
+        if (selectedTechsInSession.length === 0) return acc;
         
-        const rate = wo.technicianDetails?.find(td => td.technicianId === reportFilters.technicianId)?.laborRate || 
-                     technicians.find(t => t.id === reportFilters.technicianId)?.defaultLaborHourValue || 
-                     settings?.laborHourValue || 0;
-        return acc + ((s.duration || 0) * rate);
+        const sessionLabor = selectedTechsInSession.reduce((sAcc, tId) => {
+          const rate = wo.technicianDetails?.find(td => td.technicianId === tId)?.laborRate || 
+                       technicians.find(t => t.id === tId)?.defaultLaborHourValue || 
+                       settings?.laborHourValue || 0;
+          return sAcc + ((s.duration || 0) * rate);
+        }, 0);
+        return acc + sessionLabor;
       }
       
       const sessionLabor = uniqueTechIds.reduce((sAcc, tId) => {
@@ -371,16 +377,16 @@ export default function Dashboard() {
     // KM attribution logic:
     // If filtering by tech, show KM if they are part of the OS.
     // We attribute general KM to the primary technician if no split details exist.
-    const isPartOfOs = wo.technicianIds?.includes(reportFilters.technicianId);
+    const isPartOfOs = isAllTechs || wo.technicianIds?.some(tId => reportFilters.technicianIds.includes(tId));
     
     // For KM, if there's only one technician, they are the owner.
     // If there are multiple and no split, the first one is the owner for reporting purposes.
     const kmRecipientDetail = wo.technicianDetails?.find(td => td.receivesKm);
     const effectiveKmRecipientId = kmRecipientDetail ? kmRecipientDetail.technicianId : wo.technicianIds?.[0];
 
-    const isOwnerOfKm = !isTechFilter || (reportFilters.technicianId === effectiveKmRecipientId);
+    const isOwnerOfKm = isAllTechs || (effectiveKmRecipientId && reportFilters.technicianIds.includes(effectiveKmRecipientId));
 
-    const techHasWorked = !isTechFilter || wo.workSessions?.some(s => s.technicianIds?.includes(reportFilters.technicianId));
+    const techHasWorked = isAllTechs || wo.workSessions?.some(s => s.technicianIds?.some(tId => reportFilters.technicianIds.includes(tId)));
     const anySessionsBilled = wo.workSessions && wo.workSessions.some(s => s.billed);
     const hasSessions = wo.workSessions && wo.workSessions.length > 0;
 
@@ -401,25 +407,21 @@ export default function Dashboard() {
       let baseIgonKmDistance = 0;
       
       if (isTechFilter) {
-        // Only KM for the filtered technician
-        const techDetail = wo.technicianDetails?.find(td => td.technicianId === reportFilters.technicianId);
-        
-        if (isIgonSelected) {
-          // Rule: Don't add KM for technician Igon to the main total, put in igonKmValue
-          baseIgonKmValue = techDetail && techDetail.km > 0 ? techDetail.km * techDetail.kmValue : 0;
-          baseIgonKmDistance = techDetail && techDetail.km > 0 ? techDetail.km : 0;
-          baseKmValue = 0;
-          baseKmDistance = 0;
-        } else if (techDetail && techDetail.km > 0) {
-          baseKmValue = techDetail.km * techDetail.kmValue;
-          baseKmDistance = techDetail.km;
-        } else if (isOwnerOfKm) {
-          // Give 100% of the calculated KM to the designated recipient
-          const totalKmVal = actualKmValue || wo.kmTotalValue || 0;
-          const totalDistance = actualKmDriven || wo.kmDriven || 0;
+        // We calculate KM only if the designated recipient of KM is among the selected technicians
+        if (isOwnerOfKm) {
+          const recipientTech = technicians.find(t => t.id === effectiveKmRecipientId);
+          const isIgonRecipient = recipientTech?.name?.toLowerCase().includes('igon');
           
-          baseKmValue = totalKmVal;
-          baseKmDistance = totalDistance;
+          // Check if there are specific split details
+          const techDetail = wo.technicianDetails?.find(td => td.technicianId === effectiveKmRecipientId);
+          
+          if (isIgonRecipient) {
+            baseIgonKmValue = techDetail && techDetail.km > 0 ? techDetail.km * techDetail.kmValue : actualKmValue;
+            baseIgonKmDistance = techDetail && techDetail.km > 0 ? techDetail.km : actualKmDriven;
+          } else {
+            baseKmValue = techDetail && techDetail.km > 0 ? techDetail.km * techDetail.kmValue : actualKmValue;
+            baseKmDistance = techDetail && techDetail.km > 0 ? techDetail.km : actualKmDriven;
+          }
         }
       } else {
         // Sum of all KM if no tech filter (Total report)
@@ -516,6 +518,24 @@ export default function Dashboard() {
   const getWorkOrderIgonKmValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).igonKmValue;
   const getWorkOrderIgonKmDistance = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).igonKmDistance;
   const getWorkOrderHours = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).hours;
+
+  const toggleTechnicianFilter = (techId: string) => {
+    setReportFilters(prev => {
+      let newIds = [...prev.technicianIds];
+      if (techId === 'all') {
+        newIds = ['all'];
+      } else {
+        newIds = newIds.filter(id => id !== 'all');
+        if (newIds.includes(techId)) {
+          newIds = newIds.filter(id => id !== techId);
+          if (newIds.length === 0) newIds = ['all'];
+        } else {
+          newIds.push(techId);
+        }
+      }
+      return { ...prev, technicianIds: newIds };
+    });
+  };
 
   const handleExportWorkOrderReport = () => {
     // Enrich orders with calculated total value for the report if missing
@@ -892,7 +912,8 @@ export default function Dashboard() {
                 customerId: 'all',
                 status: 'all',
                 billingStatus: 'all',
-                technicianId: 'all'
+                technicianIds: ['all'],
+                groupByTech: false
               })}
               className="h-9 text-xs"
             >
@@ -916,14 +937,81 @@ export default function Dashboard() {
               <option value="in-progress">Em Andamento</option>
               <option value="closed">Encerrada</option>
             </Select>
-            <Select 
-              value={reportFilters.technicianId} 
-              onChange={e => setReportFilters(prev => ({...prev, technicianId: e.target.value}))}
-              className="h-9 text-xs min-w-[140px]"
-            >
-              <option value="all">Todos os Técnicos</option>
-              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-9 text-xs min-w-[140px] justify-between",
+                  !reportFilters.technicianIds.includes('all') && "border-indigo-600 bg-indigo-50 text-indigo-700"
+                )}
+                onClick={() => setShowTechFilter(!showTechFilter)}
+              >
+                {reportFilters.technicianIds.includes('all') 
+                  ? 'Todos os Técnicos' 
+                  : `${reportFilters.technicianIds.length} Técnico(s)`}
+                <Users className="w-3 h-3 ml-2 opacity-50" />
+              </Button>
+              
+              <AnimatePresence>
+                {showTechFilter && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowTechFilter(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      className="absolute top-full left-0 mt-1 w-64 bg-white border rounded-xl shadow-xl z-50 p-2 overflow-hidden"
+                    >
+                      <div className="max-h-60 overflow-y-auto space-y-1 p-1">
+                        <div 
+                          className={cn(
+                            "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+                            reportFilters.technicianIds.includes('all') ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50 text-slate-700"
+                          )}
+                          onClick={() => {
+                            toggleTechnicianFilter('all');
+                            setShowTechFilter(false);
+                          }}
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                            reportFilters.technicianIds.includes('all') ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                          )}>
+                            {reportFilters.technicianIds.includes('all') && <CheckCircle2 className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className="text-sm font-semibold">Todos os Técnicos</span>
+                        </div>
+                        
+                        <div className="h-px bg-slate-100 my-1" />
+                        
+                        {technicians.map(t => {
+                          const isSelected = reportFilters.technicianIds.includes(t.id);
+                          return (
+                            <div 
+                              key={t.id}
+                              className={cn(
+                                "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+                                isSelected ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50 text-slate-700"
+                              )}
+                              onClick={() => toggleTechnicianFilter(t.id)}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                isSelected ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                              )}>
+                                {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="text-sm font-medium">{t.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
             <Select 
               value={reportFilters.billingStatus} 
               onChange={e => setReportFilters(prev => ({...prev, billingStatus: e.target.value}))}
@@ -933,6 +1021,20 @@ export default function Dashboard() {
               <option value="billed">Totalmente Cobrado</option>
               <option value="pending">Pendência de Cobrança</option>
             </Select>
+
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+              <input 
+                type="checkbox" 
+                id="groupByTech"
+                checked={reportFilters.groupByTech}
+                onChange={e => setReportFilters(prev => ({...prev, groupByTech: e.target.checked}))}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <label htmlFor="groupByTech" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                Agrupar Técnicos
+              </label>
+            </div>
+
             <Button 
               size="sm" 
               onClick={handleExportWorkOrderReport}

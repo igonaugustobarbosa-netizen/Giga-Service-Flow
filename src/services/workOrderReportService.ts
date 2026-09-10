@@ -12,7 +12,8 @@ export const generateWorkOrderReportPDF = (
     customerId: string;
     status: string;
     billingStatus: string;
-    technicianId: string;
+    technicianIds: string[];
+    groupByTech?: boolean;
   }
 ) => {
   const doc = new jsPDF();
@@ -64,9 +65,16 @@ export const generateWorkOrderReportPDF = (
     const c = customers.find(c => c.id === filters.customerId);
     if (c) filterTexts.push(`Cliente: ${c.name}`);
   }
-  if (filters.technicianId !== 'all') {
-    const t = technicians.find(t => t.id === filters.technicianId);
-    if (t) filterTexts.push(`Técnico: ${t.name}`);
+  if (filters.technicianIds.length > 0 && !filters.technicianIds.includes('all')) {
+    if (filters.groupByTech) {
+      filterTexts.push(`Técnicos: (Vários Selecionados)`);
+    } else {
+      const selectedTechNames = technicians
+        .filter(t => filters.technicianIds.includes(t.id))
+        .map(t => t.name)
+        .join(', ');
+      if (selectedTechNames) filterTexts.push(`Técnicos: ${selectedTechNames}`);
+    }
   }
 
   doc.setFont('helvetica', 'normal');
@@ -116,12 +124,13 @@ export const generateWorkOrderReportPDF = (
       workedHours = calcSessionHours(order.workSessions || []);
     }
 
+    const isAllTechs = filters.technicianIds.includes('all') || filters.technicianIds.length === 0;
     const sessionsToSum = (filters.billingStatus === 'billed' ? billedSessions : 
                           filters.billingStatus === 'pending' ? pendingSessions : 
                           (order.workSessions || []))
-                          .filter(s => filters.technicianId === 'all' || s.technicianIds?.includes(filters.technicianId));
+                          .filter(s => isAllTechs || (s.technicianIds || []).some(tId => filters.technicianIds.includes(tId)));
 
-    const isPartOfOsReport = filters.technicianId === 'all' || order.technicianIds?.includes(filters.technicianId);
+    const isPartOfOsReport = isAllTechs || (order.technicianIds || []).some(tId => filters.technicianIds.includes(tId));
     const anySessionsBilledReport = order.workSessions && order.workSessions.some(s => s.billed);
     const noSessionsBilledReport = !order.workSessions || order.workSessions.length === 0 || !order.workSessions.some(s => s.billed);
 
@@ -153,9 +162,10 @@ export const generateWorkOrderReportPDF = (
     const kmRecipientTech = technicians.find(t => t.id === effectiveKmRecipientId);
     const isIgonRecipient = kmRecipientTech?.name?.toLowerCase().includes('igon');
 
-    if (filters.technicianId !== 'all') {
-      const isRecipient = filters.technicianId === effectiveKmRecipientId;
-      if (isRecipient) {
+    const isRecipientFiltered = isAllTechs || (effectiveKmRecipientId && filters.technicianIds.includes(effectiveKmRecipientId));
+
+    if (!isAllTechs) {
+      if (isRecipientFiltered) {
         if (isIgonRecipient) { 
           baseIgonKmValueReport = totalKmVal; 
           sessionIgonKmValueReport = sessionKmValue;
@@ -192,29 +202,31 @@ export const generateWorkOrderReportPDF = (
 
     let orderTotalValue = 0;
     let orderDailyValue = 0;
-    if (filters.technicianId !== 'all') {
-      workedHours = calcSessionHours(sessionsToSum);
-      const rate = order.technicianDetails?.find(td => td.technicianId === filters.technicianId)?.laborRate || 
-                   technicians.find(t => t.id === filters.technicianId)?.defaultLaborHourValue || 0;
-      orderTotalValue = (workedHours * rate) + kmValueToInclude + igonKmValueToInclude;
-      orderDailyValue = (workedHours * rate) + sessionKmToInclude + sessionIgonKmToInclude;
-    } else {
-      const labor = sessionsToSum.reduce((acc, s) => {
-        const h = s.duration || 0;
-        const sessionLabor = (s.technicianIds || []).reduce((sAcc: number, tId: string) => {
-          const r = order.technicianDetails?.find(td => td.technicianId === tId)?.laborRate || 
-                    technicians.find(t => t.id === tId)?.defaultLaborHourValue || 0;
-          return sAcc + (h * r);
-        }, 0);
-        return acc + sessionLabor;
+    const labor = sessionsToSum.reduce((acc, s) => {
+      const h = s.duration || 0;
+      const sessionLabor = (s.technicianIds || []).reduce((sAcc: number, tId: string) => {
+        // Only include labor for technicians selected in the filter
+        if (!isAllTechs && !filters.technicianIds.includes(tId)) return sAcc;
+
+        const r = order.technicianDetails?.find(td => td.technicianId === tId)?.laborRate || 
+                  technicians.find(t => t.id === tId)?.defaultLaborHourValue || 0;
+        return sAcc + (h * r);
       }, 0);
-      orderTotalValue = labor + kmValueToInclude + igonKmValueToInclude;
-      orderDailyValue = labor + sessionKmToInclude + sessionIgonKmToInclude;
-    }
+      return acc + sessionLabor;
+    }, 0);
+
+    orderTotalValue = labor + kmValueToInclude + igonKmValueToInclude;
+    orderDailyValue = labor + sessionKmToInclude + sessionIgonKmToInclude;
+    
+    // Update workedHours for the row to reflect only selected technicians
+    workedHours = sessionsToSum.reduce((acc, s) => {
+      const techCount = (s.technicianIds || []).filter(tId => isAllTechs || filters.technicianIds.includes(tId)).length;
+      return acc + (s.duration || 0) * (isAllTechs ? (s.technicianIds || []).length : techCount);
+    }, 0);
 
     // Update tech summary (we'll keep using totals for the summary section of the PDF)
     order.technicianDetails?.forEach(td => {
-      if (filters.technicianId !== 'all' && td.technicianId !== filters.technicianId) return;
+      if (!isAllTechs && !filters.technicianIds.includes(td.technicianId)) return;
       const t = technicians.find(tech => tech.id === td.technicianId);
       if (t) {
         if (!techSummary[td.technicianId]) {
@@ -225,9 +237,9 @@ export const generateWorkOrderReportPDF = (
         techSummary[td.technicianId].hours += h;
         techSummary[td.technicianId].laborValue += (h * td.laborRate);
         const isPrimary = order.technicianIds && order.technicianIds[0] === td.technicianId;
-        const isRecipient = td.receivesKm || (filters.technicianId === 'all' && !order.technicianDetails?.some(d => d.receivesKm) && isPrimary);
+        const isRecipient = td.receivesKm || (isAllTechs && !order.technicianDetails?.some(d => d.receivesKm) && isPrimary);
         const isIgon = t.name?.toLowerCase().includes('igon');
-        if (filters.technicianId !== 'all' ? (td.technicianId === effectiveKmRecipientId) : isRecipient) {
+        if (!isAllTechs ? (td.technicianId === effectiveKmRecipientId) : isRecipient) {
           if (isIgon) techSummary[td.technicianId].kmValue += igonKmValueToInclude;
           else techSummary[td.technicianId].kmValue += kmValueToInclude;
         }
@@ -293,16 +305,36 @@ export const generateWorkOrderReportPDF = (
     doc.text('RESUMO POR TÉCNICO', margin, y);
     y += 6;
     
-    const techTableBody = Object.values(techSummary).map((s: any) => {
-      const total = s.laborValue + (s.kmValue || 0);
-      return [
-        s.name,
-        `${s.hours.toFixed(1)}h`,
-        `R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+    let techTableBody: any[] = [];
+
+    if (filters.groupByTech) {
+      const summary = Object.values(techSummary).reduce((acc, s) => {
+        acc.hours += s.hours;
+        acc.laborValue += s.laborValue;
+        acc.kmValue += s.kmValue;
+        return acc;
+      }, { hours: 0, laborValue: 0, kmValue: 0 });
+
+      const total = summary.laborValue + (summary.kmValue || 0);
+      techTableBody = [[
+        'Técnicos',
+        `${summary.hours.toFixed(1)}h`,
+        `R$ ${summary.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${(summary.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ];
-    });
+      ]];
+    } else {
+      techTableBody = Object.values(techSummary).map((s: any) => {
+        const total = s.laborValue + (s.kmValue || 0);
+        return [
+          s.name,
+          `${s.hours.toFixed(1)}h`,
+          `R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          `R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        ];
+      });
+    }
 
     autoTable(doc, {
       startY: y,
