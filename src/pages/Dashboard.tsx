@@ -340,7 +340,7 @@ export default function Dashboard() {
     
     const sessionKm = wo.dailyKmOverride && wo.dailyKmOverride > 0 
       ? wo.dailyKmOverride 
-      : (wo.kmDriven && wo.workSessions?.length ? (wo.kmDriven / wo.workSessions.length) : (wo.estimatedKm || 0));
+      : (wo.kmDriven && uniqueDays > 0 ? (wo.kmDriven / uniqueDays) : (wo.estimatedKm || 0));
     
     const actualKmDriven = Number((uniqueDays * sessionKm).toFixed(2));
     const actualKmValue = Number((actualKmDriven * (wo.kmRate || settings?.kmValue || 0)).toFixed(2));
@@ -388,6 +388,11 @@ export default function Dashboard() {
     let igonKmValue = 0;
     let kmDistance = 0;
     let igonKmDistance = 0;
+
+    let sessionKmVal = 0;
+    let igonSessionKmVal = 0;
+    let sessionKmDist = 0;
+    let igonSessionKmDist = 0;
 
     if (hasSessions && techHasWorked) {
       let baseKmValue = 0;
@@ -467,12 +472,45 @@ export default function Dashboard() {
         kmDistance = baseKmDistance;
         igonKmDistance = baseIgonKmDistance;
       }
+
+      // Calculate Session (Daily) KM values
+      if (uniqueDays > 0) {
+        sessionKmVal = kmValue / uniqueDays;
+        igonSessionKmVal = igonKmValue / uniqueDays;
+        sessionKmDist = kmDistance / uniqueDays;
+        igonSessionKmDist = igonKmDistance / uniqueDays;
+      } else {
+        sessionKmVal = 0;
+        igonSessionKmVal = 0;
+        sessionKmDist = 0;
+        igonSessionKmDist = 0;
+      }
     }
 
-    return { hours, laborValue, kmValue, igonKmValue, kmDistance, igonKmDistance, totalValue: laborValue + kmValue + igonKmValue };
+    return { 
+      hours, 
+      laborValue, 
+      kmValue, 
+      igonKmValue, 
+      kmDistance, 
+      igonKmDistance, 
+      totalValue: laborValue + kmValue + igonKmValue, 
+      dailyTotalValue: laborValue + sessionKmVal + igonSessionKmVal,
+      sessionKm,
+      sessionKmVal,
+      igonSessionKmVal,
+      sessionKmDist,
+      igonSessionKmDist
+    };
   };
 
+  const getWorkOrderSessionKm = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, 'all').sessionKm;
+  const getWorkOrderSessionKmVal = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).sessionKmVal;
+  const getWorkOrderIgonSessionKmVal = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).igonSessionKmVal;
+  const getWorkOrderIgonSessionKmDist = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).igonSessionKmDist;
+  const getWorkOrderSessionKmDist = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).sessionKmDist;
   const getWorkOrderTotalValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).totalValue;
+  const getWorkOrderDailyTotalValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).dailyTotalValue;
   const getWorkOrderLaborValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).laborValue;
   const getWorkOrderKmValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).kmValue;
   const getWorkOrderIgonKmValue = (wo: WorkOrder) => calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any).igonKmValue;
@@ -914,22 +952,22 @@ export default function Dashboard() {
               <p className="text-xl font-bold">{filteredWorkOrders.length}</p>
             </Card>
             <Card className="border-none shadow-sm bg-slate-800 text-white p-3">
-              <p className="text-[10px] uppercase font-bold opacity-80">Valor Geral</p>
-              <p className="text-xl font-bold">R$ {filteredWorkOrders.reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'all').totalValue, 0).toFixed(2)}</p>
+              <p className="text-[10px] uppercase font-bold opacity-80">Valor Geral (Diário)</p>
+              <p className="text-xl font-bold">R$ {filteredWorkOrders.reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'all').dailyTotalValue, 0).toFixed(2)}</p>
             </Card>
             <Card className="border-none shadow-sm bg-emerald-600 text-white p-3">
-              <p className="text-[10px] uppercase font-bold opacity-80">Vlr. Cobrado</p>
+              <p className="text-[10px] uppercase font-bold opacity-80">Vlr. Cobrado (Diário)</p>
               <p className="text-xl font-bold">
                 R$ {filteredWorkOrders
-                  .reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'billed').totalValue, 0)
+                  .reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'billed').dailyTotalValue, 0)
                   .toFixed(2)}
               </p>
             </Card>
             <Card className="border-none shadow-sm bg-rose-600 text-white p-3">
-              <p className="text-[10px] uppercase font-bold opacity-80">Valor Pendente</p>
+              <p className="text-[10px] uppercase font-bold opacity-80">Vlr. Pendente (Diário)</p>
               <p className="text-xl font-bold">
                 R$ {filteredWorkOrders
-                  .reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'pending').totalValue, 0)
+                  .reduce((acc, wo) => acc + calculateWorkOrderMetrics(wo, 'pending').dailyTotalValue, 0)
                   .toFixed(2)}
               </p>
             </Card>
@@ -940,15 +978,20 @@ export default function Dashboard() {
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Igon (Diário)</p>
               <p className="text-sm font-bold text-rose-600">
-                R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonKmValue(wo), 0).toFixed(2)}
+                R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonSessionKmVal(wo), 0).toFixed(2)}
                 <span className="text-[10px] ml-1 opacity-70 font-normal">
-                  ({filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonKmDistance(wo), 0)} km)
+                  ({filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderIgonSessionKmDist(wo), 0).toFixed(1)} km)
                 </span>
               </p>
             </Card>
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Equipe (Acumulado)</p>
-              <p className="text-sm font-bold text-amber-600">R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderKmValue(wo), 0).toFixed(2)}</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Equipe (Diário)</p>
+              <p className="text-sm font-bold text-amber-600">
+                R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderSessionKmVal(wo), 0).toFixed(2)}
+                <span className="text-[10px] ml-1 opacity-70 font-normal">
+                  ({filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderSessionKmDist(wo), 0).toFixed(1)} km)
+                </span>
+              </p>
             </Card>
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">Hrs. Totais</p>
@@ -971,15 +1014,16 @@ export default function Dashboard() {
                   <th className="py-3 px-2 text-center">Cobrança</th>
                   <th className="py-3 px-2 text-center whitespace-nowrap">Hrs. Trab.</th>
                   <th className="py-3 px-2 text-center whitespace-nowrap">Hrs. Totais</th>
-                  <th className="py-3 px-2 text-right">KM Igon</th>
-                  <th className="py-3 px-2 text-right">Valor</th>
+                  <th className="py-3 px-2 text-right">KM Igon (Dia)</th>
+                  <th className="py-3 px-2 text-right">KM Equipe (Dia)</th>
+                  <th className="py-3 px-2 text-right">Valor (Dia)</th>
                   <th className="py-3 px-2 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredWorkOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground italic">Nenhuma OS encontrada com esses filtros.</td>
+                    <td colSpan={11} className="py-8 text-center text-muted-foreground italic">Nenhuma OS encontrada com esses filtros.</td>
                   </tr>
                 ) : (
                   filteredWorkOrders.map(wo => {
@@ -1009,15 +1053,23 @@ export default function Dashboard() {
                           {(wo.totalWorkedHours || 0).toFixed(1)}h
                         </td>
                         <td className="py-3 px-2 text-right font-medium text-rose-600 text-xs">
-                          {getWorkOrderIgonKmValue(wo) > 0 ? `R$ ${getWorkOrderIgonKmValue(wo).toFixed(2)}` : '-'}
-                          {getWorkOrderIgonKmDistance(wo) > 0 && (
+                          {getWorkOrderIgonSessionKmVal(wo) > 0 ? `R$ ${getWorkOrderIgonSessionKmVal(wo).toFixed(2)}` : '-'}
+                          {getWorkOrderIgonSessionKmDist(wo) > 0 && (
                             <span className="block text-[10px] opacity-50 font-normal">
-                              {getWorkOrderIgonKmDistance(wo)} km
+                              {getWorkOrderIgonSessionKmDist(wo).toFixed(1)} km
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-right font-medium text-amber-600 text-xs">
+                          {getWorkOrderSessionKmVal(wo) > 0 ? `R$ ${getWorkOrderSessionKmVal(wo).toFixed(2)}` : '-'}
+                          {getWorkOrderSessionKmDist(wo) > 0 && (
+                            <span className="block text-[10px] opacity-50 font-normal">
+                              {getWorkOrderSessionKmDist(wo).toFixed(1)} km
                             </span>
                           )}
                         </td>
                         <td className="py-3 px-2 text-right font-bold text-slate-700">
-                          R$ {getWorkOrderTotalValue(wo).toFixed(2)}
+                          R$ {getWorkOrderDailyTotalValue(wo).toFixed(2)}
                         </td>
                         <td className="py-3 px-2 text-right">
                           <Link to={`/work-orders/${wo.id}/edit`}>

@@ -134,12 +134,19 @@ export const generateWorkOrderReportPDF = (
       }
     })).size;
     
-    const baseDailyKm = order.dailyKmOverride || (order.kmDriven && order.workSessions?.length ? (order.kmDriven / order.workSessions.length) : 0);
-    const estimatedDailyKmValue = (uniqueDays * baseDailyKm * (order.kmRate || 0));
-    const actualKmValue = order.kmTotalValue || estimatedDailyKmValue;
+    const baseDailyKm = order.dailyKmOverride || (order.kmDriven && uniqueDays > 0 ? (order.kmDriven / uniqueDays) : (order.estimatedKm || 0));
+    const sessionKmValue = uniqueDays > 0 ? (baseDailyKm * (order.kmRate || 0)) : 0;
+    
+    // totalValue for the OS
+    const estimatedTotalKmValue = (uniqueDays * sessionKmValue);
+    const totalKmVal = order.kmTotalValue || estimatedTotalKmValue;
 
     let baseKmValueReport = 0;
     let baseIgonKmValueReport = 0;
+    
+    // session (daily) values for report
+    let sessionKmValueReport = 0;
+    let sessionIgonKmValueReport = 0;
     
     const kmRecipientDetail = order.technicianDetails?.find(td => td.receivesKm);
     const effectiveKmRecipientId = kmRecipientDetail ? kmRecipientDetail.technicianId : order.technicianIds?.[0];
@@ -148,43 +155,51 @@ export const generateWorkOrderReportPDF = (
 
     if (filters.technicianId !== 'all') {
       const isRecipient = filters.technicianId === effectiveKmRecipientId;
-      const val = actualKmValue;
       if (isRecipient) {
-        if (isIgonRecipient) { baseIgonKmValueReport = val; baseKmValueReport = 0; }
-        else { baseKmValueReport = val; baseIgonKmValueReport = 0; }
-      } else {
-        baseIgonKmValueReport = 0;
-        baseKmValueReport = 0;
+        if (isIgonRecipient) { 
+          baseIgonKmValueReport = totalKmVal; 
+          sessionIgonKmValueReport = sessionKmValue;
+        } else { 
+          baseKmValueReport = totalKmVal; 
+          sessionKmValueReport = sessionKmValue;
+        }
       }
     } else {
-      const val = actualKmValue;
-      if (isIgonRecipient) { baseIgonKmValueReport = val; baseKmValueReport = 0; }
-      else { baseKmValueReport = val; baseIgonKmValueReport = 0; }
+      if (isIgonRecipient) { 
+        baseIgonKmValueReport = totalKmVal; 
+        sessionIgonKmValueReport = sessionKmValue;
+      } else { 
+        baseKmValueReport = totalKmVal; 
+        sessionKmValueReport = sessionKmValue;
+      }
     }
 
     let kmValueToInclude = 0;
     let igonKmValueToInclude = 0;
+    let sessionKmToInclude = 0;
+    let sessionIgonKmToInclude = 0;
+
     if (isPartOfOsReport) {
-      if (filters.billingStatus === 'all') {
+      if (filters.billingStatus === 'all' || 
+         (filters.billingStatus === 'billed' && anySessionsBilledReport) ||
+         (filters.billingStatus === 'pending' && noSessionsBilledReport)) {
         kmValueToInclude = baseKmValueReport;
         igonKmValueToInclude = baseIgonKmValueReport;
-      } else if (filters.billingStatus === 'billed' && anySessionsBilledReport) {
-        kmValueToInclude = baseKmValueReport;
-        igonKmValueToInclude = baseIgonKmValueReport;
-      } else if (filters.billingStatus === 'pending' && noSessionsBilledReport) {
-        kmValueToInclude = baseKmValueReport;
-        igonKmValueToInclude = baseIgonKmValueReport;
+        sessionKmToInclude = sessionKmValueReport;
+        sessionIgonKmToInclude = sessionIgonKmValueReport;
       }
     }
 
-    let orderValue = 0;
+    let orderTotalValue = 0;
+    let orderDailyValue = 0;
     if (filters.technicianId !== 'all') {
       workedHours = calcSessionHours(sessionsToSum);
       const rate = order.technicianDetails?.find(td => td.technicianId === filters.technicianId)?.laborRate || 
                    technicians.find(t => t.id === filters.technicianId)?.defaultLaborHourValue || 0;
-      orderValue = (workedHours * rate) + kmValueToInclude + igonKmValueToInclude;
+      orderTotalValue = (workedHours * rate) + kmValueToInclude + igonKmValueToInclude;
+      orderDailyValue = (workedHours * rate) + sessionKmToInclude + sessionIgonKmToInclude;
     } else {
-      orderValue = sessionsToSum.reduce((acc, s) => {
+      const labor = sessionsToSum.reduce((acc, s) => {
         const h = s.duration || 0;
         const sessionLabor = (s.technicianIds || []).reduce((sAcc: number, tId: string) => {
           const r = order.technicianDetails?.find(td => td.technicianId === tId)?.laborRate || 
@@ -192,10 +207,12 @@ export const generateWorkOrderReportPDF = (
           return sAcc + (h * r);
         }, 0);
         return acc + sessionLabor;
-      }, 0) + kmValueToInclude + igonKmValueToInclude;
+      }, 0);
+      orderTotalValue = labor + kmValueToInclude + igonKmValueToInclude;
+      orderDailyValue = labor + sessionKmToInclude + sessionIgonKmToInclude;
     }
 
-    // Update tech summary
+    // Update tech summary (we'll keep using totals for the summary section of the PDF)
     order.technicianDetails?.forEach(td => {
       if (filters.technicianId !== 'all' && td.technicianId !== filters.technicianId) return;
       const t = technicians.find(tech => tech.id === td.technicianId);
@@ -217,7 +234,7 @@ export const generateWorkOrderReportPDF = (
       }
     });
 
-    const laborOnlyValue = orderValue - kmValueToInclude - igonKmValueToInclude;
+    const laborOnlyValue = orderTotalValue - kmValueToInclude - igonKmValueToInclude;
     totalValue += laborOnlyValue;
     totalKmValue += kmValueToInclude;
     totalIgonKmValue += igonKmValueToInclude;
@@ -232,14 +249,14 @@ export const generateWorkOrderReportPDF = (
       statusLabel,
       billingLabel,
       `${workedHours.toFixed(1)}h`,
-      igonKmValueToInclude > 0 ? `R$ ${igonKmValueToInclude.toFixed(2)}` : '-',
-      orderValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+      sessionIgonKmToInclude > 0 ? `R$ ${sessionIgonKmToInclude.toFixed(2)}` : '-',
+      orderDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['Nº OS', 'Data', 'Cliente', 'Status', 'Cobrança', 'Hrs.', 'KM Igon', 'Valor (R$)']],
+    head: [['Nº OS', 'Data', 'Cliente', 'Status', 'Cobrança', 'Hrs.', 'KM Igon (Dia)', 'Valor Dia (R$)']],
     body: tableBody,
     theme: 'grid',
     headStyles: { fillColor: [79, 70, 229], fontSize: 8 },

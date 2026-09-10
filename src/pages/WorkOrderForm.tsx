@@ -278,11 +278,19 @@ export default function WorkOrderForm() {
   useEffect(() => {
     // Sincronizar KM se houver sessões (correção para OS antigas ou mudança no valor manual/deslocamento)
     if (formData.workSessions?.length) {
+      const uniqueDays = new Set((formData.workSessions || []).map(s => {
+        try {
+          return format(new Date(s.startTime), 'yyyy-MM-dd');
+        } catch (e) {
+          return 'invalid-date';
+        }
+      })).size;
+
       const sessionKm = formData.dailyKmOverride && formData.dailyKmOverride > 0 
         ? formData.dailyKmOverride 
         : calculateDisplacement(formData.customerId || '', formData.supplierId);
       
-      const totalKm = Number((formData.workSessions.length * sessionKm).toFixed(2));
+      const totalKm = Number((uniqueDays * sessionKm).toFixed(2));
       const kmRate = formData.kmRate || settings?.kmValue || 0;
       const totalKmValue = Number((totalKm * kmRate).toFixed(2));
       
