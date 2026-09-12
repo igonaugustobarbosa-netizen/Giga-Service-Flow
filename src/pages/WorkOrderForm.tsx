@@ -355,6 +355,36 @@ export default function WorkOrderForm() {
       toast.info('Dados do orçamento carregados na OS.');
     }
   };
+  
+  const removeTechnicianFromOS = (techId: string) => {
+    const ids = formData.technicianIds || [];
+    const details = [...(formData.technicianDetails || [])];
+    const sessions = [...(formData.workSessions || [])];
+    
+    const newIds = ids.filter(id => id !== techId);
+    const techDetail = details.find(d => d.technicianId === techId);
+    const newDetails = details.filter(d => d.technicianId !== techId);
+    
+    // Also remove the technician from all work sessions
+    const newSessions = sessions.map(session => ({
+      ...session,
+      technicianIds: (session.technicianIds || []).filter(id => id !== techId)
+    })).filter(session => (session.technicianIds || []).length > 0);
+    
+    // If we removed the tech who received KM, assign to the next available one if any
+    if (techDetail?.receivesKm && newDetails.length > 0) {
+      newDetails[0].receivesKm = true;
+    }
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      technicianIds: newIds,
+      technicianDetails: newDetails,
+      workSessions: newSessions
+    }));
+    
+    toast.info('Técnico removido da ordem de serviço.');
+  };
 
   const handleCustomerChange = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
@@ -1275,9 +1305,21 @@ export default function WorkOrderForm() {
                                   <span className="font-bold text-slate-700">{tech?.name || 'Técnico'}</span>
                                   <span className="text-[10px] text-muted-foreground">R$ {hourlyRate.toFixed(2)}/h</span>
                                 </div>
-                                <Badge variant={remaining < 0 ? 'destructive' : worked > 0 ? 'secondary' : 'outline'} className="text-[10px] h-5">
-                                  {remaining < 0 ? 'Extra' : worked >= estimated && estimated > 0 ? 'Concluído' : 'Em curso'}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={remaining < 0 ? 'destructive' : worked > 0 ? 'secondary' : 'outline'} className="text-[10px] h-5">
+                                    {remaining < 0 ? 'Extra' : worked >= estimated && estimated > 0 ? 'Concluído' : 'Em curso'}
+                                  </Badge>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                    onClick={() => removeTechnicianFromOS(id)}
+                                    title="Remover técnico da OS"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </div>
                               
                               <div className="grid grid-cols-2 gap-2">

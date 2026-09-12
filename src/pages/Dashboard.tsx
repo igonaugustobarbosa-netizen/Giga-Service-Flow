@@ -93,7 +93,7 @@ export default function Dashboard() {
       setRecentOrders(data);
       setLoading(false);
     }, (error) => {
-      console.error('Erro ao carregar ordens recentes:', error);
+      handleFirestoreError(error, OperationType.LIST, 'serviceOrders');
       setLoading(false);
     });
 
@@ -106,7 +106,7 @@ export default function Dashboard() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
       setAllOrders(data);
     }, (error) => {
-      console.error('Erro ao carregar todas as ordens:', error);
+      handleFirestoreError(error, OperationType.LIST, 'serviceOrders (all)');
     });
 
     // Query for all work orders (for report)
@@ -118,7 +118,7 @@ export default function Dashboard() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkOrder));
       setAllWorkOrders(data);
     }, (error) => {
-      console.error('Erro ao carregar ordens de serviço:', error);
+      handleFirestoreError(error, OperationType.LIST, 'workOrders');
     });
 
     const qCustomers = isAdmin
@@ -128,7 +128,7 @@ export default function Dashboard() {
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
       setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
     }, (error) => {
-      console.error('Erro ao carregar clientes:', error);
+      handleFirestoreError(error, OperationType.LIST, 'customers');
     });
 
     const qSuppliers = isAdmin
@@ -139,7 +139,7 @@ export default function Dashboard() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any) as Supplier);
       setSuppliers(data);
     }, (error) => {
-      console.error('Erro ao carregar fornecedores:', error);
+      handleFirestoreError(error, OperationType.LIST, 'suppliers');
     });
 
     const techniciansRef = collection(db, 'technicians');
@@ -150,7 +150,7 @@ export default function Dashboard() {
     const unsubscribeTechnicians = onSnapshot(qTechnicians, (snapshot) => {
       setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
     }, (error) => {
-      console.error('Erro ao carregar técnicos:', error);
+      handleFirestoreError(error, OperationType.LIST, 'technicians');
     });
 
     // Fetch Settings
@@ -159,6 +159,8 @@ export default function Dashboard() {
       if (doc.exists()) {
         setSettings(doc.data() as Settings);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `settings/${userData.tenantId}`);
     });
 
     return () => {
@@ -227,6 +229,10 @@ export default function Dashboard() {
   const { workedDays: selectedMonthDays, workedHours: selectedMonthHours } = getWorkedStats(filteredOrders, selectedDate);
 
   const handleMigrate00091 = async () => {
+    if (!isAdmin) {
+      toast.error('Apenas administradores podem realizar migrações.');
+      return;
+    }
     try {
       // 1. Find user "giga eletrica"
       const usersRef = collection(db, 'users');

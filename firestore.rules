@@ -2,32 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: customers
-    // Fields: name, email, phone, address, taxId
-    //
-    // Collection: technicians
-    // Fields: name, email, phone, specialty
-    //
-    // Collection: suppliers
-    // Fields: name, email, phone, address, taxId
-    //
-    // Collection: serviceOrders
-    // Fields: customerId, technicianIds, supplierId, status, description, hoursWorked, laborCost, kmDriven, kmValue, parts, servicePhotos, location, paymentMethod, totalValue, createdAt, updatedAt
-    //
-    // Collection: settings
-    // Fields: kmValue, laborHourValue
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
+    // Global Helpers
     // ===============================================================
     
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'password');
     }
 
     function getUserData() {
@@ -36,24 +19,28 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
+      let data = getUserData();
+      return isEmailVerified() && (
         request.auth.token.email == "igonaugustobarbosa@gmail.com" || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+        (data != null && data.role == "admin")
       );
     }
 
-    function getTenantId() {
+    function getUserTenantId() {
       let data = getUserData();
       return data != null ? data.tenantId : null;
     }
 
-    function isOwner(data) {
-      return isAuthenticated() && data != null && (data.tenantId == getTenantId() || isAdmin());
-    }
-
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
     }
 
     // ===============================================================
@@ -64,57 +51,68 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /_connection_test_/{docId} {
+      allow read: if isSignedIn();
+    }
+
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.tenantId == getTenantId());
-      allow update: if isAuthenticated() && (isAdmin() || (request.auth.uid == userId && request.resource.data.role == resource.data.role && request.resource.data.tenantId == resource.data.tenantId));
+      function isValidUser(data) {
+        return data.keys().hasAll(['id', 'email', 'tenantId', 'role']) &&
+               data.id is string &&
+               data.email is string &&
+               data.tenantId is string &&
+               data.role in ['admin', 'technician', 'viewer'];
+      }
+
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || 
+        isAdmin() || 
+        (request.query.limit <= 10 && request.query.filters.size() > 0 && request.query.filters[0].op == '==' && request.query.filters[0].field == 'email')
+      );
+      allow create: if isSignedIn() && (isAdmin() || userId == request.auth.uid);
+      allow update: if isSignedIn() && (isAdmin() || (userId == request.auth.uid && incoming().role == resource.data.role && incoming().tenantId == resource.data.tenantId));
       allow delete: if isAdmin();
     }
 
     match /customers/{customerId} {
-      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
-      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
     }
 
     match /technicians/{technicianId} {
-      allow read: if isAuthenticated() && (isAdmin() || resource == null || resource.data.tenantId == getTenantId());
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
-      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
     }
 
     match /suppliers/{supplierId} {
-      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
-      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
     }
 
     match /serviceOrders/{orderId} {
-      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
-      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
     }
 
     match /workOrders/{woId} {
-      allow read: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
-      allow update: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
-      allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.tenantId == getTenantId()));
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
     }
 
     match /settings/{settingId} {
-      allow read: if isAuthenticated() && (settingId == getTenantId() || isAdmin());
-      allow write: if isAuthenticated() && (settingId == getTenantId() || isAdmin());
+      allow read: if isSignedIn() && (settingId == getUserTenantId() || isAdmin() || settingId == 'global');
+      allow write: if isSignedIn() && (settingId == getUserTenantId() || isAdmin());
     }
 
     match /activities/{activityId} {
-      allow list: if isAuthenticated() && (resource.data.tenantId == getTenantId() || isAdmin());
-      allow get: if isAuthenticated() && (resource.data.tenantId == getTenantId() || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.tenantId == getTenantId();
+      allow list: if isSignedIn() && (resource.data.tenantId == getUserTenantId() || isAdmin());
+      allow get: if isSignedIn() && (resource.data.tenantId == getUserTenantId() || isAdmin());
+      allow create: if isSignedIn() && incoming().tenantId == getUserTenantId();
       allow update, delete: if isAdmin();
     }
   }
