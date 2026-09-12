@@ -13,6 +13,7 @@ interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   variant?: 'default' | 'destructive';
+  children?: React.ReactNode;
 }
 
 export function ConfirmDialog({
@@ -24,7 +25,8 @@ export function ConfirmDialog({
   description,
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
-  variant = 'default'
+  variant = 'default',
+  children
 }: ConfirmDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -40,6 +42,7 @@ export function ConfirmDialog({
           </div>
           <p className="text-muted-foreground">{description}</p>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button 
             variant="outline" 

@@ -61,6 +61,7 @@ export default function WorkOrderForm() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [pdfConfirmDialog, setPdfConfirmDialog] = useState(false);
+  const [excludeZeroHourTechs, setExcludeZeroHourTechs] = useState(false);
   
   // Edit session states
   const [editingSessionIndex, setEditingSessionIndex] = useState<number | null>(null);
@@ -728,7 +729,10 @@ export default function WorkOrderForm() {
 
   const confirmGeneratePDF = (includeDetails: boolean) => {
     const customer = customers.find(c => c.id === formData.customerId);
-    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings, { includeDetails });
+    generateWorkOrderPDF(formData as WorkOrder, customer || null, technicians, settings, { 
+      includeDetails,
+      excludeZeroHourTechs 
+    });
     setPdfConfirmDialog(false);
   };
 
@@ -1561,12 +1565,30 @@ export default function WorkOrderForm() {
         isOpen={pdfConfirmDialog}
         onOpenChange={setPdfConfirmDialog}
         onConfirm={() => confirmGeneratePDF(true)}
-        title="Gerar PDF com Detalhes?"
-        description="Deseja incluir o detalhamento de valores (horas e km) no PDF?"
+        title="Gerar PDF da Ordem de Serviço"
+        description="Escolha se deseja incluir o detalhamento de valores (horas e km) no PDF."
         confirmText="Sim, incluir valores"
         cancelText="Não, apenas básico"
         onCancel={() => confirmGeneratePDF(false)}
-      />
+      >
+        <div className="flex flex-col gap-3 pt-4 border-t mt-4">
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id="pdfExcludeZeroHours"
+              checked={excludeZeroHourTechs}
+              onChange={(e) => setExcludeZeroHourTechs(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="pdfExcludeZeroHours" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+              Ocultar técnicos sem horas lançadas
+            </label>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Se marcado, técnicos que não registraram tempo nesta OS serão removidos da tabela de progresso de mão de obra.
+          </p>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

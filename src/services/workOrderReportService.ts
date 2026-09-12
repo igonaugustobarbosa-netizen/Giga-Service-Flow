@@ -14,6 +14,7 @@ export const generateWorkOrderReportPDF = (
     billingStatus: string;
     technicianIds: string[];
     groupByTech?: boolean;
+    excludeZeroHourTechs?: boolean;
   }
 ) => {
   const doc = new jsPDF();
@@ -309,6 +310,9 @@ export const generateWorkOrderReportPDF = (
 
     if (filters.groupByTech) {
       const summary = Object.values(techSummary).reduce((acc, s) => {
+        // Optionally skip zero hour techs in grouped summary too if they have no KM either
+        if (filters.excludeZeroHourTechs && s.hours === 0 && (s.kmValue || 0) === 0) return acc;
+        
         acc.hours += s.hours;
         acc.laborValue += s.laborValue;
         acc.kmValue += s.kmValue;
@@ -324,16 +328,21 @@ export const generateWorkOrderReportPDF = (
         `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]];
     } else {
-      techTableBody = Object.values(techSummary).map((s: any) => {
-        const total = s.laborValue + (s.kmValue || 0);
-        return [
-          s.name,
-          `${s.hours.toFixed(1)}h`,
-          `R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-          `R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-          `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-        ];
-      });
+      techTableBody = Object.values(techSummary)
+        .filter((s: any) => {
+          if (filters.excludeZeroHourTechs && s.hours === 0) return false;
+          return true;
+        })
+        .map((s: any) => {
+          const total = s.laborValue + (s.kmValue || 0);
+          return [
+            s.name,
+            `${s.hours.toFixed(1)}h`,
+            `R$ ${s.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            `R$ ${(s.kmValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          ];
+        });
     }
 
     autoTable(doc, {

@@ -6,6 +6,7 @@ import { WorkOrder, Customer, Settings, Technician } from '../types';
 
 export interface PDFOptions {
   includeDetails?: boolean;
+  excludeZeroHourTechs?: boolean;
 }
 
 export const generateWorkOrderPDF = (
@@ -204,9 +205,17 @@ export const generateWorkOrderPDF = (
     ...Object.keys(techHoursMap)
   ]));
 
-  const techProgressSummary = allTechIds.map(id => {
-    const tech = technicians.find(t => t.id === id);
-    const worked = techHoursMap[id] || 0;
+  const techProgressSummary = allTechIds
+    .filter(id => {
+      if (options.excludeZeroHourTechs) {
+        const worked = techHoursMap[id] || 0;
+        return worked > 0;
+      }
+      return true;
+    })
+    .map(id => {
+      const tech = technicians.find(t => t.id === id);
+      const worked = techHoursMap[id] || 0;
     const detail = wo.technicianDetails?.find(d => d.technicianId === id);
     const estimated = detail?.hours || 0;
     const hourlyRate = detail?.laborRate || tech?.defaultLaborHourValue || 0;
@@ -334,6 +343,51 @@ export const generateWorkOrderPDF = (
     currentY = (doc as any).lastAutoTable.finalY + 15;
   }
   
+  // Final Financial Summary (Always shown)
+  const totalLaborValue = allTechIds.reduce((sum, id) => {
+    const tech = technicians.find(t => t.id === id);
+    const worked = techHoursMap[id] || 0;
+    const detail = wo.technicianDetails?.find(d => d.technicianId === id);
+    const hourlyRate = detail?.laborRate || tech?.defaultLaborHourValue || 0;
+    return sum + (worked * hourlyRate);
+  }, 0);
+
+  const finalTotalValue = totalLaborValue + (actualKmValue || wo.kmTotalValue || 0);
+
+  if (currentY + 45 > pageHeight - margin) {
+    doc.addPage();
+    currentY = margin;
+  }
+
+  doc.setFillColor(249, 250, 251); // Gray-50
+  doc.rect(margin, currentY, pageWidth - 2 * margin, 35, 'F');
+  doc.setDrawColor(229, 231, 235); // Gray-200
+  doc.rect(margin, currentY, pageWidth - 2 * margin, 35, 'S');
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(55, 65, 81); // Gray-700
+  doc.text('RESUMO FINANCEIRO', margin + 5, currentY + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Mão de Obra Total:', margin + 5, currentY + 18);
+  doc.text(`R$ ${totalLaborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 5, currentY + 18, { align: 'right' });
+
+  doc.text('Deslocamento Total:', margin + 5, currentY + 24);
+  doc.text(`R$ ${(actualKmValue || wo.kmTotalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 5, currentY + 24, { align: 'right' });
+
+  doc.setDrawColor(209, 213, 219);
+  doc.line(margin + 5, currentY + 27, pageWidth - margin - 5, currentY + 27);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(49, 46, 129); // Indigo-900
+  doc.text('VALOR TOTAL DA ORDEM DE SERVIÇO:', margin + 5, currentY + 32);
+  doc.text(`R$ ${finalTotalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - margin - 5, currentY + 32, { align: 'right' });
+
+  currentY += 45;
+
   // Technicians responsible (Original selection)
   if (currentY + 20 > pageHeight - margin) {
     doc.addPage();

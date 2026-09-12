@@ -68,7 +68,8 @@ export default function Dashboard() {
     status: 'all',
     billingStatus: 'all', // all, billed, pending
     technicianIds: ['all'],
-    groupByTech: false
+    groupByTech: false,
+    excludeZeroHourTechs: false
   });
 
   const handlePrevMonth = () => setSelectedDate(subMonths(selectedDate, 1));
@@ -913,7 +914,8 @@ export default function Dashboard() {
                 status: 'all',
                 billingStatus: 'all',
                 technicianIds: ['all'],
-                groupByTech: false
+                groupByTech: false,
+                excludeZeroHourTechs: false
               })}
               className="h-9 text-xs"
             >
@@ -1032,6 +1034,19 @@ export default function Dashboard() {
               />
               <label htmlFor="groupByTech" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
                 Agrupar Técnicos
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+              <input 
+                type="checkbox" 
+                id="excludeZeroHourTechs"
+                checked={reportFilters.excludeZeroHourTechs}
+                onChange={e => setReportFilters(prev => ({...prev, excludeZeroHourTechs: e.target.checked}))}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <label htmlFor="excludeZeroHourTechs" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                Ocultar técnicos sem horas
               </label>
             </div>
 
