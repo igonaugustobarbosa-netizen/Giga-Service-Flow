@@ -219,6 +219,19 @@ export default function WorkOrderForm() {
               const supplier = suppliersData.find(s => s.id === budget.supplierId);
               const estKm = budget.kmDriven || calculateDisplacement(budget.customerId, budget.supplierId) || 0;
               
+              const initialTechDetails = budget.technicianDetails || (budget.technicianIds || []).map((techId, idx) => {
+                const tech = techniciansData.find(t => t.id === techId);
+                return {
+                  technicianId: techId,
+                  name: tech?.name || '',
+                  hours: 0,
+                  laborRate: budget.laborRate || tech?.defaultLaborHourValue || settingsData?.laborHourValue || 0,
+                  km: 0,
+                  kmValue: budget.kmValue || tech?.defaultKmValue || settingsData?.kmValue || 0,
+                  receivesKm: idx === 0
+                };
+              });
+
               initialWOData = {
                 ...initialWOData,
                 workOrderNumber: nextNumberFromBudget,
@@ -238,7 +251,7 @@ export default function WorkOrderForm() {
                 remainingHours: totalHours,
                 currentStartTime: null,
                 workSessions: [],
-                technicianDetails: budget.technicianDetails || []
+                technicianDetails: initialTechDetails
               };
             }
           }
@@ -330,6 +343,19 @@ export default function WorkOrderForm() {
 
       const estKm = budget.kmDriven || calculateDisplacement(budget.customerId, budget.supplierId) || 0;
 
+      const initialTechDetails = budget.technicianDetails || (budget.technicianIds || []).map((techId, idx) => {
+        const tech = technicians.find(t => t.id === techId);
+        return {
+          technicianId: techId,
+          name: tech?.name || '',
+          hours: 0,
+          laborRate: budget.laborRate || tech?.defaultLaborHourValue || settings?.laborHourValue || 0,
+          km: 0,
+          kmValue: budget.kmValue || tech?.defaultKmValue || settings?.kmValue || 0,
+          receivesKm: idx === 0
+        };
+      });
+
       setFormData(prev => ({
         ...prev,
         workOrderNumber: nextNumberFromBudget,
@@ -350,7 +376,7 @@ export default function WorkOrderForm() {
         remainingHours: totalHours,
         currentStartTime: null,
         workSessions: [],
-        technicianDetails: budget.technicianDetails || []
+        technicianDetails: initialTechDetails
       }));
       toast.info('Dados do orçamento carregados na OS.');
     }
@@ -775,10 +801,22 @@ export default function WorkOrderForm() {
 
     setLoading(true);
     try {
-      // Calculate total value (KM + Labor)
-      const laborValue = formData.technicianDetails?.reduce((sum, t) => sum + (t.hours * t.laborRate), 0) || 0;
+      // Calculate total value (KM + Labor based on actual work sessions)
+      const techHoursMap: Record<string, number> = {};
+      formData.workSessions?.forEach(session => {
+        session.technicianIds?.forEach(techId => {
+          techHoursMap[techId] = (techHoursMap[techId] || 0) + (session.duration || 0);
+        });
+      });
+
+      const actualLaborValue = Object.entries(techHoursMap).reduce((sum, [techId, hours]) => {
+        const detail = formData.technicianDetails?.find(d => d.technicianId === techId);
+        const rate = detail?.laborRate || 0;
+        return sum + (hours * rate);
+      }, 0);
+
       const kmValue = formData.kmTotalValue || 0;
-      const totalValue = Number((laborValue + kmValue).toFixed(2));
+      const totalValue = Number((actualLaborValue + kmValue).toFixed(2));
 
       // Create a clean data object and remove any undefined fields to prevent Firestore errors
       const woData = JSON.parse(JSON.stringify({
@@ -1216,16 +1254,53 @@ export default function WorkOrderForm() {
                     </h3>
                     <div className="space-y-2">
                       {formData.technicianDetails.map((tech, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
-                          <span className="font-medium">{tech.name}</span>
-                          <div className="flex gap-4 text-muted-foreground">
-                            <span>{tech.hours}h</span>
-                            <span>R$ {tech.laborRate.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h</span>
+                        <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-border last:border-0">
+                          <span className="font-medium text-slate-700">{tech.name}</span>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold">Valor/h</span>
+                              <div className="relative w-24">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">R$</span>
+                                <Input
+                                  type="text"
+                                  className="h-8 pl-7 text-xs"
+                                  value={tech.laborRate === 0 ? '' : tech.laborRate.toString().replace('.', ',')}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(',', '.');
+                                    const num = parseFloat(val);
+                                    const newDetails = [...formData.technicianDetails];
+                                    newDetails[index] = { ...newDetails[index], laborRate: isNaN(num) ? 0 : num };
+                                    setFormData(prev => ({ ...prev, technicianDetails: newDetails }));
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold">Valor/km</span>
+                              <div className="relative w-24">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">R$</span>
+                                <Input
+                                  type="text"
+                                  className="h-8 pl-7 text-xs"
+                                  value={tech.kmValue === 0 ? '' : (tech.kmValue || 0).toString().replace('.', ',')}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(',', '.');
+                                    const num = parseFloat(val);
+                                    const newDetails = [...formData.technicianDetails];
+                                    newDetails[index] = { ...newDetails[index], kmValue: isNaN(num) ? 0 : num };
+                                    setFormData(prev => ({ ...prev, technicianDetails: newDetails }));
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
-                      <div className="flex justify-end pt-2 font-bold text-indigo-600">
-                        Total MO: R$ {formData.technicianDetails.reduce((sum, t) => sum + (t.hours * t.laborRate), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <div className="flex justify-between items-center pt-2 mt-2 border-t">
+                        <span className="text-xs text-muted-foreground">Baseado na estimativa do orçamento</span>
+                        <div className="font-bold text-indigo-600">
+                          Est. MO: R$ {formData.technicianDetails.reduce((sum, t) => sum + ((t.hours || 0) * t.laborRate), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1233,7 +1308,7 @@ export default function WorkOrderForm() {
                   <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border">
                     <h3 className="text-sm font-medium flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      Detalhamento de Deslocamento (Orçamento)
+                      Detalhamento de Deslocamento (Estimado)
                     </h3>
                     <div className="space-y-2">
                       {formData.technicianDetails.map((tech, index) => (
@@ -1525,13 +1600,16 @@ export default function WorkOrderForm() {
                                 const newIds = [...ids, tech.id];
                                 // Add to details if not already there
                                 if (!details.some(d => d.technicianId === tech.id)) {
+                                  const linkedBudget = budgets.find(b => b.id === formData.budgetId);
+                                  const budgetTechDetail = linkedBudget?.technicianDetails?.find(td => td.technicianId === tech.id);
+                                  
                                   details.push({
                                     technicianId: tech.id,
                                     name: tech.name,
                                     hours: 0,
-                                    laborRate: tech.defaultLaborHourValue || settings?.laborHourValue || 0,
+                                    laborRate: budgetTechDetail?.laborRate || linkedBudget?.laborRate || tech.defaultLaborHourValue || settings?.laborHourValue || 0,
                                     km: 0,
-                                    kmValue: tech.defaultKmValue || settings?.kmValue || 0,
+                                    kmValue: budgetTechDetail?.kmValue || linkedBudget?.kmValue || tech.defaultKmValue || settings?.kmValue || 0,
                                     receivesKm: details.length === 0 // Default to first tech receiving KM
                                   });
                                 }
