@@ -18,7 +18,7 @@ export const generateWorkOrderReportPDF = (
   },
   detailedByDay: boolean = false
 ) => {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: 'landscape' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
@@ -344,16 +344,16 @@ export const generateWorkOrderReportPDF = (
     body: tableBody,
     theme: 'grid',
     headStyles: { fillColor: [79, 70, 229], fontSize: 8 },
-    styles: { fontSize: 7, cellPadding: 2 },
+    styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
     columnStyles: {
-      0: { cellWidth: 15 },
-      1: { cellWidth: 15 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 15 },
-      5: { cellWidth: 12 },
-      6: { cellWidth: 20 },
-      7: { halign: 'right', cellWidth: 25 }
+      0: { cellWidth: 20 },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 'auto', overflow: 'linebreak' },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 15 },
+      6: { cellWidth: 25 },
+      7: { halign: 'right', cellWidth: 30 }
     },
     didParseCell: (data) => {
       if (data.section === 'body') {

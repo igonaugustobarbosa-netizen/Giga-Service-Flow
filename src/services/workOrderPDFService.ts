@@ -185,7 +185,10 @@ export const generateWorkOrderPDF = (
       theme: 'striped',
       headStyles: { fillColor: [55, 65, 81] },
       footStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontStyle: 'bold' },
-      styles: { fontSize: 8 },
+      styles: { fontSize: 8, overflow: 'linebreak' },
+      columnStyles: {
+        4: { cellWidth: 'auto' }
+      },
       margin: { left: margin, right: margin }
     });
     

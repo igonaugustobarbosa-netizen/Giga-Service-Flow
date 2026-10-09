@@ -471,22 +471,30 @@ export default function Dashboard() {
         }
       }
       
-      if (billingFilter === 'all') {
-        kmValue = baseKmValue;
-        igonKmValue = baseIgonKmValue;
-        kmDistance = baseKmDistance;
-        igonKmDistance = baseIgonKmDistance;
-      } else if (billingFilter === 'billed' && anySessionsBilled) {
-        kmValue = baseKmValue;
-        igonKmValue = baseIgonKmValue;
-        kmDistance = baseKmDistance;
-        igonKmDistance = baseIgonKmDistance;
-      } else if (billingFilter === 'pending' && !anySessionsBilled) {
-        kmValue = baseKmValue;
-        igonKmValue = baseIgonKmValue;
-        kmDistance = baseKmDistance;
-        igonKmDistance = baseIgonKmDistance;
+      const allSessions = wo.workSessions || [];
+      const totalOsHours = allSessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+      const billedOsHours = allSessions.filter(s => s.billed).reduce((acc, s) => acc + (s.duration || 0), 0);
+      const pendingOsHours = allSessions.filter(s => !s.billed).reduce((acc, s) => acc + (s.duration || 0), 0);
+
+      let kmFraction = 1;
+      if (billingFilter === 'billed') {
+        if (totalOsHours > 0) {
+          kmFraction = billedOsHours / totalOsHours;
+        } else {
+          kmFraction = allSessions.length > 0 ? allSessions.filter(s => s.billed).length / allSessions.length : 0;
+        }
+      } else if (billingFilter === 'pending') {
+        if (totalOsHours > 0) {
+          kmFraction = pendingOsHours / totalOsHours;
+        } else {
+          kmFraction = allSessions.length > 0 ? allSessions.filter(s => !s.billed).length / allSessions.length : 1;
+        }
       }
+
+      kmValue = baseKmValue * kmFraction;
+      igonKmValue = baseIgonKmValue * kmFraction;
+      kmDistance = baseKmDistance * kmFraction;
+      igonKmDistance = baseIgonKmDistance * kmFraction;
 
       // Calculate Session (Daily) KM values
       if (uniqueDays > 0) {
@@ -1160,7 +1168,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {/* Summary Mini Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-10 gap-3 mb-6">
             <Card className="border-none shadow-sm bg-indigo-600 text-white p-3">
               <p className="text-[10px] uppercase font-bold opacity-80">Total OS</p>
               <p className="text-xl font-bold">{filteredWorkOrders.length}</p>
@@ -1188,6 +1196,24 @@ export default function Dashboard() {
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">Mão de Obra</p>
               <p className="text-sm font-bold text-indigo-600">R$ {filteredWorkOrders.reduce((acc, wo) => acc + getWorkOrderLaborValue(wo), 0).toFixed(2)}</p>
+            </Card>
+            <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Total KM Rodados</p>
+              <p className="text-sm font-bold text-cyan-700">
+                {filteredWorkOrders.reduce((acc, wo) => {
+                  const m = calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any);
+                  return acc + m.kmDistance + m.igonKmDistance;
+                }, 0).toFixed(1)} km
+              </p>
+            </Card>
+            <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Total KM (R$)</p>
+              <p className="text-sm font-bold text-cyan-700">
+                R$ {filteredWorkOrders.reduce((acc, wo) => {
+                  const m = calculateWorkOrderMetrics(wo, reportFilters.billingStatus as any);
+                  return acc + m.kmValue + m.igonKmValue;
+                }, 0).toFixed(2)}
+              </p>
             </Card>
             <Card className="border-none shadow-sm bg-white border border-indigo-100 p-3">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">KM Igon (Diário)</p>
