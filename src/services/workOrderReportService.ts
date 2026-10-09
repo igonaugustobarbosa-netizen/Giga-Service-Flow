@@ -226,23 +226,37 @@ export const generateWorkOrderReportPDF = (
     }, 0);
 
     // Update tech summary (we'll keep using totals for the summary section of the PDF)
-    order.technicianDetails?.forEach(td => {
-      if (!isAllTechs && !filters.technicianIds.includes(td.technicianId)) return;
-      const t = technicians.find(tech => tech.id === td.technicianId);
+    const orderTechIds = new Set([
+      ...(order.technicianIds || []),
+      ...(order.workSessions || []).flatMap(s => s.technicianIds || [])
+    ]);
+
+    orderTechIds.forEach(tId => {
+      if (!isAllTechs && !filters.technicianIds.includes(tId)) return;
+      const t = technicians.find(tech => tech.id === tId);
       if (t) {
-        if (!techSummary[td.technicianId]) {
-          techSummary[td.technicianId] = { name: t.name, hours: 0, laborValue: 0, kmValue: 0 };
+        if (!techSummary[tId]) {
+          techSummary[tId] = { name: t.name, hours: 0, laborValue: 0, kmValue: 0 };
         }
-        const techSessions = (order.workSessions || []).filter(s => s.technicianIds?.includes(td.technicianId));
+        const techSessions = (order.workSessions || []).filter(s => s.technicianIds?.includes(tId));
         const h = calcSessionHours(techSessions);
-        techSummary[td.technicianId].hours += h;
-        techSummary[td.technicianId].laborValue += (h * td.laborRate);
-        const isPrimary = order.technicianIds && order.technicianIds[0] === td.technicianId;
-        const isRecipient = td.receivesKm || (isAllTechs && !order.technicianDetails?.some(d => d.receivesKm) && isPrimary);
+        
+        // Skip if technician has no hours recorded for this OS
+        if (h === 0) return;
+
+        techSummary[tId].hours += h;
+        
+        const td = order.technicianDetails?.find(d => d.technicianId === tId);
+        const rate = td?.laborRate || t.defaultLaborHourValue || 0;
+        techSummary[tId].laborValue += (h * rate);
+        
+        const isPrimary = order.technicianIds && order.technicianIds[0] === tId;
+        const isRecipient = td?.receivesKm || (isAllTechs && !order.technicianDetails?.some(d => d.receivesKm) && isPrimary);
         const isIgon = t.name?.toLowerCase().includes('igon');
-        if (!isAllTechs ? (td.technicianId === effectiveKmRecipientId) : isRecipient) {
-          if (isIgon) techSummary[td.technicianId].kmValue += igonKmValueToInclude;
-          else techSummary[td.technicianId].kmValue += kmValueToInclude;
+        
+        if (!isAllTechs ? (tId === effectiveKmRecipientId) : isRecipient) {
+          if (isIgon) techSummary[tId].kmValue += igonKmValueToInclude;
+          else techSummary[tId].kmValue += kmValueToInclude;
         }
       }
     });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Supplier, ServiceStatus } from '../types';
+import { ServiceOrder, Customer, Supplier, ServiceStatus, Technician } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -30,6 +30,7 @@ export default function Reports() {
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filter state
@@ -39,6 +40,7 @@ export default function Reports() {
     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     customerId: '',
     supplierId: '',
+    technicianId: '',
     reportType: 'summary' as 'summary' | 'full'
   });
 
@@ -47,6 +49,7 @@ export default function Reports() {
 
     const customersRef = collection(db, 'customers');
     const suppliersRef = collection(db, 'suppliers');
+    const techniciansRef = collection(db, 'technicians');
     const ordersRef = collection(db, 'serviceOrders');
 
     // Load customers
@@ -59,6 +62,12 @@ export default function Reports() {
     const qSuppliers = isAdmin ? query(suppliersRef, orderBy('name')) : query(suppliersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
     const unsubscribeSuppliers = onSnapshot(qSuppliers, (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
+    });
+
+    // Load technicians
+    const qTechnicians = isAdmin ? query(techniciansRef, orderBy('name')) : query(techniciansRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
+    const unsubscribeTechnicians = onSnapshot(qTechnicians, (snapshot) => {
+      setTechnicians(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician)));
     });
 
     // Initial load of orders
@@ -81,6 +90,7 @@ export default function Reports() {
     return () => {
       unsubscribeCustomers();
       unsubscribeSuppliers();
+      unsubscribeTechnicians();
     };
   }, [userData, isAdmin]);
 
@@ -96,9 +106,10 @@ export default function Reports() {
     const matchesStatus = !filters.status || order.status === filters.status;
     const matchesCustomer = !filters.customerId || order.customerId === filters.customerId;
     const matchesSupplier = !filters.supplierId || order.supplierId === filters.supplierId;
+    const matchesTechnician = !filters.technicianId || order.technicianIds?.includes(filters.technicianId);
     const matchesDate = (!start || orderDate >= start) && (!end || orderDate <= end);
 
-    return matchesStatus && matchesCustomer && matchesSupplier && matchesDate;
+    return matchesStatus && matchesCustomer && matchesSupplier && matchesTechnician && matchesDate;
   });
 
   const totalBilling = filteredOrders.reduce((acc, order) => acc + order.totalValue, 0);
@@ -117,7 +128,7 @@ export default function Reports() {
   };
 
   const handleGeneratePDF = () => {
-    generateReportPDF(filteredOrders, customers, suppliers, filters);
+    generateReportPDF(filteredOrders, customers, suppliers, technicians, filters);
   };
 
   return (
@@ -210,6 +221,18 @@ export default function Reports() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="technician">Técnico</Label>
+                <Select 
+                  id="technician" 
+                  value={filters.technicianId} 
+                  onChange={e => setFilters({...filters, technicianId: e.target.value})}
+                >
+                  <option value="">Todos os Técnicos</option>
+                  {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="reportType">Tipo de Relatório</Label>
                 <Select 
                   id="reportType" 
@@ -230,6 +253,7 @@ export default function Reports() {
                   endDate: '',
                   customerId: '',
                   supplierId: '',
+                  technicianId: '',
                   reportType: 'summary'
                 })}
               >
@@ -351,6 +375,7 @@ export default function Reports() {
                       <th className="text-left p-4 font-medium">Nº OS</th>
                       <th className="text-left p-4 font-medium">Data Exec.</th>
                       <th className="text-left p-4 font-medium">Cliente</th>
+                      <th className="text-left p-4 font-medium">Técnicos</th>
                       <th className="text-left p-4 font-medium">Status</th>
                       <th className="text-right p-4 font-medium">Valor</th>
                     </tr>
@@ -370,6 +395,9 @@ export default function Reports() {
                           <td className="p-4 font-mono text-xs">{order.orderNumber || order.id.substring(0, 8)}</td>
                           <td className="p-4">{format(parseDateSafely(dateToDisplay), 'dd/MM/yy')}</td>
                           <td className="p-4 font-medium">{customer?.name || 'N/A'}</td>
+                          <td className="p-4 text-xs italic text-muted-foreground">
+                            {order.technicianDetails?.map(td => td.name).join(', ') || 'N/A'}
+                          </td>
                           <td className="p-4">
                             <span className={cn(
                               "px-2 py-1 rounded-full text-[10px] font-bold uppercase",

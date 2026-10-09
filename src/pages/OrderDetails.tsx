@@ -66,7 +66,7 @@ export default function OrderDetails() {
     type: 'service'
   });
 
-  const handleDeletePhoto = async (type: 'before' | 'after', index: number) => {
+  const handleDeletePhoto = async (type: 'before' | 'after' | 'service', index: number) => {
     if (!order || !id) return;
     
     setConfirmDialog({
@@ -78,10 +78,12 @@ export default function OrderDetails() {
         try {
           const updatedPhotos = type === 'before' 
             ? [...(order.beforePhotos || [])].filter((_, i) => i !== index)
-            : [...(order.afterPhotos || [])].filter((_, i) => i !== index);
+            : type === 'after'
+            ? [...(order.afterPhotos || [])].filter((_, i) => i !== index)
+            : [...(order.servicePhotos || [])].filter((_, i) => i !== index);
           
           await updateDoc(doc(db, 'serviceOrders', id), {
-            [type === 'before' ? 'beforePhotos' : 'afterPhotos']: updatedPhotos
+            [type === 'before' ? 'beforePhotos' : type === 'after' ? 'afterPhotos' : 'servicePhotos']: updatedPhotos
           });
           
           if (userData) {
@@ -636,6 +638,39 @@ export default function OrderDetails() {
                         >
                           <Trash2 className="w-5 h-5" />
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {order.servicePhotos && order.servicePhotos.length > 0 && (
+              <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-primary" />
+                    Fotos: Serviço / Detalhes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {order.servicePhotos.map((photo, index) => (
+                      <div key={index} className="flex flex-col gap-2 p-2 rounded-xl border bg-background/50 group">
+                        <div className="aspect-square rounded-lg overflow-hidden border">
+                          <img src={photo} alt={`Serviço ${index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-medium text-muted-foreground">Foto {index + 1}</p>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-7 w-7 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all"
+                            onClick={() => handleDeletePhoto('service', index)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

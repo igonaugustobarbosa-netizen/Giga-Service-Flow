@@ -232,24 +232,25 @@ export default function OrderForm() {
     }
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'parts' | 'before' | 'after', index?: number) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'parts' | 'before' | 'after' | 'service', index?: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Check limits (Firestore 1MB limit for the whole document)
     const currentPhotos = type === 'before' ? (formData.beforePhotos || []) : 
-                         type === 'after' ? (formData.afterPhotos || []) : [];
+                         type === 'after' ? (formData.afterPhotos || []) :
+                         type === 'service' ? (formData.servicePhotos || []) : [];
     
-    if (type !== 'parts' && currentPhotos.length >= 6) {
-      alert('Limite de 6 fotos por seção atingido para garantir o salvamento.');
+    if (type !== 'parts' && currentPhotos.length >= 8) {
+      alert('Limite de 8 fotos por seção atingido para garantir o salvamento.');
       return;
     }
 
     setIsUploadingPhoto(true);
     try {
       // Compress image to stay within Firestore 1MB limit
-      // Using 640px and 0.5 quality for maximum safety
-      const compressedBase64 = await compressImage(file, 640, 0.5);
+      // Using 500px and 0.4 quality for maximum safety to allow more photos
+      const compressedBase64 = await compressImage(file, 500, 0.4);
       
       if (type === 'parts' && index !== undefined) {
         handlePartChange(index, 'photoUrl', compressedBase64);
@@ -262,6 +263,11 @@ export default function OrderForm() {
         setFormData(prev => ({
           ...prev,
           afterPhotos: [...(prev.afterPhotos || []), compressedBase64]
+        }));
+      } else if (type === 'service') {
+        setFormData(prev => ({
+          ...prev,
+          servicePhotos: [...(prev.servicePhotos || []), compressedBase64]
         }));
       }
     } catch (error) {
@@ -1048,6 +1054,61 @@ export default function OrderForm() {
                       accept="image/*" 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                       onChange={(e) => handlePhotoUpload(e, 'after')}
+                      disabled={isUploadingPhoto}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-orange-50/20 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-primary" />
+                  Fotos: Serviço / Geral
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {formData.servicePhotos?.map((photo, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-xl border bg-background/50 group">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden border shrink-0">
+                        <img src={photo} alt={`Serviço ${index}`} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-muted-foreground">Foto {index + 1}</p>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-8 w-8 bg-background/50 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all shrink-0"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          servicePhotos: (prev.servicePhotos || []).filter((_, i) => i !== index)
+                        }))}
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="relative h-20 rounded-xl border-2 border-dashed flex items-center justify-center text-muted-foreground hover:bg-accent transition-colors cursor-pointer">
+                    {isUploadingPhoto ? (
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <span className="text-[10px]">Processando...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Plus className="w-8 h-8 mb-2" />
+                        <span className="text-xs font-medium">Adicionar Foto</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={(e) => handlePhotoUpload(e, 'service')}
                       disabled={isUploadingPhoto}
                     />
                   </div>

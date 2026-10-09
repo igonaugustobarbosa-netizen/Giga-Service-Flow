@@ -1250,64 +1250,6 @@ export default function WorkOrderForm() {
                   <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border">
                     <h3 className="text-sm font-medium flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      Detalhamento de Mão de Obra (Orçamento)
-                    </h3>
-                    <div className="space-y-2">
-                      {formData.technicianDetails.map((tech, index) => (
-                        <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-border last:border-0">
-                          <span className="font-medium text-slate-700">{tech.name}</span>
-                          <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold">Valor/h</span>
-                              <div className="relative w-24">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">R$</span>
-                                <Input
-                                  type="text"
-                                  className="h-8 pl-7 text-xs"
-                                  value={tech.laborRate === 0 ? '' : tech.laborRate.toString().replace('.', ',')}
-                                  onChange={(e) => {
-                                    const val = e.target.value.replace(',', '.');
-                                    const num = parseFloat(val);
-                                    const newDetails = [...formData.technicianDetails];
-                                    newDetails[index] = { ...newDetails[index], laborRate: isNaN(num) ? 0 : num };
-                                    setFormData(prev => ({ ...prev, technicianDetails: newDetails }));
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold">Valor/km</span>
-                              <div className="relative w-24">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">R$</span>
-                                <Input
-                                  type="text"
-                                  className="h-8 pl-7 text-xs"
-                                  value={tech.kmValue === 0 ? '' : (tech.kmValue || 0).toString().replace('.', ',')}
-                                  onChange={(e) => {
-                                    const val = e.target.value.replace(',', '.');
-                                    const num = parseFloat(val);
-                                    const newDetails = [...formData.technicianDetails];
-                                    newDetails[index] = { ...newDetails[index], kmValue: isNaN(num) ? 0 : num };
-                                    setFormData(prev => ({ ...prev, technicianDetails: newDetails }));
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex justify-between items-center pt-2 mt-2 border-t">
-                        <span className="text-xs text-muted-foreground">Baseado na estimativa do orçamento</span>
-                        <div className="font-bold text-indigo-600">
-                          Est. MO: R$ {formData.technicianDetails.reduce((sum, t) => sum + ((t.hours || 0) * t.laborRate), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                      <Users className="w-4 h-4" />
                       Detalhamento de Deslocamento (Estimado)
                     </h3>
                     <div className="space-y-2">
@@ -1369,16 +1311,82 @@ export default function WorkOrderForm() {
                           const detail = formData.technicianDetails?.find(d => d.technicianId === id);
                           const estimated = detail?.hours || 0;
                           const hourlyRate = detail?.laborRate || tech?.defaultLaborHourValue || 0;
+                          const kmValue = detail?.kmValue || tech?.defaultKmValue || 0;
                           
                           const remaining = Number((estimated - worked).toFixed(2));
                           const totalValueWorked = worked * hourlyRate;
 
                           return (
-                            <div key={id} className="flex flex-col p-3 bg-white rounded-xl border border-border shadow-sm text-xs gap-2">
+                            <div key={id} className="flex flex-col p-3 bg-white rounded-xl border border-border shadow-sm text-xs gap-3">
                               <div className="flex items-start justify-between border-b pb-2">
-                                <div className="flex flex-col">
+                                <div className="flex flex-col gap-1">
                                   <span className="font-bold text-slate-700">{tech?.name || 'Técnico'}</span>
-                                  <span className="text-[10px] text-muted-foreground">R$ {hourlyRate.toFixed(2)}/h</span>
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[9px] text-muted-foreground uppercase font-bold w-12">Valor/h:</span>
+                                      <div className="relative w-20">
+                                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
+                                        <Input
+                                          type="text"
+                                          className="h-6 pl-5 pr-1 py-0 text-[10px] bg-slate-50 border-slate-200"
+                                          value={hourlyRate === 0 ? '' : hourlyRate.toString().replace('.', ',')}
+                                          onChange={(e) => {
+                                            const val = e.target.value.replace(',', '.');
+                                            const num = parseFloat(val);
+                                            const currentDetails = [...(formData.technicianDetails || [])];
+                                            const detailIndex = currentDetails.findIndex(d => d.technicianId === id);
+                                            
+                                            if (detailIndex >= 0) {
+                                              currentDetails[detailIndex] = { ...currentDetails[detailIndex], laborRate: isNaN(num) ? 0 : num };
+                                            } else {
+                                              currentDetails.push({
+                                                technicianId: id,
+                                                name: tech?.name || '',
+                                                hours: 0,
+                                                laborRate: isNaN(num) ? 0 : num,
+                                                km: 0,
+                                                kmValue: tech?.defaultKmValue || 0,
+                                                receivesKm: false
+                                              });
+                                            }
+                                            setFormData(prev => ({ ...prev, technicianDetails: currentDetails }));
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[9px] text-muted-foreground uppercase font-bold w-12">Valor/km:</span>
+                                      <div className="relative w-20">
+                                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
+                                        <Input
+                                          type="text"
+                                          className="h-6 pl-5 pr-1 py-0 text-[10px] bg-slate-50 border-slate-200"
+                                          value={kmValue === 0 ? '' : kmValue.toString().replace('.', ',')}
+                                          onChange={(e) => {
+                                            const val = e.target.value.replace(',', '.');
+                                            const num = parseFloat(val);
+                                            const currentDetails = [...(formData.technicianDetails || [])];
+                                            const detailIndex = currentDetails.findIndex(d => d.technicianId === id);
+                                            
+                                            if (detailIndex >= 0) {
+                                              currentDetails[detailIndex] = { ...currentDetails[detailIndex], kmValue: isNaN(num) ? 0 : num };
+                                            } else {
+                                              currentDetails.push({
+                                                technicianId: id,
+                                                name: tech?.name || '',
+                                                hours: 0,
+                                                laborRate: tech?.defaultLaborHourValue || 0,
+                                                km: 0,
+                                                kmValue: isNaN(num) ? 0 : num,
+                                                receivesKm: false
+                                              });
+                                            }
+                                            setFormData(prev => ({ ...prev, technicianDetails: currentDetails }));
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Badge variant={remaining < 0 ? 'destructive' : worked > 0 ? 'secondary' : 'outline'} className="text-[10px] h-5">
@@ -1616,15 +1624,30 @@ export default function WorkOrderForm() {
                                 setFormData(prev => ({ 
                                   ...prev, 
                                   technicianIds: newIds,
-                                  technicianDetails: details
+                                  technicianDetails: [...details] // Use spread to ensure new reference
                                 }));
                               } else {
                                 const newIds = ids.filter(id => id !== tech.id);
-                                const newDetails = details.filter(d => d.technicianId !== tech.id);
+                                
+                                // Only remove from details if they have NO work sessions recorded
+                                // This prevents losing the custom rate history if the tech already worked
+                                const hasWorkSessions = (formData.workSessions || []).some(s => s.technicianIds?.includes(tech.id));
+                                
+                                let newDetails = [...details];
+                                if (!hasWorkSessions) {
+                                  newDetails = details.filter(d => d.technicianId !== tech.id);
+                                }
                                 
                                 // If we removed the tech who received KM, assign to the next available one if any
                                 if (techDetail?.receivesKm && newDetails.length > 0) {
-                                  newDetails[0].receivesKm = true;
+                                  // Find first tech that is still in the selected ids
+                                  const nextTech = newDetails.find(d => newIds.includes(d.technicianId));
+                                  if (nextTech) {
+                                    newDetails = newDetails.map(d => ({
+                                      ...d,
+                                      receivesKm: d.technicianId === nextTech.technicianId
+                                    }));
+                                  }
                                 }
                                 
                                 setFormData(prev => ({ 

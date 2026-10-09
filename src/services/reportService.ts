@@ -1,18 +1,20 @@
 import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ServiceOrder, Customer, Supplier } from '../types';
+import { ServiceOrder, Customer, Supplier, Technician } from '../types';
 
 export const generateReportPDF = (
   orders: ServiceOrder[],
   customers: Customer[],
   suppliers: Supplier[],
+  technicians: Technician[],
   filters: {
     status?: string;
     startDate?: string;
     endDate?: string;
     customerId?: string;
     supplierId?: string;
+    technicianId?: string;
     reportType?: 'summary' | 'full';
   }
 ) => {
@@ -65,6 +67,10 @@ export const generateReportPDF = (
   if (filters.supplierId) {
     const s = suppliers.find(s => s.id === filters.supplierId);
     if (s) filterTexts.push(`Fornecedor: ${s.name}`);
+  }
+  if (filters.technicianId) {
+    const t = technicians.find(t => t.id === filters.technicianId);
+    if (t) filterTexts.push(`Técnico: ${t.name}`);
   }
 
   if (filterTexts.length > 0) {
@@ -133,6 +139,11 @@ export const generateReportPDF = (
         const splitDescription = doc.splitTextToSize(`Descrição: ${order.description || 'Sem descrição'}`, pageWidth - margin * 2 - 10);
         doc.text(splitDescription, margin + 5, y);
         y += splitDescription.length * 4;
+
+        // Technicians
+        const techNames = order.technicianDetails?.map(td => td.name).join(', ') || 'Não informado';
+        doc.text(`Técnicos: ${techNames}`, margin + 5, y);
+        y += 4;
 
         const techHours = (order.technicianDetails || []).reduce((sum, tech) => sum + (Number(tech.hours) || 0), 0);
         const hoursToUse = techHours || Number(order.hoursWorked) || 0;

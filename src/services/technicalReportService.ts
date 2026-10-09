@@ -250,8 +250,13 @@ export const generateTechnicalReport = (
 
   // Photos (Very compact grid) after signatures
   const handlePhotosOnOnePage = (photos: string[], title: string) => {
-    if (photos.length > 0) {
-      if (checkNewPage(45)) y += 4;
+    if (photos && photos.length > 0) {
+      // Ensure we have enough space for title + at least one row of photos
+      if (y + 45 > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(37, 99, 235);
@@ -259,28 +264,62 @@ export const generateTechnicalReport = (
       y += 5;
       
       let xPos = margin;
-      const imgSize = 32;
-      const spacing = 4;
+      const imgSize = 40; // Slightly larger for better visibility
+      const spacing = 5;
 
       photos.forEach((photo) => {
+        if (!photo) return;
+        
+        // If the photo doesn't fit horizontally, start a new row
         if (xPos + imgSize > pageWidth - margin) {
           xPos = margin;
           y += imgSize + spacing;
-          checkNewPage(imgSize + spacing);
         }
+        
+        // If the new row doesn't fit vertically, add a new page
+        if (y + imgSize > 280) {
+          doc.addPage();
+          y = 20;
+          xPos = margin;
+          
+          // Re-add title context on new page
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(7);
+          doc.text(`${title} (continuação)`, margin, 15);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+        }
+        
         try {
-          doc.addImage(photo, 'JPEG', xPos, y, imgSize, imgSize);
+          // Detect image format from Base64 prefix
+          let format = 'JPEG';
+          if (photo.startsWith('data:image/png')) format = 'PNG';
+          if (photo.startsWith('data:image/webp')) format = 'WEBP';
+          
+          doc.addImage(photo, format, xPos, y, imgSize, imgSize, undefined, 'FAST');
         } catch (e) {
-          console.error(e);
+          console.error('Error adding photo to PDF:', e);
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(xPos, y, imgSize, imgSize, 'S');
+          doc.setFontSize(6);
+          doc.text('Erro na imagem', xPos + imgSize/2, y + imgSize/2, { align: 'center' });
         }
         xPos += imgSize + spacing;
       });
-      y += imgSize + 8;
+      y += imgSize + 10;
     }
   };
 
   handlePhotosOnOnePage(order.beforePhotos || [], 'REGISTRO FOTOGRÁFICO: INÍCIO');
   handlePhotosOnOnePage(order.afterPhotos || [], 'REGISTRO FOTOGRÁFICO: CONCLUSÃO');
+  handlePhotosOnOnePage(order.servicePhotos || [], 'REGISTRO FOTOGRÁFICO: SERVIÇO / DETALHES');
+
+  // Part Photos
+  const partPhotos = (order.parts || [])
+    .filter(p => p.photoUrl)
+    .map(p => p.photoUrl as string);
+  
+  handlePhotosOnOnePage(partPhotos, 'REGISTRO FOTOGRÁFICO: MATERIAIS / PEÇAS');
 
 
   // Page numbering

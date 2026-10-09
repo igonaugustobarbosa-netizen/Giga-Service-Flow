@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Settings, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
@@ -13,7 +13,8 @@ import {
   Calendar, 
   Download,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../components/AuthGuard';
@@ -91,45 +92,52 @@ export default function TechnicalReports() {
         return;
       }
 
-      const order = orders.find(o => o.id === selectedOrderId);
-      if (order) {
-        setSelectedOrder(order);
-        
-        setTechnicalDescription(order.description || "");
-        setProcedures(settings?.technicalReportDefaultProcedures || '');
-        setNonConformities('');
-        
+      const orderFromList = orders.find(o => o.id === selectedOrderId);
+      if (orderFromList) {
+        setLoading(true);
         try {
-          // Fetch Customer
-          const customerSnap = await getDoc(doc(db, 'customers', order.customerId));
+          // Fetch the full document to ensure all photos and data are present
+          // (Sometimes collection-level snapshots might have issues with large docs)
+          const orderSnap = await getDoc(doc(db, 'serviceOrders', selectedOrderId));
+          if (!orderSnap.exists()) {
+            toast.error('Orçamento não encontrado no servidor.');
+            setLoading(false);
+            return;
+          }
+          
+          const order = { id: orderSnap.id, ...orderSnap.data() } as ServiceOrder;
+          setSelectedOrder(order);
+          
+          setTechnicalDescription(order.description || "");
+          setProcedures(settings?.technicalReportDefaultProcedures || '');
+          setNonConformities('');
+          
+          // Fetch related data in parallel
+          const [customerSnap, techSnaps, supplierSnap] = await Promise.all([
+            getDoc(doc(db, 'customers', order.customerId)),
+            order.technicianIds && order.technicianIds.length > 0 
+              ? Promise.all(order.technicianIds.map(id => getDoc(doc(db, 'technicians', id))))
+              : Promise.resolve([]),
+            order.supplierId ? getDoc(doc(db, 'suppliers', order.supplierId)) : Promise.resolve(null)
+          ]);
+
           if (customerSnap.exists()) {
             setCustomer({ id: customerSnap.id, ...customerSnap.data() } as Customer);
           }
 
-          // Fetch Technicians
-          if (order.technicianIds && order.technicianIds.length > 0) {
-            const techPromises = order.technicianIds.map(id => getDoc(doc(db, 'technicians', id)));
-            const techSnaps = await Promise.all(techPromises);
-            const techData = techSnaps
-              .filter(s => s.exists())
-              .map(s => ({ id: s.id, ...s.data() } as Technician));
-            setTechnicians(techData);
-          } else {
-            setTechnicians([]);
-          }
+          const techData = (techSnaps as any[])
+            .filter(s => s.exists())
+            .map(s => ({ id: s.id, ...s.data() } as Technician));
+          setTechnicians(techData);
 
-          // Fetch Supplier
-          if (order.supplierId) {
-            const supplierSnap = await getDoc(doc(db, 'suppliers', order.supplierId));
-            if (supplierSnap.exists()) {
-              setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
-            }
-          } else {
-            setSupplier(null);
+          if (supplierSnap && supplierSnap.exists()) {
+            setSupplier({ id: supplierSnap.id, ...supplierSnap.data() } as Supplier);
           }
         } catch (error) {
           console.error('Error fetching details:', error);
-          toast.error('Erro ao carregar dados complementares da OS.');
+          toast.error('Erro ao carregar dados completos do orçamento.');
+        } finally {
+          setLoading(false);
         }
       }
     };
@@ -369,7 +377,12 @@ export default function TechnicalReports() {
                         </div>
                         <div className="space-y-1">
                           <p className="text-muted-foreground">Registros Fotográficos:</p>
-                          <p className="font-bold">{(selectedOrder.beforePhotos || []).length + (selectedOrder.afterPhotos || []).length} fotos</p>
+                          <p className="font-bold">
+                            {(selectedOrder.beforePhotos || []).length + 
+                             (selectedOrder.afterPhotos || []).length + 
+                             (selectedOrder.servicePhotos || []).length +
+                             (selectedOrder.parts || []).filter(p => p.photoUrl).length} fotos
+                          </p>
                         </div>
                         <div className="space-y-1">
                           <p className="text-muted-foreground">Técnicos:</p>
@@ -380,6 +393,58 @@ export default function TechnicalReports() {
                           <p className="font-bold">{selectedOrder.hoursWorked || 0} horas</p>
                         </div>
                       </div>
+
+                      {/* Visual Photo Gallery Preview */}
+                      <div className="pt-4 border-t border-blue-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[10px] font-bold uppercase text-blue-600">Galeria de Fotos do Relatório</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 text-[10px] gap-1 hover:bg-blue-100"
+                            onClick={() => {
+                              setLoading(true);
+                              const q = isAdmin ? query(collection(db, 'serviceOrders'), orderBy('createdAt', 'desc')) : query(collection(db, 'serviceOrders'), where('tenantId', '==', userData.tenantId), orderBy('createdAt', 'desc'));
+                              getDocs(q).then(snapshot => {
+                                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceOrder));
+                                setOrders(data);
+                                setLoading(false);
+                                toast.success('Dados atualizados');
+                              });
+                            }}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Atualizar
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1">
+                          {[
+                            ...(selectedOrder.beforePhotos || []),
+                            ...(selectedOrder.afterPhotos || []),
+                            ...(selectedOrder.servicePhotos || []),
+                            ...(selectedOrder.parts || []).filter(p => p.photoUrl).map(p => p.photoUrl as string)
+                          ].map((photo, i) => (
+                            <div key={i} className="aspect-square rounded-md overflow-hidden border bg-background shadow-sm">
+                              <img 
+                                src={photo} 
+                                alt="" 
+                                className="w-full h-full object-cover" 
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Erro+Foto';
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {((selectedOrder.beforePhotos || []).length + 
+                           (selectedOrder.afterPhotos || []).length + 
+                           (selectedOrder.servicePhotos || []).length +
+                           (selectedOrder.parts || []).filter(p => p.photoUrl).length) === 0 && (
+                          <p className="text-[10px] text-muted-foreground italic">Nenhuma foto salva neste orçamento.</p>
+                        )}
+                      </div>
+
                       <p className="text-[10px] text-muted-foreground italic mt-2 border-t pt-2">
                         * O relatório técnico não inclui valores financeiros (preços, mão de obra ou descontos).
                       </p>

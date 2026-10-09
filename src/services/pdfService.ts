@@ -561,6 +561,12 @@ export const generateServicePDF = (
 
   addPhotoSection('FOTOS: ANTES', order.beforePhotos);
   addPhotoSection('FOTOS: DEPOIS', order.afterPhotos);
+  addPhotoSection('FOTOS: SERVIÇO / DETALHES', order.servicePhotos || []);
+
+  const partPhotos = (order.parts || [])
+    .filter(p => p.photoUrl)
+    .map(p => p.photoUrl as string);
+  addPhotoSection('FOTOS: MATERIAIS / PEÇAS', partPhotos);
 
   // Validity Message - ALWAYS ON THE LAST PAGE AT THE BOTTOM
   const totalPages = doc.getNumberOfPages();

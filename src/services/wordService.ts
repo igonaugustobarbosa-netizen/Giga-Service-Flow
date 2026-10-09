@@ -1,7 +1,57 @@
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, BorderStyle, HeadingLevel, WidthType, VerticalAlign, PageBreak } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, BorderStyle, HeadingLevel, WidthType, VerticalAlign, PageBreak, ImageRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { ServiceOrder, Customer, Technician, Supplier, Settings } from '../types';
+
+const base64ToUint8Array = (base64: string) => {
+  try {
+    const binaryString = atob(base64.split(',')[1]);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  } catch (e) {
+    console.error('Error converting base64 to Uint8Array:', e);
+    return null;
+  }
+};
+
+const createPhotoParagraphs = (photos: string[], title: string) => {
+  if (!photos || photos.length === 0) return [];
+
+  const photoParagraphs: any[] = [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      children: [new TextRun({ text: title, bold: true, color: "2980b9", size: 18 })],
+      spacing: { before: 400, after: 200 }
+    })
+  ];
+
+  const imageRuns: ImageRun[] = [];
+  photos.forEach(photo => {
+    const data = base64ToUint8Array(photo);
+    if (data) {
+      imageRuns.push(new ImageRun({
+        data: data,
+        transformation: {
+          width: 150,
+          height: 150,
+        },
+      } as any));
+    }
+  });
+
+  if (imageRuns.length > 0) {
+    photoParagraphs.push(new Paragraph({
+      children: imageRuns,
+      spacing: { after: 200 }
+    }));
+  }
+
+  return photoParagraphs;
+};
 
 export const generateServiceWord = async (
   order: ServiceOrder,
@@ -301,6 +351,15 @@ export const generateTechnicalReportWord = async (
           ],
           alignment: AlignmentType.CENTER,
         }),
+
+        // Photos Section for Word
+        ...createPhotoParagraphs(order.beforePhotos || [], "REGISTRO FOTOGRÁFICO: INÍCIO"),
+        ...createPhotoParagraphs(order.afterPhotos || [], "REGISTRO FOTOGRÁFICO: CONCLUSÃO"),
+        ...createPhotoParagraphs(order.servicePhotos || [], "REGISTRO FOTOGRÁFICO: SERVIÇO / DETALHES"),
+        ...createPhotoParagraphs(
+          (order.parts || []).filter(p => p.photoUrl).map(p => p.photoUrl as string),
+          "REGISTRO FOTOGRÁFICO: MATERIAIS / PEÇAS"
+        )
       ],
     }],
   });
