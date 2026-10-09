@@ -146,7 +146,8 @@ export default function WorkOrderForm() {
           getDoc(doc(db, 'settings', tenantId))
         ]);
 
-        const customersData = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer));
+        const customersData = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer))
+          .sort((a, b) => a.name.localeCompare(b.name));
         const techniciansData = techSnap.docs.map(d => ({ id: d.id, ...d.data() } as Technician));
         const suppliersData = supSnap.docs.map(d => ({ id: d.id, ...d.data() } as Supplier));
         

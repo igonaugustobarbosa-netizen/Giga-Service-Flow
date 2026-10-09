@@ -38,7 +38,7 @@ export default function Reports() {
     status: '' as ServiceStatus | '',
     startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
-    customerId: '',
+    customerIds: [] as string[],
     supplierId: '',
     technicianId: '',
     reportType: 'summary' as 'summary' | 'full'
@@ -55,7 +55,9 @@ export default function Reports() {
     // Load customers
     const qCustomers = isAdmin ? query(customersRef, orderBy('name')) : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name'));
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
-      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      data.sort((a, b) => a.name.localeCompare(b.name));
+      setCustomers(data);
     });
 
     // Load suppliers
@@ -104,7 +106,7 @@ export default function Reports() {
     if (end) end.setHours(23, 59, 59, 999);
 
     const matchesStatus = !filters.status || order.status === filters.status;
-    const matchesCustomer = !filters.customerId || order.customerId === filters.customerId;
+    const matchesCustomer = filters.customerIds.length === 0 || filters.customerIds.includes(order.customerId);
     const matchesSupplier = !filters.supplierId || order.supplierId === filters.supplierId;
     const matchesTechnician = !filters.technicianId || order.technicianIds?.includes(filters.technicianId);
     const matchesDate = (!start || orderDate >= start) && (!end || orderDate <= end);
@@ -197,15 +199,20 @@ export default function Reports() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="customer">Cliente</Label>
+                <Label htmlFor="customer">Clientes (Múltiplo)</Label>
                 <Select 
                   id="customer" 
-                  value={filters.customerId} 
-                  onChange={e => setFilters({...filters, customerId: e.target.value})}
+                  multiple
+                  className="h-24"
+                  value={filters.customerIds} 
+                  onChange={e => {
+                    const selected = Array.from(e.target.selectedOptions).map(o => o.value);
+                    setFilters({...filters, customerIds: selected});
+                  }}
                 >
-                  <option value="">Todos os Clientes</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
+                <p className="text-xs text-muted-foreground">Segure Ctrl/Cmd para selecionar vários.</p>
               </div>
 
               <div className="space-y-2">
@@ -251,7 +258,7 @@ export default function Reports() {
                   status: '',
                   startDate: '',
                   endDate: '',
-                  customerId: '',
+                  customerIds: [],
                   supplierId: '',
                   technicianId: '',
                   reportType: 'summary'

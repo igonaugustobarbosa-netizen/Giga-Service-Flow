@@ -18,6 +18,14 @@ const base64ToUint8Array = (base64: string) => {
   }
 };
 
+const getImageType = (base64: string) => {
+  const match = base64.match(/^data:image\/(\w+);base64,/);
+  if (!match) return 'png';
+  const type = match[1];
+  if (type === 'jpeg') return 'jpg';
+  return type as "svg" | "png" | "jpg" | "bmp" | "gif";
+};
+
 const createPhotoParagraphs = (photos: string[], title: string) => {
   if (!photos || photos.length === 0) return [];
 
@@ -35,6 +43,7 @@ const createPhotoParagraphs = (photos: string[], title: string) => {
     if (data) {
       imageRuns.push(new ImageRun({
         data: data,
+        type: getImageType(photo),
         transformation: {
           width: 150,
           height: 150,

@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, subMonths, addMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -58,13 +59,16 @@ export default function Dashboard() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [showTechFilter, setShowTechFilter] = useState(false);
+  const [showCustomerFilter, setShowCustomerFilter] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [detailedByDay, setDetailedByDay] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('all');
   
   // New Report Filters
   const [reportFilters, setReportFilters] = useState({
-    customerId: 'all',
+    customerIds: ['all'],
     status: 'all',
     billingStatus: 'all', // all, billed, pending
     technicianIds: ['all'],
@@ -122,11 +126,12 @@ export default function Dashboard() {
     });
 
     const qCustomers = isAdmin
-      ? query(customersRef)
-      : query(customersRef, where('tenantId', '==', userData.tenantId));
+      ? query(customersRef, orderBy('name', 'asc'))
+      : query(customersRef, where('tenantId', '==', userData.tenantId), orderBy('name', 'asc'));
 
     const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
-      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer)));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+      setCustomers(data);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'customers');
     });
@@ -295,7 +300,8 @@ export default function Dashboard() {
   };
 
   const filteredWorkOrders = allWorkOrders.filter(wo => {
-    if (reportFilters.customerId !== 'all' && wo.customerId !== reportFilters.customerId) return false;
+    const isAllCustomers = reportFilters.customerIds.includes('all') || reportFilters.customerIds.length === 0;
+    if (!isAllCustomers && !reportFilters.customerIds.includes(wo.customerId)) return false;
     if (reportFilters.status !== 'all' && wo.status !== reportFilters.status) return false;
     const isAllTechs = reportFilters.technicianIds.includes('all') || reportFilters.technicianIds.length === 0;
     if (!isAllTechs && !wo.technicianIds?.some(tId => reportFilters.technicianIds.includes(tId))) return false;
@@ -544,13 +550,31 @@ export default function Dashboard() {
     });
   };
 
-  const handleExportWorkOrderReport = () => {
+  const toggleCustomerFilter = (customerId: string) => {
+    setReportFilters(prev => {
+      let newIds = [...prev.customerIds];
+      if (customerId === 'all') {
+        newIds = ['all'];
+      } else {
+        newIds = newIds.filter(id => id !== 'all');
+        if (newIds.includes(customerId)) {
+          newIds = newIds.filter(id => id !== customerId);
+          if (newIds.length === 0) newIds = ['all'];
+        } else {
+          newIds.push(customerId);
+        }
+      }
+      return { ...prev, customerIds: newIds };
+    });
+  };
+
+  const handleExportWorkOrderReport = (isDetailed: boolean) => {
     // Enrich orders with calculated total value for the report if missing
     const enrichedOrders = filteredWorkOrders.map(wo => ({
       ...wo,
       totalValue: getWorkOrderTotalValue(wo)
     }));
-    generateWorkOrderReportPDF(enrichedOrders, customers, technicians, reportFilters);
+    generateWorkOrderReportPDF(enrichedOrders, customers, technicians, reportFilters, isDetailed);
   };
 
   const chartData = [
@@ -916,7 +940,7 @@ export default function Dashboard() {
               variant="outline" 
               size="sm" 
               onClick={() => setReportFilters({
-                customerId: 'all',
+                customerIds: ['all'],
                 status: 'all',
                 billingStatus: 'all',
                 technicianIds: ['all'],
@@ -927,14 +951,81 @@ export default function Dashboard() {
             >
               Limpar Filtros
             </Button>
-            <Select 
-              value={reportFilters.customerId} 
-              onChange={e => setReportFilters(prev => ({...prev, customerId: e.target.value}))}
-              className="h-9 text-xs min-w-[150px]"
-            >
-              <option value="all">Todos os Clientes</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-9 text-xs min-w-[150px] justify-between",
+                  !reportFilters.customerIds.includes('all') && "border-indigo-600 bg-indigo-50 text-indigo-700"
+                )}
+                onClick={() => setShowCustomerFilter(!showCustomerFilter)}
+              >
+                {reportFilters.customerIds.includes('all') 
+                  ? 'Todos os Clientes' 
+                  : `${reportFilters.customerIds.length} Cliente(s)`}
+                <Users className="w-3 h-3 ml-2 opacity-50" />
+              </Button>
+              
+              <AnimatePresence>
+                {showCustomerFilter && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowCustomerFilter(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      className="absolute top-full left-0 mt-1 w-64 bg-white border rounded-xl shadow-xl z-50 p-2 overflow-hidden"
+                    >
+                      <div className="max-h-60 overflow-y-auto space-y-1 p-1">
+                        <div 
+                          className={cn(
+                            "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+                            reportFilters.customerIds.includes('all') ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50 text-slate-700"
+                          )}
+                          onClick={() => {
+                            toggleCustomerFilter('all');
+                            setShowCustomerFilter(false);
+                          }}
+                        >
+                          <div className={cn(
+                            "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                            reportFilters.customerIds.includes('all') ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                          )}>
+                            {reportFilters.customerIds.includes('all') && <CheckCircle2 className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className="text-sm font-semibold">Todos os Clientes</span>
+                        </div>
+                        
+                        <div className="h-px bg-slate-100 my-1" />
+                        
+                        {customers.map(c => {
+                          const isSelected = reportFilters.customerIds.includes(c.id);
+                          return (
+                            <div 
+                              key={c.id}
+                              className={cn(
+                                "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors",
+                                isSelected ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50 text-slate-700"
+                              )}
+                              onClick={() => toggleCustomerFilter(c.id)}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                isSelected ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                              )}>
+                                {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="text-sm font-medium">{c.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
             <Select 
               value={reportFilters.status} 
               onChange={e => setReportFilters(prev => ({...prev, status: e.target.value}))}
@@ -1058,7 +1149,7 @@ export default function Dashboard() {
 
             <Button 
               size="sm" 
-              onClick={handleExportWorkOrderReport}
+              onClick={() => setShowPdfDialog(true)}
               disabled={filteredWorkOrders.length === 0}
               className="h-9 gap-2 bg-indigo-600 hover:bg-indigo-700"
             >
@@ -1229,6 +1320,46 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exportar Relatório de OS</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Escolha o formato de exportação para as {filteredWorkOrders.length} ordens de serviço filtradas:
+            </p>
+            <div className="flex items-center space-x-2 bg-slate-50 p-3 rounded-lg border">
+              <input 
+                type="checkbox" 
+                id="detailedByDay"
+                checked={detailedByDay}
+                onChange={e => setDetailedByDay(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <label htmlFor="detailedByDay" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
+                Detalhar os trabalhos e descrições de cada dia/sessão
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPdfDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowPdfDialog(false);
+                handleExportWorkOrderReport(detailedByDay);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Gerar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,13 +9,14 @@ export const generateWorkOrderReportPDF = (
   customers: Customer[],
   technicians: Technician[],
   filters: {
-    customerId: string;
+    customerIds: string[];
     status: string;
     billingStatus: string;
     technicianIds: string[];
     groupByTech?: boolean;
     excludeZeroHourTechs?: boolean;
-  }
+  },
+  detailedByDay: boolean = false
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -62,9 +63,12 @@ export const generateWorkOrderReportPDF = (
   const filterTexts = [];
   if (filters.status !== 'all') filterTexts.push(`Status: ${filters.status === 'open' ? 'Aberta' : filters.status === 'in-progress' ? 'Em Andamento' : 'Encerrada'}`);
   if (filters.billingStatus !== 'all') filterTexts.push(`Cobrança: ${filters.billingStatus === 'billed' ? 'Cobrado' : 'Pendente'}`);
-  if (filters.customerId !== 'all') {
-    const c = customers.find(c => c.id === filters.customerId);
-    if (c) filterTexts.push(`Cliente: ${c.name}`);
+  if (filters.customerIds && filters.customerIds.length > 0 && !filters.customerIds.includes('all')) {
+    const selectedCustomerNames = customers
+      .filter(c => filters.customerIds.includes(c.id))
+      .map(c => c.name)
+      .join(', ');
+    if (selectedCustomerNames) filterTexts.push(`Clientes: ${selectedCustomerNames}`);
   }
   if (filters.technicianIds.length > 0 && !filters.technicianIds.includes('all')) {
     if (filters.groupByTech) {
@@ -99,7 +103,9 @@ export const generateWorkOrderReportPDF = (
 
   const techSummary: Record<string, { name: string; hours: number; laborValue: number; kmValue: number }> = {};
 
-  const tableBody = orders.map((order) => {
+  const tableBody: any[][] = [];
+
+  orders.forEach((order) => {
     const customerName = order.customerNameSnapshot || customers.find(c => c.id === order.customerId)?.name || 'N/A';
     const dateStr = format(new Date(order.scheduledDate), 'dd/MM/yy');
     const statusLabel = 
@@ -269,7 +275,7 @@ export const generateWorkOrderReportPDF = (
     totalKm += order.kmDriven || 0;
     totalHours += workedHours;
 
-    return [
+    const mainRow = [
       order.workOrderNumber,
       dateStr,
       customerName,
@@ -279,6 +285,57 @@ export const generateWorkOrderReportPDF = (
       sessionIgonKmToInclude > 0 ? `R$ ${sessionIgonKmToInclude.toFixed(2)}` : '-',
       orderDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
     ];
+
+    tableBody.push(mainRow);
+
+    if (detailedByDay && order.workSessions && order.workSessions.length > 0) {
+      const sessions = order.workSessions;
+      const uniqueDaysMap = new Set(sessions.map(s => {
+        try { return format(new Date(s.startTime), 'yyyy-MM-dd'); } catch (e) { return 'invalid'; }
+      }));
+      const uniqueDaysCount = uniqueDaysMap.size || 1;
+      const totalOrderKmReais = kmValueToInclude + igonKmValueToInclude;
+      const kmPerDay = totalOrderKmReais / uniqueDaysCount;
+
+      const sessionsPerDay: Record<string, number> = {};
+      sessions.forEach(s => {
+        try {
+          const dayStr = format(new Date(s.startTime), 'yyyy-MM-dd');
+          sessionsPerDay[dayStr] = (sessionsPerDay[dayStr] || 0) + 1;
+        } catch (e) {}
+      });
+
+      sessions.forEach(session => {
+        const sessionDate = session.startTime ? format(new Date(session.startTime), 'dd/MM/yyyy HH:mm') : '-';
+        const sessionHours = session.duration ? `${session.duration.toFixed(1)}h` : '';
+        const sessionDesc = `   ↳ [Trabalho Diário] ${session.description || 'Sem descrição'} (${sessionHours}${session.billed ? ' - Cobrado' : ''})`;
+        
+        const h = session.duration || 0;
+        const sessionLabor = (session.technicianIds || []).reduce((sAcc: number, tId: string) => {
+          if (!isAllTechs && !filters.technicianIds.includes(tId)) return sAcc;
+          const r = order.technicianDetails?.find(td => td.technicianId === tId)?.laborRate || 
+                    technicians.find(t => t.id === tId)?.defaultLaborHourValue || 0;
+          return sAcc + (h * r);
+        }, 0);
+
+        let dayStr = 'invalid';
+        try { dayStr = format(new Date(session.startTime), 'yyyy-MM-dd'); } catch (e) {}
+        const countOnThisDay = sessionsPerDay[dayStr] || 1;
+        const sessionKmReais = kmPerDay / countOnThisDay;
+        const sessionTotal = sessionLabor + sessionKmReais;
+
+        tableBody.push([
+          '',
+          sessionDate,
+          sessionDesc,
+          '',
+          '',
+          sessionHours,
+          sessionKmReais > 0 ? `R$ ${sessionKmReais.toFixed(2)}` : '-',
+          sessionTotal > 0 ? sessionTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'
+        ]);
+      });
+    }
   });
 
   autoTable(doc, {
@@ -299,11 +356,19 @@ export const generateWorkOrderReportPDF = (
       7: { halign: 'right', cellWidth: 25 }
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 3) {
-        const val = data.cell.raw as string;
-        if (val === 'Aberta') data.cell.styles.textColor = [79, 70, 229];
-        else if (val === 'Em Andamento') data.cell.styles.textColor = [245, 158, 11];
-        else if (val === 'Encerrada') data.cell.styles.textColor = [16, 185, 129];
+      if (data.section === 'body') {
+        const rowData = data.row.raw as any[];
+        if (rowData && rowData[0] === '' && typeof rowData[2] === 'string' && rowData[2].includes('↳')) {
+          data.cell.styles.fontStyle = 'italic';
+          data.cell.styles.fontSize = 6.5;
+          data.cell.styles.textColor = [100, 100, 100];
+          data.cell.styles.fillColor = [248, 250, 252];
+        } else if (data.column.index === 3) {
+          const val = data.cell.raw as string;
+          if (val === 'Aberta') data.cell.styles.textColor = [79, 70, 229];
+          else if (val === 'Em Andamento') data.cell.styles.textColor = [245, 158, 11];
+          else if (val === 'Encerrada') data.cell.styles.textColor = [16, 185, 129];
+        }
       }
     }
   });
@@ -311,7 +376,7 @@ export const generateWorkOrderReportPDF = (
   y = (doc as any).lastAutoTable.finalY + 15;
 
   // Tech Summary Table
-  if (Object.keys(techSummary).length > 0) {
+  if (Object.keys(techSummary).length > 0 && !filters.groupByTech) {
     if (y + 30 > pageHeight - margin) { doc.addPage(); y = margin; }
     
     doc.setFont('helvetica', 'bold');
