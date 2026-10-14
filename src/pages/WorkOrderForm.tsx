@@ -70,6 +70,7 @@ export default function WorkOrderForm() {
   const [editSessionEndTime, setEditSessionEndTime] = useState<string>('');
   const [editSessionDescription, setEditSessionDescription] = useState<string>('');
   const [editSessionDuration, setEditSessionDuration] = useState<string>('');
+  const [editSessionTechnicianIds, setEditSessionTechnicianIds] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<Partial<WorkOrder>>({
     workOrderNumber: '',
@@ -523,6 +524,7 @@ export default function WorkOrderForm() {
     setEditSessionEndTime(format(end, 'HH:mm'));
     setEditSessionDescription(session.description || '');
     setEditSessionDuration(session.duration.toString().replace('.', ','));
+    setEditSessionTechnicianIds(session.technicianIds || formData.technicianIds || []);
   };
 
   const handleSaveEditedSession = () => {
@@ -549,7 +551,8 @@ export default function WorkOrderForm() {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         duration,
-        description: editSessionDescription
+        description: editSessionDescription,
+        technicianIds: editSessionTechnicianIds
       };
 
       const totalWorked = Number(newSessions.reduce((sum, s) => 
@@ -1486,6 +1489,31 @@ export default function WorkOrderForm() {
                                 onChange={(e) => setEditSessionDescription(e.target.value)}
                                 className="h-8 text-xs"
                               />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] uppercase font-bold text-slate-500">Técnicos nesta Sessão</Label>
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {technicians.map(tech => {
+                                  const isAssigned = editSessionTechnicianIds.includes(tech.id);
+                                  return (
+                                    <label key={tech.id} className="flex items-center gap-1.5 text-[11px] bg-slate-50 px-2 py-1 rounded border cursor-pointer hover:bg-slate-100">
+                                      <input 
+                                        type="checkbox"
+                                        checked={isAssigned}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setEditSessionTechnicianIds([...editSessionTechnicianIds, tech.id]);
+                                          } else {
+                                            setEditSessionTechnicianIds(editSessionTechnicianIds.filter(id => id !== tech.id));
+                                          }
+                                        }}
+                                        className="w-3 h-3 rounded text-indigo-600"
+                                      />
+                                      <span>{tech.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             </div>
                             <div className="flex justify-end gap-2 pt-1">
                               <Button 
