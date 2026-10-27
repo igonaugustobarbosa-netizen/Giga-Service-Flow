@@ -15,6 +15,7 @@ export const generateReportPDF = (
     customerId?: string;
     supplierId?: string;
     technicianId?: string;
+    paymentMethod?: string;
     reportType?: 'summary' | 'full';
   }
 ) => {
@@ -58,6 +59,10 @@ export const generateReportPDF = (
   
   const filterTexts = [];
   if (filters.status) filterTexts.push(`Status: ${filters.status}`);
+  if (filters.paymentMethod) {
+    const pmLabels: Record<string, string> = { pix: 'PIX', cash: 'Dinheiro', credit: 'Cartão de Crédito', debit: 'Cartão de Débito' };
+    filterTexts.push(`Tipo de Cobrança: ${pmLabels[filters.paymentMethod] || filters.paymentMethod}`);
+  }
   if (filters.startDate) filterTexts.push(`De: ${format(new Date(filters.startDate), 'dd/MM/yyyy')}`);
   if (filters.endDate) filterTexts.push(`Até: ${format(new Date(filters.endDate), 'dd/MM/yyyy')}`);
   if (filters.customerId) {

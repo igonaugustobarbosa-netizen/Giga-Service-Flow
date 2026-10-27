@@ -116,6 +116,10 @@ export const generateWorkOrderReportPDF = (
     const billedSessions = order.workSessions?.filter(s => s.billed) || [];
     const pendingSessions = order.workSessions?.filter(s => !s.billed) || [];
     const totalSessions = order.workSessions?.length || 0;
+
+    if (filters.billingStatus === 'billed' && billedSessions.length === 0) return;
+    if (filters.billingStatus === 'pending' && totalSessions > 0 && pendingSessions.length === 0) return;
+
     const billedCount = billedSessions.length;
     const billingLabel = `${billedCount}/${totalSessions}`;
     const isPending = pendingSessions.length > 0 || totalSessions === 0;
@@ -141,8 +145,12 @@ export const generateWorkOrderReportPDF = (
     const anySessionsBilledReport = order.workSessions && order.workSessions.some(s => s.billed);
     const noSessionsBilledReport = !order.workSessions || order.workSessions.length === 0 || !order.workSessions.some(s => s.billed);
 
+    const targetSessionsForCalc = filters.billingStatus === 'billed' ? billedSessions :
+                                  filters.billingStatus === 'pending' ? pendingSessions :
+                                  (order.workSessions || []);
+
     // KM Calculation
-    const uniqueDays = new Set((order.workSessions || []).map(s => {
+    const uniqueDays = new Set(targetSessionsForCalc.map(s => {
       try {
         return format(new Date(s.startTime), 'yyyy-MM-dd');
       } catch (e) {
@@ -288,8 +296,8 @@ export const generateWorkOrderReportPDF = (
 
     tableBody.push(mainRow);
 
-    if (detailedByDay && order.workSessions && order.workSessions.length > 0) {
-      const sessions = order.workSessions;
+    if (detailedByDay && sessionsToSum && sessionsToSum.length > 0) {
+      const sessions = sessionsToSum;
       const uniqueDaysMap = new Set(sessions.map(s => {
         try { return format(new Date(s.startTime), 'yyyy-MM-dd'); } catch (e) { return 'invalid'; }
       }));

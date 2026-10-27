@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ServiceOrder, Customer, Supplier, ServiceStatus, Technician } from '../types';
+import { ServiceOrder, Customer, Supplier, ServiceStatus, Technician, PaymentMethod } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -41,6 +41,7 @@ export default function Reports() {
     customerIds: [] as string[],
     supplierId: '',
     technicianId: '',
+    paymentMethod: '' as PaymentMethod | '',
     reportType: 'summary' as 'summary' | 'full'
   });
 
@@ -109,9 +110,10 @@ export default function Reports() {
     const matchesCustomer = filters.customerIds.length === 0 || filters.customerIds.includes(order.customerId);
     const matchesSupplier = !filters.supplierId || order.supplierId === filters.supplierId;
     const matchesTechnician = !filters.technicianId || order.technicianIds?.includes(filters.technicianId);
+    const matchesPaymentMethod = !filters.paymentMethod || order.paymentMethod === filters.paymentMethod;
     const matchesDate = (!start || orderDate >= start) && (!end || orderDate <= end);
 
-    return matchesStatus && matchesCustomer && matchesSupplier && matchesTechnician && matchesDate;
+    return matchesStatus && matchesCustomer && matchesSupplier && matchesTechnician && matchesPaymentMethod && matchesDate;
   });
 
   const totalBilling = filteredOrders.reduce((acc, order) => acc + order.totalValue, 0);
@@ -175,6 +177,21 @@ export default function Reports() {
                   <option value="closed">Fechada</option>
                   <option value="paid">Faturada Paga</option>
                   <option value="pending-payment">Aguardando Pagamento</option>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentMethod">Tipo de Cobrança</Label>
+                <Select 
+                  id="paymentMethod" 
+                  value={filters.paymentMethod} 
+                  onChange={e => setFilters({...filters, paymentMethod: e.target.value as PaymentMethod | ''})}
+                >
+                  <option value="">Todos os Tipos</option>
+                  <option value="pix">PIX</option>
+                  <option value="cash">Dinheiro</option>
+                  <option value="credit">Cartão de Crédito</option>
+                  <option value="debit">Cartão de Débito</option>
                 </Select>
               </div>
 
@@ -261,6 +278,7 @@ export default function Reports() {
                   customerIds: [],
                   supplierId: '',
                   technicianId: '',
+                  paymentMethod: '',
                   reportType: 'summary'
                 })}
               >
