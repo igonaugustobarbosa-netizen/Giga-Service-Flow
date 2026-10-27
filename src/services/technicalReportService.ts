@@ -6,6 +6,7 @@ export interface TechnicalReportData {
   description: string;
   procedures: string;
   nonConformities: string;
+  includeValues?: boolean;
 }
 
 export const generateTechnicalReport = (
@@ -123,6 +124,14 @@ export const generateTechnicalReport = (
   doc.text(`OS Nº: ${order.orderNumber || order.id.substring(0, 8).toUpperCase()}`, margin + colWidth + 10, y);
   y += 4;
   doc.text(`Tempo Executado: ${order.hoursWorked || 0} horas`, margin + colWidth + 10, y);
+
+  if (reportData?.includeValues) {
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129); // emerald-600
+    doc.text(`Valor do Orçamento: R$ ${(order.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin + colWidth + 10, y);
+    doc.setTextColor(0, 0, 0);
+  }
 
   y = Math.max(leftColumnY, y) + 8;
 

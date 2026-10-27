@@ -200,7 +200,7 @@ export default function TechnicalReports() {
     }
   };
 
-  const processGeneration = (format: 'pdf' | 'word') => {
+  const processGeneration = (format: 'pdf' | 'word', includeValues?: boolean) => {
     if (!selectedOrder) return;
 
     try {
@@ -208,13 +208,15 @@ export default function TechnicalReports() {
         generateTechnicalReport(selectedOrder, customer, technicians, settings, {
           description: technicalDescription,
           procedures: procedures,
-          nonConformities: nonConformities
+          nonConformities: nonConformities,
+          includeValues
         }, supplier);
       } else {
         generateTechnicalReportWord(selectedOrder, customer, technicians, settings, {
           description: technicalDescription,
           procedures: procedures,
-          nonConformities: nonConformities
+          nonConformities: nonConformities,
+          includeValues
         }, supplier);
       }
       toast.success(`Relatório técnico (${format.toUpperCase()}) gerado com sucesso!`);
@@ -529,6 +531,9 @@ export default function TechnicalReports() {
         isOpen={formatDialogOpen}
         onOpenChange={setFormatDialogOpen}
         onSelect={processGeneration}
+        showIncludeValues={true}
+        title="Gerar Relatório Técnico"
+        description="Escolha o formato e se deseja incluir o valor do orçamento."
       />
     </div>
   );

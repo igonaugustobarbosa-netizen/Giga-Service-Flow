@@ -274,6 +274,7 @@ export const generateTechnicalReportWord = async (
     description: string;
     procedures: string;
     nonConformities: string;
+    includeValues?: boolean;
   },
   supplier?: Supplier | null
 ) => {
@@ -300,6 +301,15 @@ export const generateTechnicalReportWord = async (
           new Paragraph({ children: [new TextRun({ text: `Contato: ${customer.contactName}` })] })
         ] : []),
         new Paragraph({ children: [new TextRun({ text: `Data do Relatório: ${dateStr}` })] }),
+        ...(reportData.includeValues ? [
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Valor do Orçamento: ", bold: true }),
+              new TextRun({ text: `R$ ${(order.totalValue || 0).toFixed(2)}`, bold: true, color: "10b981" })
+            ],
+            spacing: { before: 100, after: 100 }
+          })
+        ] : []),
 
         new Paragraph({ text: "", spacing: { after: 200 } }),
 
