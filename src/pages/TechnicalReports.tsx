@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ServiceOrder, Customer, Settings, Technician, Supplier } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
@@ -14,7 +14,8 @@ import {
   Download,
   Clock,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../components/AuthGuard';
@@ -108,9 +109,17 @@ export default function TechnicalReports() {
           const order = { id: orderSnap.id, ...orderSnap.data() } as ServiceOrder;
           setSelectedOrder(order);
           
-          setTechnicalDescription(order.description || "");
-          setProcedures(settings?.technicalReportDefaultProcedures || '');
-          setNonConformities('');
+          const reportSnap = await getDoc(doc(db, 'technicalReports', order.id));
+          if (reportSnap.exists()) {
+            const rep = reportSnap.data();
+            setTechnicalDescription(rep.technicalDescription || order.description || '');
+            setProcedures(rep.procedures || settings?.technicalReportDefaultProcedures || '');
+            setNonConformities(rep.nonConformities || '');
+          } else {
+            setTechnicalDescription(order.description || '');
+            setProcedures(settings?.technicalReportDefaultProcedures || '');
+            setNonConformities('');
+          }
           
           // Fetch related data in parallel
           const [customerSnap, techSnaps, supplierSnap] = await Promise.all([
@@ -162,6 +171,33 @@ export default function TechnicalReports() {
       return;
     }
     setFormatDialogOpen(true);
+  };
+
+  const handleSaveReport = async () => {
+    if (!selectedOrder || !userData?.tenantId) return;
+    setLoading(true);
+    try {
+      const reportData = {
+        orderId: selectedOrder.id,
+        orderNumber: selectedOrder.orderNumber,
+        customerId: selectedOrder.customerId,
+        customerName: customer?.name || selectedOrder.customerNameSnapshot || '',
+        technicalDescription,
+        procedures,
+        nonConformities,
+        tenantId: userData.tenantId,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'technicalReports', selectedOrder.id), reportData, { merge: true });
+      toast.success('Relatório técnico salvo com sucesso!');
+    } catch (error) {
+      console.error('Error saving technical report:', error);
+      toast.error('Erro ao salvar relatório técnico.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const processGeneration = (format: 'pdf' | 'word') => {
@@ -452,9 +488,20 @@ export default function TechnicalReports() {
 
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">
                       <Button 
+                        variant="outline"
                         size="lg" 
-                        className="flex-1 h-16 text-lg font-bold gap-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all bg-blue-600 hover:bg-blue-700"
+                        className="flex-1 h-16 text-lg font-bold gap-3 rounded-2xl shadow-sm hover:bg-slate-50 transition-all border-blue-200 text-blue-700"
+                        onClick={handleSaveReport}
+                        disabled={loading}
+                      >
+                        <Save className="w-6 h-6" />
+                        Salvar Relatório
+                      </Button>
+                      <Button 
+                        size="lg" 
+                        className="flex-1 h-16 text-lg font-bold gap-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleGenerateReport}
+                        disabled={loading}
                       >
                         <Download className="w-6 h-6" />
                         Gerar Relatório Técnico PDF

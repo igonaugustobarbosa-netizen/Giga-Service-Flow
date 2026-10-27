@@ -115,5 +115,11 @@ service cloud.firestore {
       allow create: if isSignedIn() && incoming().tenantId == getUserTenantId();
       allow update, delete: if isAdmin();
     }
+
+    match /technicalReports/{reportId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.tenantId == getUserTenantId());
+      allow create: if isSignedIn() && (isAdmin() || incoming().tenantId == getUserTenantId());
+      allow update, delete: if isSignedIn() && (isAdmin() || (resource != null && resource.data.tenantId == getUserTenantId()));
+    }
   }
 }
