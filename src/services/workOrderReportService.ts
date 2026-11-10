@@ -296,8 +296,12 @@ export const generateWorkOrderReportPDF = (
 
     tableBody.push(mainRow);
 
-    if (detailedByDay && sessionsToSum && sessionsToSum.length > 0) {
-      const sessions = sessionsToSum;
+    if (detailedByDay && order.workSessions && order.workSessions.length > 0) {
+      const sessions = order.workSessions.filter(s => {
+        if (filters.billingStatus === 'billed' && !s.billed) return false;
+        if (filters.billingStatus === 'pending' && s.billed) return false;
+        return true;
+      });
       const uniqueDaysMap = new Set(sessions.map(s => {
         try { return format(new Date(s.startTime), 'yyyy-MM-dd'); } catch (e) { return 'invalid'; }
       }));
@@ -316,7 +320,7 @@ export const generateWorkOrderReportPDF = (
       sessions.forEach(session => {
         const sessionDate = session.startTime ? format(new Date(session.startTime), 'dd/MM/yyyy HH:mm') : '-';
         const sessionHours = session.duration ? `${session.duration.toFixed(1)}h` : '';
-        const sessionDesc = `   ↳ [Trabalho Diário] ${session.description || 'Sem descrição'} (${sessionHours}${session.billed ? ' - Cobrado' : ''})`;
+        const sessionDesc = `   ↳ ${session.description || 'Sem descrição'} (${sessionHours}${session.billed ? ' - Cobrado' : ''})`;
         
         const h = session.duration || 0;
         const sessionLabor = (session.technicianIds || []).reduce((sAcc: number, tId: string) => {
@@ -354,14 +358,14 @@ export const generateWorkOrderReportPDF = (
     headStyles: { fillColor: [79, 70, 229], fontSize: 8 },
     styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
     columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 'auto', overflow: 'linebreak' },
-      3: { cellWidth: 25 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 15 },
-      6: { cellWidth: 25 },
-      7: { halign: 'right', cellWidth: 30 }
+      0: { cellWidth: 14, overflow: 'linebreak' },
+      1: { cellWidth: 25, overflow: 'linebreak' },
+      2: { cellWidth: 137, overflow: 'linebreak' },
+      3: { cellWidth: 18, overflow: 'linebreak' },
+      4: { cellWidth: 21, overflow: 'linebreak' },
+      5: { cellWidth: 15, overflow: 'linebreak' },
+      6: { cellWidth: 18, overflow: 'linebreak' },
+      7: { halign: 'right', cellWidth: 25, overflow: 'linebreak' }
     },
     didParseCell: (data) => {
       if (data.section === 'body') {
@@ -443,5 +447,13 @@ export const generateWorkOrderReportPDF = (
     drawFooter(i, totalPages);
   }
 
-  doc.save(`Relatorio_OS_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`);
+  let customerNamePart = 'Geral';
+  if (filters.customerIds && filters.customerIds.length === 1 && filters.customerIds[0] !== 'all') {
+    const foundCust = customers.find(c => c.id === filters.customerIds[0]);
+    if (foundCust) {
+      customerNamePart = foundCust.name.replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+  }
+  const dateStr = format(new Date(), 'dd-MM-yyyy');
+  doc.save(`Relatorio_OS_${customerNamePart}_${dateStr}.pdf`);
 };
