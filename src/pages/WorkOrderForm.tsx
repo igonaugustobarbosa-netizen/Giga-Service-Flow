@@ -894,6 +894,24 @@ export default function WorkOrderForm() {
     }
   };
 
+  const sessions = formData.workSessions || [];
+  const uniqueDaysMap = new Set(sessions.map(s => {
+    try { return format(parseDateSafely(s.startTime), 'yyyy-MM-dd'); } catch (e) { return 'invalid'; }
+  }));
+  const uniqueDaysCount = uniqueDaysMap.size || 1;
+  const totalKmVal = formData.kmTotalValue || ((formData.kmDriven || 0) * (formData.kmRate || settings?.kmValue || 0));
+  const kmPerDay = uniqueDaysCount > 0 ? totalKmVal / uniqueDaysCount : 0;
+  const totalKmDist = formData.kmDriven || 0;
+  const kmDistPerDay = uniqueDaysCount > 0 ? totalKmDist / uniqueDaysCount : 0;
+
+  const sessionsPerDay: Record<string, number> = {};
+  sessions.forEach(s => {
+    try {
+      const dayStr = format(parseDateSafely(s.startTime), 'yyyy-MM-dd');
+      sessionsPerDay[dayStr] = (sessionsPerDay[dayStr] || 0) + 1;
+    } catch (e) {}
+  });
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <div className="flex items-center justify-between gap-4">
@@ -1436,172 +1454,186 @@ export default function WorkOrderForm() {
                       Histórico de Sessões de Trabalho
                     </h3>
                   <div className="grid grid-cols-1 gap-2">
-                    {formData.workSessions.map((session, index) => (
-                      <div key={index} className="flex flex-col p-3 bg-muted/20 rounded-lg border border-border text-xs gap-2">
-                        {editingSessionIndex === index ? (
-                          <div className="space-y-3 p-2 bg-white rounded-md border border-indigo-100 shadow-sm">
-                            <div className="grid grid-cols-2 gap-2">
+                    {sessions.map((session, index) => {
+                      let dayStr = 'invalid';
+                      try { dayStr = format(parseDateSafely(session.startTime), 'yyyy-MM-dd'); } catch (e) {}
+                      const countOnThisDay = sessionsPerDay[dayStr] || 1;
+                      const sessionKmReais = kmPerDay / countOnThisDay;
+                      const sessionKmDist = kmDistPerDay / countOnThisDay;
+
+                      return (
+                        <div key={index} className="flex flex-col p-3 bg-muted/20 rounded-lg border border-border text-xs gap-2">
+                          {editingSessionIndex === index ? (
+                            <div className="space-y-3 p-2 bg-white rounded-md border border-indigo-100 shadow-sm">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Data</Label>
+                                  <Input 
+                                    type="date"
+                                    value={editSessionDate}
+                                    onChange={(e) => setEditSessionDate(e.target.value)}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Duração (h)</Label>
+                                  <Input 
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={editSessionDuration}
+                                    onChange={(e) => setEditSessionDuration(e.target.value)}
+                                    className="h-8 text-xs font-bold text-indigo-600"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Início</Label>
+                                  <Input 
+                                    type="time"
+                                    value={editSessionStartTime}
+                                    onChange={(e) => setEditSessionStartTime(e.target.value)}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-slate-500">Fim</Label>
+                                  <Input 
+                                    type="time"
+                                    value={editSessionEndTime}
+                                    onChange={(e) => setEditSessionEndTime(e.target.value)}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                              </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-slate-500">Data</Label>
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Procedimento</Label>
                                 <Input 
-                                  type="date"
-                                  value={editSessionDate}
-                                  onChange={(e) => setEditSessionDate(e.target.value)}
+                                  placeholder="Descrição do que foi feito..."
+                                  value={editSessionDescription}
+                                  onChange={(e) => setEditSessionDescription(e.target.value)}
                                   className="h-8 text-xs"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-slate-500">Duração (h)</Label>
-                                <Input 
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={editSessionDuration}
-                                  onChange={(e) => setEditSessionDuration(e.target.value)}
-                                  className="h-8 text-xs font-bold text-indigo-600"
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-slate-500">Início</Label>
-                                <Input 
-                                  type="time"
-                                  value={editSessionStartTime}
-                                  onChange={(e) => setEditSessionStartTime(e.target.value)}
-                                  className="h-8 text-xs"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-slate-500">Fim</Label>
-                                <Input 
-                                  type="time"
-                                  value={editSessionEndTime}
-                                  onChange={(e) => setEditSessionEndTime(e.target.value)}
-                                  className="h-8 text-xs"
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase font-bold text-slate-500">Procedimento</Label>
-                              <Input 
-                                placeholder="Descrição do que foi feito..."
-                                value={editSessionDescription}
-                                onChange={(e) => setEditSessionDescription(e.target.value)}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] uppercase font-bold text-slate-500">Técnicos nesta Sessão</Label>
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {technicians.map(tech => {
-                                  const isAssigned = editSessionTechnicianIds.includes(tech.id);
-                                  return (
-                                    <label key={tech.id} className="flex items-center gap-1.5 text-[11px] bg-slate-50 px-2 py-1 rounded border cursor-pointer hover:bg-slate-100">
-                                      <input 
-                                        type="checkbox"
-                                        checked={isAssigned}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setEditSessionTechnicianIds([...editSessionTechnicianIds, tech.id]);
-                                          } else {
-                                            setEditSessionTechnicianIds(editSessionTechnicianIds.filter(id => id !== tech.id));
-                                          }
-                                        }}
-                                        className="w-3 h-3 rounded text-indigo-600"
-                                      />
-                                      <span>{tech.name}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-1">
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-7 text-[10px]"
-                                onClick={() => setEditingSessionIndex(null)}
-                              >
-                                Cancelar
-                              </Button>
-                              <Button 
-                                type="button" 
-                                size="sm" 
-                                className="h-7 text-[10px] bg-indigo-600 hover:bg-indigo-700"
-                                onClick={handleSaveEditedSession}
-                              >
-                                Salvar
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex gap-4">
-                                <div className="flex flex-col">
-                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
-                                  <span>{format(parseDateSafely(session.startTime), "dd/MM/yy HH:mm")}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
-                                  <span>{format(parseDateSafely(session.endTime), "dd/MM/yy HH:mm")}</span>
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Técnicos nesta Sessão</Label>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {technicians.map(tech => {
+                                    const isAssigned = editSessionTechnicianIds.includes(tech.id);
+                                    return (
+                                      <label key={tech.id} className="flex items-center gap-1.5 text-[11px] bg-slate-50 px-2 py-1 rounded border cursor-pointer hover:bg-slate-100">
+                                        <input 
+                                          type="checkbox"
+                                          checked={isAssigned}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setEditSessionTechnicianIds([...editSessionTechnicianIds, tech.id]);
+                                            } else {
+                                              setEditSessionTechnicianIds(editSessionTechnicianIds.filter(id => id !== tech.id));
+                                            }
+                                          }}
+                                          className="w-3 h-3 rounded text-indigo-600"
+                                        />
+                                        <span>{tech.name}</span>
+                                      </label>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <div className="flex flex-col items-end mr-2">
-                                  <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração</span>
-                                  <span className="font-bold text-indigo-600">{session.duration.toFixed(2)}h</span>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
-                                  onClick={() => handleStartEditSession(index)}
-                                  title="Editar sessão"
+                              <div className="flex justify-end gap-2 pt-1">
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-7 text-[10px]"
+                                  onClick={() => setEditingSessionIndex(null)}
                                 >
-                                  <Pencil className="w-4 h-4" />
+                                  Cancelar
                                 </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className={cn(
-                                    "h-8 w-8 transition-colors",
-                                    session.billed ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
-                                  )}
-                                  onClick={() => toggleBilled(index)}
-                                  title={session.billed ? "Marcar como não cobrado" : "Marcar como cobrado"}
+                                <Button 
+                                  type="button" 
+                                  size="sm" 
+                                  className="h-7 text-[10px] bg-indigo-600 hover:bg-indigo-700"
+                                  onClick={handleSaveEditedSession}
                                 >
-                                  <Banknote className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => removeSession(index)}
-                                  title="Remover sessão"
-                                >
-                                  <Trash2 className="w-4 h-4" />
+                                  Salvar
                                 </Button>
                               </div>
                             </div>
-                            {session.description && (
-                              <div className="pt-2 border-t border-border/50">
-                                <span className="text-muted-foreground font-medium">Procedimento:</span>
-                                <p className="mt-0.5 text-slate-700 italic">{session.description}</p>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex gap-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-muted-foreground uppercase text-[10px] font-bold">Início</span>
+                                    <span>{format(parseDateSafely(session.startTime), "dd/MM/yy HH:mm")}</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-muted-foreground uppercase text-[10px] font-bold">Fim</span>
+                                    <span>{format(parseDateSafely(session.endTime), "dd/MM/yy HH:mm")}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="flex flex-col items-end mr-2">
+                                    <span className="text-muted-foreground uppercase text-[10px] font-bold">KM Proporcional</span>
+                                    <span className="font-bold text-emerald-600">
+                                      {sessionKmDist > 0 ? `${sessionKmDist.toFixed(1)} km` : '-'} {sessionKmReais > 0 ? `(R$ ${sessionKmReais.toFixed(2)})` : ''}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col items-end mr-2">
+                                    <span className="text-muted-foreground uppercase text-[10px] font-bold">Duração</span>
+                                    <span className="font-bold text-indigo-600">{session.duration.toFixed(2)}h</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
+                                    onClick={() => handleStartEditSession(index)}
+                                    title="Editar sessão"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                      "h-8 w-8 transition-colors",
+                                      session.billed ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-slate-400 hover:text-emerald-500 hover:bg-emerald-50"
+                                    )}
+                                    onClick={() => toggleBilled(index)}
+                                    title={session.billed ? "Marcar como não cobrado" : "Marcar como cobrado"}
+                                  >
+                                    <Banknote className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => removeSession(index)}
+                                    title="Remover sessão"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
                               </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                              {session.description && (
+                                <div className="pt-2 border-t border-border/50">
+                                  <span className="text-muted-foreground font-medium">Procedimento:</span>
+                                  <p className="mt-0.5 text-slate-700 italic">{session.description}</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
-            )}
+            </div>
+          )}
           </CardContent>
         </Card>
 
